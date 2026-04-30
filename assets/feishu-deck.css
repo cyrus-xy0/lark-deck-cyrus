@@ -1829,18 +1829,24 @@ body {
           mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
 }
 
-/* Card hover lift — gentle interactive affordance in present mode.
-   Doesn't fire in scroll mode (touch) because the cursor doesn't track. */
+/* Card hover affordance — color + glow only. NEVER translate.
+   Why no `transform: translateY(...)`: the transformed box is what the
+   browser hit-tests, so a -4px lift moves the card's hit area up by 4px.
+   If the cursor is near the bottom edge, it falls outside the lifted card
+   → :hover off → card returns → cursor inside again → infinite hover loop
+   producing visible flicker. Background + border-color changes are stable
+   because they don't move the hit area. The 0 0 0 glow ring is allowed
+   under R12 (no-shadow) since spread+blur=0 isn't a drop shadow. */
 .slide .card {
   transition:
-    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     background 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .slide .card:hover {
   background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
-  border-color: color-mix(in srgb, var(--fs-blue) 40%, transparent);
-  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--fs-blue) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--fs-blue) 35%, transparent);
 }
 
 /* Tile gradient enhancement — replaces flat tinted square with blue→violet
