@@ -470,7 +470,8 @@ body {
    LAYOUT 03 — Content (3-up cards)
    ============================================================================ */
 .slide[data-layout="content-3up"] {
-  background: var(--fs-bg-0);
+  /* background set by the unified content-bg rule below — uses
+     lark-content-bg.jpg (飞书母版 image1.jpg) for the subtle dark gradient. */
 }
 .slide[data-layout="content-3up"] .header {
   position: absolute; top: 96px; left: 96px; right: 96px;
@@ -510,7 +511,8 @@ body {
 /* ============================================================================
    LAYOUT 04 — Content 2-column (text + visual)
    ============================================================================ */
-.slide[data-layout="content-2col"] { background: var(--fs-bg-0); }
+/* content-2col background set by the unified content-bg rule below — uses
+   lark-content-bg.jpg (飞书母版 image1.jpg) for the subtle dark gradient. */
 .slide[data-layout="content-2col"] .header {
   position: absolute; top: 96px; left: 96px; right: 96px;
   padding-bottom: 32px; border-bottom: 1px solid var(--fs-hairline);
@@ -865,6 +867,8 @@ body {
 
 /* Subtle ambient gradient for content/agenda/table/etc (master uses image1.jpg) */
 .slide[data-layout="agenda"],
+.slide[data-layout="content-3up"],
+.slide[data-layout="content-2col"],
 .slide[data-layout="content-3up"],
 .slide[data-layout="content-2col"],
 .slide[data-layout="stats"],
