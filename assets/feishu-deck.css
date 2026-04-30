@@ -397,7 +397,11 @@ body {
 }
 .slide[data-layout="cover"] .stage {
   position: absolute; top: 285px; left: 124px;
-  width: 884px;                         /* left half — flower lives in right half */
+  width: 980px;                         /* left half — widened from master 884 because
+                                           典型 9-字中文标题 @ 100px 会在 884px 内溢出
+                                           造成 4-5 行 auto-wrap. Dark gradient overlay
+                                           extends to x≈1152, so 980 still preserves
+                                           flower visibility on the right. */
 }
 .slide[data-layout="cover"] h1.title {
   font: 700 100px/1.18 var(--fs-font-cjk);  /* master: 50pt → 100px on 1920 canvas */
