@@ -1400,6 +1400,115 @@ body {
 .slide .principle-band .principle[data-color="violet"] { color: var(--fs-violet); }
 .slide .principle-band .principle[data-color="orange"] { color: var(--fs-orange); }
 
+/* ----------------------------------------------------------------------------
+   Two-hand architecture (pattern H+) — top decision-maker crown, two SVG
+   curved-dashed lines, two hands grid (left blue / right teal), bottom base.
+   Used for "we do exactly two things" value-proposition slides where you
+   need to show: who decides → what split between two halves → on what base.
+   Brand palette only: blue+teal (NOT v2's blue+orange).
+
+   Markup:
+     <div class="two-hand-arch">
+       <div class="arch-top">品牌总部 · CEO / 销售 VP / 渠道总监</div>
+       <div class="arch-lines">
+         <svg viewBox="0 0 800 60" preserveAspectRatio="none">
+           <path d="M400,0 Q400,30 200,60" stroke="…" .../>
+           <path d="M400,0 Q400,30 600,60" stroke="…" .../>
+         </svg>
+       </div>
+       <div class="arch-hands">
+         <div class="arch-hand left"> <h3>左手 · X</h3> ... </div>
+         <div class="arch-hand right"><h3>右手 · Y</h3> ... </div>
+       </div>
+       <div class="arch-base">底座 · 飞书 IM · 文档 · 多维表格 …</div>
+     </div>
+   ---------------------------------------------------------------------------- */
+.slide .two-hand-arch {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 18px;
+  height: 100%;
+}
+.slide .arch-top {
+  align-self: center; justify-self: center;
+  padding: 18px 36px; border-radius: 14px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--fs-blue) 22%, transparent),
+    color-mix(in srgb, var(--fs-purple) 14%, transparent));
+  border: 1px solid color-mix(in srgb, var(--fs-blue) 45%, transparent);
+  font: 700 22px/1.3 var(--fs-font-cjk);
+  color: var(--fs-text);
+  letter-spacing: 0.06em;
+  display: inline-flex; align-items: center; gap: 14px;
+}
+.slide .arch-top svg { width: 24px; height: 24px; color: var(--fs-blue); }
+.slide .arch-lines { height: 60px; width: 100%; display: flex; justify-content: center; }
+.slide .arch-lines svg { width: 100%; height: 100%; overflow: visible; }
+.slide .arch-hands {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 32px; align-items: stretch;
+}
+.slide .arch-hand {
+  border-radius: var(--fs-radius-card); padding: 32px;
+  border: 1px solid var(--fs-hairline);
+  position: relative;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.slide .arch-hand.left {
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--fs-blue) 18%, transparent),
+    color-mix(in srgb, var(--fs-blue) 2%, transparent));
+  border-color: color-mix(in srgb, var(--fs-blue) 45%, transparent);
+}
+.slide .arch-hand.right {
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--fs-teal) 16%, transparent),
+    color-mix(in srgb, var(--fs-teal) 2%, transparent));
+  border-color: color-mix(in srgb, var(--fs-teal) 45%, transparent);
+}
+.slide .arch-hand-title { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.slide .arch-hand-title h3 {
+  font: 700 32px/1.2 var(--fs-font-cjk);
+  color: var(--fs-text);
+}
+.slide .arch-hand-title .em {
+  font: 600 16px/1 var(--fs-font-latin);
+  letter-spacing: 0.24em;
+  color: var(--fs-text-72);
+}
+.slide .arch-hand .sub {
+  font: 500 20px/1.5 var(--fs-font-cjk);
+  color: var(--fs-text-72);
+}
+.slide .arch-items { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.slide .arch-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  font: 500 20px/1.45 var(--fs-font-cjk);
+  color: var(--fs-text);
+}
+.slide .arch-item .n {
+  flex: none; width: 30px; height: 30px;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  background: var(--fs-blue); color: #fff;
+  font: 700 14px/1 var(--fs-font-cjk);
+}
+.slide .arch-hand.right .arch-item .n { background: var(--fs-teal); color: #0A0E1B; }
+.slide .arch-base {
+  padding: 18px 28px; border-radius: 14px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--fs-blue) 12%, transparent),
+    color-mix(in srgb, var(--fs-teal) 12%, transparent));
+  border: 1px dashed color-mix(in srgb, var(--fs-text) 18%, transparent);
+  text-align: center;
+  font: 500 20px/1.45 var(--fs-font-cjk);
+  color: var(--fs-text-72);
+  letter-spacing: 0.04em;
+}
+.slide .arch-base b { color: var(--fs-text); font-weight: 700; }
+
 /* Source footer (Section 七 #1) — every content page should carry one */
 .slide .source-footer {
   position: absolute; left: 73px; bottom: 92px;

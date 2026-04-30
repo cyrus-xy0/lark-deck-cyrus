@@ -1730,6 +1730,54 @@ guide lines from center to each card's inner edge. Each card carries: pill +
 serial numeral top-right + lead + body + key-deliverable chips + hand-off
 indicator. Use for "四个不可分割的协同角色".
 
+### H+. Two-hand architecture (心脏图) — `two-hand-arch`
+Use when the value proposition is "we do exactly TWO things, on a shared
+base, for a single decision-maker". 4-tier vertical structure: top
+decision-maker crown → SVG curved-dashed lines (blue + teal) → two hands
+(left blue tinted, right teal tinted) each with 3 numbered items → bottom
+base (the underlying tech stack). Brand palette only — NEVER imitate
+v2-style blue+orange split; use blue+teal which matches the feishu master.
+
+```html
+<div class="two-hand-arch">
+  <div class="arch-top">
+    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    品牌总部 · CEO / 销售 VP / 渠道总监
+  </div>
+  <div class="arch-lines">
+    <svg viewBox="0 0 800 60" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="archL" x1="0%" x2="100%"><stop offset="0" stop-color="#3C7FFF"/><stop offset="1" stop-color="#3C7FFF" stop-opacity=".3"/></linearGradient>
+        <linearGradient id="archR" x1="0%" x2="100%"><stop offset="0" stop-color="#33D6C0" stop-opacity=".3"/><stop offset="1" stop-color="#33D6C0"/></linearGradient>
+      </defs>
+      <path d="M400,0 Q400,30 200,60" stroke="url(#archL)" stroke-width="2" fill="none" stroke-dasharray="6 6"/>
+      <path d="M400,0 Q400,30 600,60" stroke="url(#archR)" stroke-width="2" fill="none" stroke-dasharray="6 6"/>
+    </svg>
+  </div>
+  <div class="arch-hands">
+    <div class="arch-hand left">
+      <div class="arch-hand-title"><h3>左手 · X</h3><span class="em">EN MOTTO</span></div>
+      <div class="sub">一句解释左手做什么</div>
+      <div class="arch-items">
+        <div class="arch-item"><span class="n">1</span>第一项 — 一句话效果</div>
+        <div class="arch-item"><span class="n">2</span>第二项</div>
+        <div class="arch-item"><span class="n">3</span>第三项</div>
+      </div>
+    </div>
+    <div class="arch-hand right">
+      <div class="arch-hand-title"><h3>右手 · Y</h3><span class="em">EN MOTTO</span></div>
+      <div class="sub">一句解释右手做什么</div>
+      <div class="arch-items">
+        <div class="arch-item"><span class="n">4</span>第一项</div>
+        <div class="arch-item"><span class="n">5</span>第二项</div>
+        <div class="arch-item"><span class="n">6</span>第三项</div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-base">底座 · 飞书 IM · 文档 · 多维表格 · 审批 · 知识库 — <b>天然一体</b></div>
+</div>
+```
+
 ### I. 6-step pipeline timeline
 Top horizontal rail (gradient line + 6 dots, last dot teal). Below: 6 columns
 with step number, EN, ZH, 3 bullets each. Final column gets accent4 stroke +
