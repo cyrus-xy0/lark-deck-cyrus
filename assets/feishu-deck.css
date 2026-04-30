@@ -1820,20 +1820,13 @@ body {
    nests under .slide so they can't leak into the host page or .deck-ui chrome.
    ============================================================================ */
 
-/* Subtle dot-grid backdrop — pairs well with data-decor glows.
-   Add `<div class="grid-bg"></div>` as the first child of any .slide that
-   wants ambient texture. z-index: 0 so it sits beneath all content.
-   No mask-image — earlier versions used a radial mask which on some GPUs
-   produced repaint flicker when combined with the slide's reveal animation.
-   A lighter opacity + smaller dot pitch achieves a similar look without the
-   compositing cost. */
-.slide .grid-bg {
-  position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.10;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
-  background-size: 64px 64px;
-}
+/* .grid-bg REMOVED in v1.3.8.
+   The 飞书 master's lark-content-bg.jpg already provides the only ambient
+   texture content pages should have. Adding a CSS dot-grid on top creates
+   double-noise off-master. Class kept resolvable as a no-op for legacy
+   deck markup (decks that still ship `<div class="grid-bg"></div>` will
+   render nothing instead of double-rendering the grid). */
+.slide .grid-bg { display: none; }
 
 /* Card hover affordance — color + glow only. NEVER translate.
    Why no `transform: translateY(...)`: the transformed box is what the
