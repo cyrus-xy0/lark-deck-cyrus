@@ -12,13 +12,25 @@ set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 INLINE=0
 VALIDATE=0
+SKIP_PREFLIGHT=0
 for arg in "$@"; do
   case "$arg" in
-    --inline)   INLINE=1 ;;
-    --validate) VALIDATE=1 ;;
+    --inline)         INLINE=1 ;;
+    --validate)       VALIDATE=1 ;;
+    --skip-preflight) SKIP_PREFLIGHT=1 ;;   # CI / dev only — never in user flow
     *) ;;
   esac
 done
+
+# ---- Preflight: refuse to build in ephemeral / read-only mode ----
+if [ "$SKIP_PREFLIGHT" = "0" ]; then
+  if ! bash "$ROOT/assets/preflight.sh" >&2; then
+    echo
+    echo "BUILD ABORTED — preflight failed. Mount a local folder and re-run."
+    echo "(For CI / dev, you may pass --skip-preflight to bypass.)"
+    exit 1
+  fi
+fi
 
 OUT_LINK="$ROOT/examples/sample-deck.html"
 OUT_INLINE="$ROOT/examples/sample-deck-inline.html"

@@ -15,24 +15,75 @@ audit/check functions:    20  · CSS / JS / 文档全覆盖
 
 ---
 
-## Quick start
+## Install (mandatory: local-mount mode)
+
+This skill **requires a local mount**. It refuses to work in ephemeral
+session storage. See [SKILL.md PREFLIGHT](./SKILL.md#preflight-mandatory-blocks-all-work--local-mount-required)
+for the full reasoning. TL;DR — without a mount you lose the deck when
+the conversation ends, you can't `git commit`, you can't open it in
+your browser.
+
+### Install option A — git clone into your project
 
 ```bash
-# 1. 克隆
-git clone git@github.com:FuQiang/feishu-deck-h5.git
-cd feishu-deck-h5
+# 1. Clone the repo somewhere persistent
+git clone git@github.com:FuQiang/feishu-deck-h5.git ~/Projects/feishu-deck-h5
+cd ~/Projects/feishu-deck-h5
 
-# 2. 默认构建（linked, 24 KB）
+# 2. In Claude Code / Cowork, mount this directory:
+#    macOS / Cowork app → settings → Cowork directory → ~/Projects/feishu-deck-h5
+#    or via tool: mcp__cowork__request_cowork_directory
+```
+
+### Install option B — git clone into a parent project
+
+```bash
+# Use this when you want the deck output to live alongside other project files
+mkdir -p ~/Projects/q1-customer-pitch
+cd ~/Projects/q1-customer-pitch
+git clone git@github.com:FuQiang/feishu-deck-h5.git
+# Mount ~/Projects/q1-customer-pitch in Claude Code; the deck files end up
+# in q1-customer-pitch/feishu-deck-h5/examples/
+```
+
+### Install option C — Cowork plugin marketplace
+
+If installed via the Cowork plugin marketplace (when published), the
+skill files live in `~/.claude/skills/feishu-deck-h5/` and are loaded
+automatically. You STILL need to mount a project folder where the
+generated deck will be written — the plugin path is read-only.
+
+### Verify install
+
+```bash
+# Run the preflight check from inside the mounted skill folder:
+bash assets/preflight.sh
+# Expected: "PREFLIGHT OK · skill root: ... · writable: yes · ..."
+# Any non-zero exit → fix before generating decks.
+```
+
+---
+
+## Quick start (after install + mount)
+
+```bash
+# 1. From inside the mounted skill folder
+cd ~/Projects/feishu-deck-h5
+
+# 2. Verify mount + write access
+bash assets/preflight.sh
+
+# 3. Build (default = linked, 24 KB)
 bash build.sh
 
-# 3. 单文件构建（inlined, 361 KB）
+# 4. Build single-file inline mode (361 KB, opt-in for email/IM)
 bash build.sh --inline
 
-# 4. 跑自检
+# 5. Run programmatic self-check
 python3 assets/validate.py examples/sample-deck.html
 python3 assets/validate.py examples/sample-deck-inline.html --strict
 
-# 5. 浏览器打开
+# 6. Open in browser
 open examples/sample-deck.html
 ```
 

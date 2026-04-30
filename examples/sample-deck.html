@@ -12,12 +12,18 @@
 <!--
   feishu-deck-h5 · slide body fragment
   Purpose: a body-only partial used to assemble single-file decks. Contains
-  every layout once (12 slides, all canonical recipes). To use:
+  every layout once (13 slides, all canonical recipes). To use:
     1) Copy this file into the <body> of your shell HTML, between the <body>
        open tag and the trailing <script>, OR
     2) cat assets/feishu-deck.css → wrap in <style>, then this file, then
        cat assets/feishu-deck.js → wrap in <script>. That's how the build
        script in SKILL.md produces examples/sample-deck.html.
+
+  Header pattern (per reference deck, 2026-04 update):
+    Content pages have a single-line title at top-left + colored 飞书 logo
+    at top-right. NO eyebrow above the title. NO sub-line below. The
+    page-no lives in the footer only. Hero layouts (cover / image-text / end)
+    keep their own pattern.
 -->
 <div class="deck">
 
@@ -37,11 +43,10 @@
 
 <!-- 02 Agenda ============================================================== -->
 <div class="slide-frame">
-  <div class="slide" data-layout="agenda" data-accent="blue" data-screen-label="02 Agenda">
+  <div class="slide" data-layout="agenda" data-screen-label="02 Agenda">
     <div class="wordmark">飞书</div>
     <div class="header">
       <h2 class="title-zh">本次汇报共六个部分</h2>
-      <p class="en">Six chapters · approximately 35 minutes</p>
     </div>
     <div class="toc">
       <div class="item"><div class="n">01</div><div><div class="title-zh">背景与挑战</div><div class="title-en">Context and challenges</div></div></div>
@@ -51,7 +56,7 @@
       <div class="item"><div class="n">05</div><div><div class="title-zh">部署与服务</div><div class="title-en">Rollout and service</div></div></div>
       <div class="item"><div class="n">06</div><div><div class="title-zh">下一步</div><div class="title-en">Next steps</div></div></div>
     </div>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">02</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">02</span></div>
   </div>
 </div>
 
@@ -75,14 +80,10 @@
 
 <!-- 04 Content 3-up ======================================================= -->
 <div class="slide-frame">
-  <div class="slide" data-layout="content-3up" data-accent="blue" data-screen-label="04 Content">
-    <div class="wordmark">Lark</div>
+  <div class="slide" data-layout="content-3up" data-screen-label="04 Content">
+    <div class="wordmark">飞书</div>
     <div class="header">
-      <div>
-        <div class="eyebrow">CAPABILITIES · 三大能力</div>
-        <h2 class="title-zh">先进团队的三大工作方式</h2>
-      </div>
-      <div class="pageno">04 / 12</div>
+      <h2 class="title-zh">先进团队的三大工作方式</h2>
     </div>
     <div class="grid">
       <div class="card">
@@ -113,20 +114,16 @@
         <div class="cfoot"><span>BASE · MEETINGS</span><svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
       </div>
     </div>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">04</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">04</span></div>
   </div>
 </div>
 
 <!-- 05 Content 2-col ====================================================== -->
 <div class="slide-frame">
-  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="05 Content">
-    <div class="wordmark">Lark</div>
+  <div class="slide" data-layout="content-2col" data-screen-label="05 Content">
+    <div class="wordmark">飞书</div>
     <div class="header">
-      <div>
-        <div class="eyebrow">PRODUCT · LARK BASE</div>
-        <h2 class="title-zh">让流程在表格里运转</h2>
-      </div>
-      <div class="pageno">05 / 12</div>
+      <h2 class="title-zh">让流程在表格里运转</h2>
     </div>
     <div class="grid">
       <div class="col-text">
@@ -215,33 +212,29 @@
         </svg>
       </div>
     </div>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">05</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">05</span></div>
   </div>
 </div>
 
 <!-- 06 Quote ============================================================== -->
 <div class="slide-frame">
-  <div class="slide" data-layout="quote" data-accent="blue" data-screen-label="06 Quote">
-    <div class="wordmark">Lark</div>
+  <div class="slide" data-layout="quote" data-screen-label="06 Quote">
+    <div class="wordmark">飞书</div>
     <div class="stack">
       <hr class="keyline">
       <blockquote>飞书让 30 万人 <span class="accent-text">像一个团队</span> 一样工作。</blockquote>
       <div class="attrib">某头部互联网公司 · CIO · 2024</div>
     </div>
-    <div class="footer"><span>Lark Suite · Customer Voice</span><span class="pageno">06</span></div>
+    <div class="footer"><span>飞书 · Customer Voice</span><span class="pageno">06</span></div>
   </div>
 </div>
 
 <!-- 07 Stats ============================================================== -->
 <div class="slide-frame">
   <div class="slide" data-layout="stats" data-screen-label="07 Stats">
-    <div class="wordmark">Lark</div>
+    <div class="wordmark">飞书</div>
     <div class="header">
-      <div>
-        <div class="eyebrow">BUSINESS IMPACT · 实测数据</div>
-        <h2 class="title-zh">飞书带来的可量化结果</h2>
-      </div>
-      <div class="pageno">07 / 12</div>
+      <h2 class="title-zh">飞书带来的可量化结果</h2>
     </div>
     <div class="grid">
       <div class="col">
@@ -274,29 +267,28 @@
       </div>
     </div>
     <p class="footnote">数据样本: 12 家中国头部企业, 2024 Q3-Q4 实测, 口径见附录 A.</p>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">07</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">07</span></div>
   </div>
 </div>
 
 <!-- 08 Big stat =========================================================== -->
 <div class="slide-frame">
-  <div class="slide" data-layout="big-stat" data-accent="blue" data-screen-label="08 Big Stat">
-    <div class="wordmark">Lark</div>
+  <div class="slide" data-layout="big-stat" data-screen-label="08 Big Stat">
+    <div class="wordmark">飞书</div>
     <div class="stage">
       <div class="num">30<span class="unit">万人</span></div>
       <div class="copy">
-        <div class="eyebrow">SCALE · 极限规模</div>
         <h2>单一组织,统一协同</h2>
         <p>飞书的消息、文档、视频会议在 30 万人量级下保持秒级响应,且不依赖私有部署。</p>
       </div>
     </div>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">08</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">08</span></div>
   </div>
 </div>
 
 <!-- 09 Image-text (with SVG-generated photo placeholder) =================== -->
 <div class="slide-frame">
-  <div class="slide" data-layout="image-text" data-accent="blue" data-screen-label="09 Image">
+  <div class="slide" data-layout="image-text" data-screen-label="09 Image">
     <!-- inline SVG background substitutes for a real photograph -->
     <svg width="1920" height="1080" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice"
          xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0;width:100%;height:100%;">
@@ -320,26 +312,21 @@
       </g>
       <rect width="1920" height="1080" fill="url(#ph2)"/>
     </svg>
-    <div class="wordmark">Lark</div>
+    <div class="wordmark">飞书</div>
     <div class="stage">
-      <div class="eyebrow">CUSTOMER · 一线场景</div>
       <h2 class="title title-zh">现场决策,<br>从未离线</h2>
       <p class="lede">门店、产线、出差、远程,飞书让每一处节点都能即时被看到、被对齐。</p>
     </div>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">09</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">09</span></div>
   </div>
 </div>
 
 <!-- 10 Table ============================================================== -->
 <div class="slide-frame">
-  <div class="slide" data-layout="table" data-accent="blue" data-screen-label="10 Table">
-    <div class="wordmark">Lark</div>
+  <div class="slide" data-layout="table" data-screen-label="10 Table">
+    <div class="wordmark">飞书</div>
     <div class="header">
-      <div>
-        <div class="eyebrow">COMPARISON · 平台对比</div>
-        <h2 class="title-zh">飞书与传统办公套件</h2>
-      </div>
-      <div class="pageno">10 / 12</div>
+      <h2 class="title-zh">飞书与传统办公套件</h2>
     </div>
     <div class="table-wrap">
       <table>
@@ -355,20 +342,16 @@
         </tbody>
       </table>
     </div>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">10</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">10</span></div>
   </div>
 </div>
 
 <!-- 11 Timeline =========================================================== -->
 <div class="slide-frame">
-  <div class="slide" data-layout="timeline" data-accent="blue" data-screen-label="11 Timeline" style="--cols:4">
-    <div class="wordmark">Lark</div>
+  <div class="slide" data-layout="timeline" data-screen-label="11 Timeline" style="--cols:4">
+    <div class="wordmark">飞书</div>
     <div class="header">
-      <div>
-        <div class="eyebrow">ROADMAP · 部署节奏</div>
-        <h2 class="title-zh">12 周落地路径</h2>
-      </div>
-      <div class="pageno">11 / 12</div>
+      <h2 class="title-zh">12 周落地路径</h2>
     </div>
     <div class="nodes">
       <div class="node"><div class="when">W1-2</div><div class="what">需求蓝图</div><div class="desc">访谈 6 部门, 输出协同地图与目标 KPI。</div></div>
@@ -377,7 +360,7 @@
       <div class="node"><div class="when">W9-12</div><div class="what">数据复盘</div><div class="desc">复盘 KPI, 调整流程, 形成长期治理机制。</div></div>
     </div>
     <div class="axis"></div>
-    <div class="footer"><span>Lark Suite · 2026 客户提案</span><span class="pageno">11</span></div>
+    <div class="footer"><span>飞书 · 2026 客户提案</span><span class="pageno">11</span></div>
   </div>
 </div>
 
@@ -386,11 +369,7 @@
   <div class="slide" data-layout="process" data-screen-label="12 Process" style="--cols:4">
     <div class="wordmark">飞书</div>
     <div class="header">
-      <div>
-        <div class="eyebrow">SERVICE · 协同闭环</div>
-        <h2 class="title-zh">需求到交付,四步成型</h2>
-      </div>
-      <div class="pageno">12 / 13</div>
+      <h2 class="title-zh">需求到交付,四步成型</h2>
     </div>
     <div class="flow">
       <div class="step"><div class="stnum">01</div><h3>提出</h3><p>任意一线员工在 Messenger 发起,自动落入 Base 队列。</p></div>

@@ -508,6 +508,33 @@ def check_default_centering(css: str):
             yield layout
 
 
+def audit_header_minimal(slides: list[str], iss: Issues):
+    """R56: content-page .header contains only a single <h2> title.
+
+    The CSS already hides .header .eyebrow visually. This audit also flags
+    the markup so it stays clean. Permitted: <h2>...</h2>. Forbidden inside
+    .header: .eyebrow, .pageno, inline subtitles. The agenda layout's `.en`
+    sub-line is a documented exception (it's the bilingual EN translation
+    of the agenda title, kept alongside the title).
+    """
+    for i, fr in enumerate(slides, 1):
+        layout = slide_attr(fr, 'layout') or '?'
+        # Hero layouts use .stage not .header — skip
+        if layout in HERO_TITLE_LAYOUTS or layout in ('cover','section','quote','end'):
+            continue
+        # Find .header blocks
+        for hdr in re.findall(r'<div class="header">(.*?)</div>\s*(?=<div)', fr, re.S):
+            if '<div class="eyebrow"' in hdr or 'class="eyebrow"' in hdr:
+                iss.warn('R56',
+                    f'slide {i} ({layout}): .header still contains an .eyebrow. '
+                    'CSS hides it visually but the markup should be removed too '
+                    '— the content-page header is title-only.')
+            if 'class="pageno"' in hdr:
+                iss.warn('R56',
+                    f'slide {i} ({layout}): .header contains an inline .pageno. '
+                    'Page numbers belong in the .footer, not the header.')
+
+
 def audit_no_cyan_accent(slides: list[str], iss: Issues):
     """R49: cyan (#24C3FF) is INLINE-WORD-HIGHLIGHT only — never a slide accent.
 
@@ -715,6 +742,7 @@ def main():
     audit_variant_discipline(html, iss)
     audit_ui_mocks_are_html(slides, iss)
     audit_no_cyan_accent(slides, iss)
+    audit_header_minimal(slides, iss)
     audit_perf(html, iss, args.strict)
 
     if args.strict:

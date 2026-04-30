@@ -51,6 +51,13 @@ jobs:
           print(f'CSS balanced: {o}/{n}')
           "
 
+      - name: Preflight self-test (CI environment is non-Cowork — should still pass)
+        run: |
+          # CI runs in a fresh GitHub runner, not a Cowork session. The preflight
+          # script must still pass (no /sessions/*/mnt/outputs path), proving the
+          # check works correctly in non-Cowork environments too.
+          bash assets/preflight.sh
+
       - name: Build (linked + inlined)
         run: |
           bash build.sh --inline

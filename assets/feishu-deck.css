@@ -912,14 +912,13 @@ body {
 .slide .header .title-zh br,
 .slide .header h2 br { display: none; }
 
-/* 规范: title-only pages (cover, agenda, big-stat) suppress the eyebrow so the
-   real title stays vertically aligned with the top-right logo. Dense content
-   pages (3up, 2col, stats, table, timeline, process) keep the eyebrow as a
-   secondary tag below the title — it doesn't push the title off the logo line. */
-.slide[data-layout="agenda"] .header .eyebrow,
-.slide[data-layout="big-stat"] .header .eyebrow {
-  display: none;
-}
+/* 规范 (per reference deck): content-page HEADER is a single-line title +
+   top-right logo, NOTHING ELSE. The eyebrow under .header is suppressed on
+   EVERY layout — multi-layer header (eyebrow + title + sub-line) clutters
+   the page chrome and competes with slide content for attention.
+   Eyebrows are still usable as a class elsewhere (cards, section dividers,
+   stats columns) — just not as part of the page-header stack. */
+.slide .header .eyebrow { display: none; }
 
 /* Reposition each body-content area to use the freed vertical space.
    These rules supersede the per-layout `.grid` / `.flow` / `.nodes` top values.

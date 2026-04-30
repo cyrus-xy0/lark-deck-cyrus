@@ -13,6 +13,83 @@ description: |
 
 # feishu-deck-h5
 
+> **🛑 STOP — read this preflight before doing anything else.**
+
+## PREFLIGHT (mandatory, blocks all work) — local mount required
+
+This skill is **ONLY valid in local-mount mode**. If the user has not
+mounted a writable local folder, the skill MUST refuse to proceed and
+must NOT write anything to ephemeral session storage.
+
+### Why this is mandatory
+
+Decks generated in temporary session storage (`/sessions/.../mnt/outputs/`)
+are **wiped between conversations**. Without a local mount:
+
+- The user loses the deck the moment the conversation ends.
+- Brand assets (`lark-*.png/jpg`) can't be reused across decks.
+- Multiple people on the same team can't collaborate or version-control.
+- The user can't `git commit` what they generated.
+- The generated HTML can't be opened in the user's own browser via
+  `file://` because the session is sandboxed.
+
+The skill is designed for persistent, team-shareable, version-controlled
+decks. Running without a mount defeats every reason this skill exists.
+
+### Required preflight steps (run IN ORDER)
+
+**Step P-1.** Check `<env>` in your system context for the line
+`User selected a folder: yes/no`.
+- If `yes` → continue to Step P-2.
+- If `no` → go to Step P-3 (request mount).
+
+**Step P-2.** Verify the mount is writable by running:
+
+```bash
+bash assets/preflight.sh
+```
+
+The script exits 0 on success. Exit codes 1 / 2 / 3 mean: no mount /
+read-only / running from ephemeral output. Any non-zero exit blocks
+all subsequent work.
+
+**Step P-3.** Call `mcp__cowork__request_cowork_directory` and ask the
+user to select their project folder. Phrase the request like:
+
+> "I need to mount your local working directory before generating a
+> deck — outputs need to persist beyond this session and be available
+> in your editor / browser. Please select the folder where you want
+> the deck files to live (e.g. `~/Projects/2026-customer-deck/`)."
+
+**Step P-4.** If the user declines or the mount call fails or P-2 still
+fails after P-3, STOP and reply with this exact message:
+
+> "feishu-deck-h5 requires a local mounted folder so generated decks
+> persist beyond this conversation, can be opened in your browser, and
+> can be version-controlled. I can't proceed without one. Please select
+> a working directory and ask me again, or use a different tool that
+> doesn't require local persistence."
+
+**Do NOT** generate any HTML in `/sessions/*/mnt/outputs/`. **Do NOT**
+hand-wave with "I'll generate it temporarily". **Do NOT** offer to
+inline everything into a single message. The skill is gated; honor the
+gate.
+
+### What "local mount" looks like in practice
+
+| State | Filesystem indicator | Action |
+|---|---|---|
+| User cloned the repo + mounted | `~/Projects/feishu-deck-h5/` mounted; SKILL.md visible | OK, proceed |
+| User mounted a parent project folder | `~/Projects/q1-pitch/` mounted; cloned skill in subfolder OR via plugin install | OK, proceed |
+| User mounted a fresh empty folder | Mounted but no skill files yet | Copy skill files into the mount first (`git clone` or copy from `~/.claude/skills/`), then proceed |
+| User has not mounted anything | `User selected a folder: no` in env | Request mount, refuse if declined |
+| Working in `/sessions/*/mnt/outputs/` only | `preflight.sh` returns exit 3 | Treat as no-mount, refuse |
+
+The skill treats "ephemeral outputs only" the same as "no mount" — both
+are non-persistent and equally broken for this skill's purpose.
+
+---
+
 Generate a dark, cinematic Lark / 飞书 brand-aligned **HTML deck** at 1920×1080 in a single
 self-contained file that:
 
@@ -82,6 +159,155 @@ inline them into a `:root { --fs-asset-… }` override block — see how
 | `--fs-asset-section-bg` | `lark-section-bg.jpg`         | `theme/media/image4.jpg`    | section divider |
 | `--fs-asset-content-bg` | `lark-content-bg.jpg`         | `theme/media/image1.jpg`    | content / agenda / stats / table / etc |
 | `--fs-asset-slogan`     | `lark-slogan.png`             | `theme/media/image6.png`    | end / 封底带 slogan |
+
+---
+
+## Converting existing material (PDF / HTML / PPT export / docs) into a compliant deck
+
+When the user hands you ANY existing material — a PDF report, an old HTML
+deck, an exported PPT screenshot set, a markdown brief, a Google Slides
+share — and asks for a "feishu-deck-h5 version", **follow this workflow
+exactly**. Skipping any step produces the failure modes the user has
+specifically called out before:
+
+- mono-white logo on every page (should be color)
+- content slides made with `data-layout="cover"` (wrong; cover has flower bg)
+- end page with title + CTA + 4-col contact grid (master spec is slogan only)
+- multi-layer header on content pages with eyebrow + title + subtitle
+- `<br>` inside content-page titles
+- pre-existing watermarks / page numbers carried over
+
+### Step 1 · Inventory the source
+
+For every source page, write down:
+
+| Source page | Role identifier | Likely target layout |
+|---|---|---|
+| Cover / 主标题 / title slide / first big-image page | hero, lots of negative space | `cover` |
+| Table of contents / 目录 / agenda / outline | numbered list of sections | `agenda` |
+| Section divider / chapter intro / 章节页 / 大序号 | giant numeral + chapter title | `section` |
+| 3 parallel concepts / 三大能力 / capabilities triplet | 3 cards in a row | `content-3up` |
+| Body text + chart / one narrative + supporting visual | left text, right image/mock | `content-2col` |
+| Customer quote / 金句 / executive thesis | single sentence centered | `quote` |
+| 4 KPIs in a row / metrics dashboard | numbers + units + labels | `stats` |
+| Single hero number with paragraph | one big number, side prose | `big-stat` |
+| Full-bleed photo + text | photograph + bottom-left caption | `image-text` |
+| Comparison matrix / feature table | rows × columns of text | `table` |
+| Roadmap / chronological milestones | linear timeline with stages | `timeline` |
+| 3-6 sequential workflow steps | process flow with arrows | `process` |
+| Closing / 谢谢 / 封底 / "thank you" | final visual signature | `end` |
+
+If a source page doesn't fit any of these 13, it's almost always a
+content page in disguise — most likely `content-3up` or `content-2col`.
+Do NOT invent a 14th layout.
+
+### Step 2 · Cover page (`data-layout="cover"`) — MUST follow master spec
+
+| Element | Spec |
+|---|---|
+| Background | `lark-cover-bg.jpg` (the master flower image — NOT a solid color, NOT a gradient invented on the fly) |
+| Logo | top-LEFT at (120, 113), size 235×74, **COLORED** tri-petal `--fs-asset-logo` |
+| Title | left-half only (max-width 884px), 100/700, can be 1-2 lines (hero allowed `<br>`) |
+| Subtitle | 40/600 white below title |
+| Author block | bottom-left at top:803, with `.role` muted prefix + main text |
+| Footer chrome | NONE (cover doesn't have a footer row) |
+| Eyebrow | NONE |
+
+```html
+<div class="slide" data-layout="cover" data-screen-label="01 Cover">
+  <div class="wordmark">飞书</div>
+  <div class="stage">
+    <h1 class="title title-zh">〔Source title — can wrap with &lt;br&gt;〕</h1>
+    <p class="subtitle">〔Source EN subtitle, or translated〕</p>
+  </div>
+  <div class="author">
+    <span class="role">〔议题类型 · 日期〕</span>〔团队 / 公司〕
+  </div>
+</div>
+```
+
+### Step 3 · Every content page — title-only header + colored top-right logo
+
+```html
+<div class="slide" data-layout="content-3up" data-screen-label="04 Content">
+  <div class="wordmark">飞书</div>           ← top-RIGHT, COLORED, 160×50 (auto from CSS)
+  <div class="header">
+    <h2 class="title-zh">〔Source title — single line, no &lt;br&gt;〕</h2>
+  </div>
+  <!-- body content (.grid / .flow / .nodes / .table-wrap / etc.) -->
+  <div class="footer"><span>〔brand line · client name〕</span><span class="pageno">04</span></div>
+</div>
+```
+
+What you MUST drop from the source:
+- Eyebrow / kicker text above the title (R56)
+- Subtitle / lead text below the title
+- Inline page numbers in the header (footer only)
+- Source page numbers in any other position
+- Decorative breadcrumbs / "you are here" indicators
+- Watermarks
+- `<br>` inside the title — shorten the title instead (R13)
+- Emoji, `!`, `…`, `???` — strip without asking (R05)
+
+What you MUST preserve:
+- Atmospheric backgrounds via `data-decor` (e.g. violet-glow on Digital
+  Workforce / AI pages — see "Preserve atmospheric / decorative
+  backgrounds when re-rendering")
+- System UI / app screenshots → recreate as HTML using `.ui-*` primitives,
+  NOT as raster images (UI1)
+- Photographic backgrounds → use `data-decor="photo-bg"` with `style="--photo: url(...)"`
+
+### Step 4 · End page (`data-layout="end"`) — MUST follow master spec
+
+The 飞书 master closing is intentionally minimal: flower background +
+colored logo top-left + slogan PNG. **No title. No CTA. No contact
+grid.** Optional contact line allowed.
+
+| Element | Spec |
+|---|---|
+| Background | `lark-cover-bg.jpg` (same as cover) |
+| Logo | top-LEFT at (120, 121), COLORED, 235×74 |
+| Slogan | `lark-slogan.png` ("先进团队 先用飞书") at (102, 348), 561×345 |
+| Contact line | optional, bottom-left at top:80 |
+| Title / CTA / contact grid | NONE (off-master, do not add) |
+| Footer | NONE |
+
+```html
+<div class="slide" data-layout="end" data-screen-label="13 End">
+  <div class="wordmark">飞书</div>
+  <div class="slogan" role="img" aria-label="先进团队 先用飞书"></div>
+  <!-- optional, off-master -->
+  <div class="contact">contact@feishu.cn  ·  feishu.cn</div>
+</div>
+```
+
+If the source has CTA pills / contact grids and you really need to keep
+them, break with the master and document the deviation in the deck's
+opening comment. Default = stay with the master.
+
+### Step 5 · Run the validator BEFORE responding
+
+```bash
+bash build.sh --inline
+python3 assets/validate.py examples/sample-deck.html --strict
+python3 assets/validate.py examples/sample-deck-inline.html --strict
+```
+
+All four must exit 0. If any check fails (R49 cyan-as-accent, L1 mono
+logo, R13 br-in-title, R56 eyebrow-in-header, P50 base64 budget),
+**fix the markup, don't suppress the check**.
+
+### Common conversion mistakes (forbidden)
+
+| Mistake | Why it's wrong | What to do instead |
+|---|---|---|
+| Use `data-layout="cover"` for an internal "agenda" or "section" page | Cover layout has the flower background and left-half text positioning that doesn't suit an agenda | Use `agenda` or `section` |
+| Use mono-white logo on content pages | Mono is opt-in for over-imagery edge cases only (L1) | Use the default colored logo |
+| Multi-line `<h2>` on content pages with `<br>` | Forbidden by R13 | Shorten the title; if it really needs two lines, the source title is too long for a deck |
+| Add eyebrow above content page title | Forbidden by R56 | Drop the eyebrow; if context is essential, put it in the footer brand line |
+| Re-use source page numbers verbatim in the title area | Page no. lives in the footer only | Add `<span class="pageno">07</span>` inside the footer |
+| Inline raster screenshots of 飞书 UI as `<img>` | Forbidden by UI1 | Recreate using `.ui-window / .ui-grid / .ui-list / .ui-msg` etc. |
+| Use cyan as a slide accent | Forbidden by R49 (cyan = inline highlight only) | Pick blue / teal / purple / violet / orange instead |
 
 ---
 
@@ -1540,7 +1766,45 @@ automatically. Hand-built single-file decks must add it manually or get flagged 
 
 ---
 
-## Self-check (run all 55 items before delivering)
+## Content-page header — title only, no eyebrow, no sub-line
+
+Per the 2026-04 reference deck (see attached screenshot in commit history),
+the content-page header is intentionally minimal:
+
+```html
+<div class="header">
+  <h2 class="title-zh">懂我的AI,可以代我做方案评审</h2>
+</div>
+```
+
+That's it. **No eyebrow above. No subtitle below. No inner wrapper div.
+No inline page number** (the page number lives in the footer).
+
+The reasoning: a content slide already carries a card grid / table /
+process flow / etc. as its main body. Stacking an eyebrow + title +
+sub-line at the top creates visual hierarchy noise that competes with
+the actual content for attention. The screenshot demonstrates exactly
+this: a single white sans-serif title at top-left, the colored 飞书
+logo at top-right on the same baseline, and the content below.
+
+The CSS enforces this defensively:
+
+```css
+.slide .header .eyebrow { display: none; }
+```
+
+Even if someone copies the old eyebrow-included markup, the eyebrow
+won't render. The `.eyebrow` class is still usable elsewhere (inside
+cards, section dividers, stats columns, etc.) — it's only suppressed
+when it sits inside a content-page `.header`.
+
+The Hero layouts (`cover` / `image-text` / `end`) use their own `.stage`
+container, not `.header`, so they're unaffected and keep their existing
+title patterns.
+
+---
+
+## Self-check (run all 59 items before delivering)
 
 Before saving the deck, walk this list. **Failing any item is a hard reject.**
 
@@ -1702,6 +1966,37 @@ Performance budget
 [ ] 55. P55 — `.slide-frame .slide { will-change: transform }` (with a
         `translateZ(0)` in the transform value) gives the slide a GPU
         layer, avoiding CPU rasterization on every transition.
+
+Content-page header minimalism
+[ ] 56. R56 — content-page `.header` contains ONLY a single `<h2>` title.
+        No `.eyebrow`, no inline page-no, no inner wrapper div. The
+        page number lives in the footer. CSS defends this with
+        `.slide .header .eyebrow { display: none }` — but the markup
+        should be clean too. Validator: audit_header_minimal.
+
+Conversion compliance (when re-rendering external material)
+[ ] 57. C1 — when converting external material (PDF / HTML / PPT export),
+        every source page is mapped to ONE of the 13 layouts using the
+        identification table in the "Converting existing material" section.
+        Cover pages use `data-layout="cover"` (NOT a content layout).
+        End pages use `data-layout="end"` (NOT a content layout with a
+        manually-built thank-you grid). No 14th invented layout.
+[ ] 58. C2 — during conversion, source-only artifacts are STRIPPED before
+        rendering: source page numbers (use the footer pageno only),
+        watermarks, decorative breadcrumbs, kicker text above titles,
+        emoji / `!` / `…` / `???`, and `<br>` inside content-page titles.
+        Atmospheric content (radial glows, photographic backgrounds, brand
+        gradients) is PRESERVED via `data-decor` (see "Preserve
+        atmospheric / decorative backgrounds"). System UI screenshots
+        are RECREATED in HTML via `.ui-*` primitives, not embedded as
+        raster (UI1).
+
+Local-mount preflight
+[ ] 59. PREFLIGHT — `bash assets/preflight.sh` exits 0. The skill is NOT
+        running from `/sessions/*/mnt/outputs/` (ephemeral). The skill
+        root is writable. All required asset files are present. If
+        any of these fails, refuse to generate any HTML and tell the
+        user to mount a local folder.
 ```
 
 If any item fails, fix the slide. Don't ship a deck that fails item 5 — emoji on a
