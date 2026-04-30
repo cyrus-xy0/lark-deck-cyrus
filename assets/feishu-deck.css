@@ -396,6 +396,21 @@ body {
   min-height: 400px;
 }
 
+/* Global card-text fallback — applies to ANY card-style container
+   (.card, .verdict-card, .voice-card, .arch-hand, etc.). Without this
+   only content-3up's `.card .ctitle/.cbody` were sized; verdict-card on
+   other layouts (slides 02 / 16 / 18) inherited browser-default 16 px,
+   which read as visibly smaller than neighboring slides. content-3up's
+   tighter overrides at lines 514-518 still apply where present. */
+.slide .ctitle {
+  font: 600 32px/1.3 var(--fs-font-cjk);
+  color: var(--fs-text); margin: 0;
+}
+.slide .cbody {
+  font: 500 22px/1.6 var(--fs-font-cjk);
+  color: var(--fs-text-72); margin: 0;
+}
+
 /* ============================================================================
    LAYOUT 01 — Cover (封面) — matches master slideLayout1
    - Background: image2.jpg (white flower on dark, occupies right ~50%)
