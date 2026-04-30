@@ -490,7 +490,12 @@ body {
   padding-bottom: 32px; border-bottom: 1px solid var(--fs-hairline);
   display: grid; grid-template-columns: 1fr auto; align-items: end;
 }
-.slide[data-layout="content-3up"] .header .title-zh { font-size: 64px; }
+/* Removed v1.5.2: content-3up override that made the title 64 px while
+   every other content layout was 52 px (per the unified header rule).
+   The user noticed: pages with content-3up showed visibly larger titles
+   than content-2col / process / table / etc. — inconsistent. The unified
+   52 px rule below now applies to ALL content layouts.
+   See feishu-deck.css line ~922 .slide .header .title-zh */
 .slide[data-layout="content-3up"] .header .pageno {
   font: 500 18px/1 var(--fs-font-latin);
   color: var(--fs-text-48); letter-spacing: 0.18em;
