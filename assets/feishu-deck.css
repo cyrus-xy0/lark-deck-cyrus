@@ -1957,9 +1957,19 @@ body {
   font: 700 20px/1 var(--fs-font-cjk);
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.slide .cta-box .cta-btn:hover { transform: scale(1.04); }
+/* No transform: scale() on hover — same flicker pattern as the .card lift,
+   the scaled hit-area can fall away from the cursor → unhover loop. Use
+   color + glow ring instead (R12-allowed since spread+blur=0). */
+.slide .cta-box .cta-btn:hover {
+  background: #fff;
+  border-color: var(--fs-blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fs-blue) 30%, transparent);
+}
 
 /* ----------------------------------------------------------------------------
    .kpi-strip — small metric-card row beneath body.
