@@ -1807,6 +1807,48 @@ have time". A slide that cites a number without `.kpi-strip`, a closing without
 `.cta-box`, or a transform without `.ui-wave + .report-item` is a slide that
 under-delivers on what the skill is capable of.
 
+### MANDATORY: wrap body + helpers in `<div class="stage">`
+
+`.grid` / `.flow` / `.nodes` / `.toc` / `.table-wrap` are **absolutely
+positioned** by their layout rules. So if you place a `.pullquote` /
+`.cta-box` / `.kpi-strip` / `.lede` as a *direct sibling* of the body
+container under `.slide`, the helper falls into normal flow at the TOP
+of the slide canvas — overlapping the header. Visually broken.
+
+The fix is to wrap the body container AND its helpers in `<div class="stage">`:
+
+```html
+<div class="slide" data-layout="content-2col" data-decor="blue-glow">
+  <div class="grid-bg"></div>
+  <div class="wordmark">飞书</div>
+  <div class="header"><h2 class="title-zh">…</h2></div>
+  <div class="stage">                       <!-- ← MANDATORY when using helpers -->
+    <p class="lede">…</p>                   <!-- optional intro -->
+    <div class="grid">…body cards…</div>    <!-- body, now flows naturally -->
+    <p class="pullquote">…</p>              <!-- helper, flows below body -->
+    <div class="cta-box">…</div>            <!-- helper, flows below pullquote -->
+  </div>
+  <p class="source-footer">…</p>            <!-- stays OUTSIDE .stage -->
+  <div class="footer">…</div>
+</div>
+```
+
+`.stage` becomes the absolutely-positioned body zone (top:220, bottom:110,
+left/right:96), and inner `.grid` / `.flow` / `.nodes` / `.toc` /
+`.table-wrap` override their default absolute positioning to flow inside
+the stage's flex column. Helpers stack naturally below the body.
+
+Layouts that support `.stage` wrapper: `content-2col`, `content-3up`,
+`process`, `timeline`, `table`, `agenda`, `stats`. (Cover / end / image-text /
+big-stat have their own `.stage` semantics — see their layout recipes.)
+
+For `timeline`: when wrapped in `.stage`, the `.axis` line stays as a direct
+child of `.slide` (outside `.stage`) and auto-aligns to slide center.
+
+If a slide has NO helpers (just body + footer), you can omit `.stage`
+without harm. Pre-1.3.2 decks (no `.stage` wrapper anywhere) still render
+correctly via the legacy absolute positioning.
+
 ### When converting an external HTML deck (the failure mode this prevents)
 
 Every primitive below maps to a v3-pattern the agent CAN'T just drop. If the

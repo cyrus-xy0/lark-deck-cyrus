@@ -948,6 +948,67 @@ body {
    custom layout an author writes. */
 .slide .stage { align-content: center; justify-content: center; }
 
+/* ---- .stage wrapper pattern (v1.3.2) ----
+   When a slide places helpers (.pullquote / .cta-box / .kpi-strip / .lede)
+   as siblings of the body container, those helpers WILL fall to top-of-canvas
+   via static flow because .grid / .flow / .nodes / .toc / .table-wrap are
+   absolutely positioned by their layout rules.
+
+   The fix: wrap body container + helpers in <div class="stage">. The .stage
+   takes the absolute body-zone position; inner containers override their
+   default absolute positioning to flow naturally inside the flex column.
+
+   Markup pattern:
+     <div class="slide" data-layout="content-2col">
+       <div class="header">…</div>
+       <div class="stage">
+         <p class="lede">…</p>            ← optional intro
+         <div class="grid">…</div>         ← body content
+         <p class="pullquote">…</p>        ← optional emphasis
+         <div class="cta-box">…</div>      ← optional CTA
+       </div>
+       <p class="source-footer">…</p>      ← stays outside .stage
+       <div class="footer">…</div>
+     </div>
+
+   No backward-compat impact: pre-1.3.2 decks (no .stage wrapper) keep
+   absolute body positioning unchanged via the rules at lines 936-943.
+*/
+.slide[data-layout="content-2col"] > .stage,
+.slide[data-layout="content-3up"]  > .stage,
+.slide[data-layout="process"]      > .stage,
+.slide[data-layout="timeline"]     > .stage,
+.slide[data-layout="table"]        > .stage,
+.slide[data-layout="agenda"]       > .stage,
+.slide[data-layout="stats"]        > .stage {
+  position: absolute;
+  top: 220px; left: 96px; right: 96px; bottom: 110px;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+  z-index: 1;
+}
+
+/* Inner body containers flow naturally inside .stage — override the
+   layout-default absolute positioning. Specificity (0,3,0) > (0,2,0). */
+.slide[data-layout="content-2col"] > .stage > .grid,
+.slide[data-layout="content-3up"]  > .stage > .grid,
+.slide[data-layout="agenda"]       > .stage > .toc,
+.slide[data-layout="stats"]        > .stage > .grid,
+.slide[data-layout="process"]      > .stage > .flow,
+.slide[data-layout="timeline"]     > .stage > .nodes,
+.slide[data-layout="table"]        > .stage > .table-wrap {
+  position: static;
+  top: auto; right: auto; bottom: auto; left: auto;
+}
+
+/* When timeline is .stage-wrapped, the .axis (still absolutely positioned
+   relative to .slide) needs to align with the .nodes' new flow position.
+   The .stage centers content vertically in y=220..970 (mid ≈ 595). The
+   .nodes' dot circles sit at .node padding-top:168 from .nodes top.
+   Empirically, .axis at top: 50% of slide aligns reasonably well. */
+.slide[data-layout="timeline"]:has(> .stage) > .axis { top: 50%; }
+
 /* 规范 L3: cards must size to content, not stretch to full canvas. The grid
    parent does the vertical centering (via L2 rules above); cards take
    intrinsic height. This eliminates the "card empty-middle" bug where a
