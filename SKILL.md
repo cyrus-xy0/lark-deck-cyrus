@@ -1819,7 +1819,6 @@ The fix is to wrap the body container AND its helpers in `<div class="stage">`:
 
 ```html
 <div class="slide" data-layout="content-2col" data-decor="blue-glow">
-  <div class="grid-bg"></div>
   <div class="wordmark">飞书</div>
   <div class="header"><h2 class="title-zh">…</h2></div>
   <div class="stage">                       <!-- ← MANDATORY when using helpers -->
@@ -1866,7 +1865,14 @@ source deck has:
 | KPI tile with label + big number + delta | `.ui-kpi` (`.is-teal` for highlight variant) |
 | Audio waveform (recording / call) | `.ui-wave` with 10 `<i>` bars (animated) |
 | Tagged finding/insight rows (做得好 / 漏关键 / 建议) | `.report-item` (`.is-warn` orange · `.is-info` blue) |
-| Subtle ambient backdrop on content pages | `<div class="grid-bg"></div>` as first child of `.slide` |
+
+> **Do NOT add `<div class="grid-bg"></div>` by default.** The class still
+> ships for legacy decks, but the 飞书 master content layouts already use
+> `lark-content-bg.jpg` (a subtle dark ambient gradient) as their background
+> via `--fs-asset-content-bg`. Adding a dot-grid on top creates double-noise
+> texture that makes the page feel busy and OFF-master. Only opt in to
+> `.grid-bg` if a slide explicitly needs an additional engineered/technical
+> backdrop (rare; e.g. a custom whitepaper layout). Default = clean.
 
 **Drop a primitive → you've stripped meaning the source author put there.**
 This is the lesson from v1 of the v3 conversion: validator-passing ≠ visually
@@ -1875,8 +1881,10 @@ faithful. Compliance and richness are both required.
 ### Card hover & tile gradient — already on by default
 
 Every `.card` now:
-- Lifts on hover (`translateY(-4px)` + brighter background) — adds presence
-  in present mode, no markup change required.
+- On hover: brighter background + 1 px blue glow ring (via `box-shadow:
+  0 0 0 1px`) + accent border. **No `transform: translateY(...)`** — the
+  transformed hit-area moves away from the cursor and creates a hover-flicker
+  loop. Color + ring affords interactivity without moving the box.
 - Has a **gradient blue→violet** `.tile` instead of a flat tinted square.
 - Shows `.num` at 36 px / 700 (was inheriting smaller defaults).
 - Shows `.cfoot` with dashed top border + accent arrow on the right.
@@ -1971,12 +1979,10 @@ the chevron. No markup change.
   </div>
 </div>
 
-<!-- grid-bg — first child of any .slide for ambient texture -->
-<div class="slide" data-layout="content-3up" data-decor="aurora">
-  <div class="grid-bg"></div>
-  <div class="wordmark">飞书</div>
-  ...
-</div>
+<!-- grid-bg — DO NOT add by default. The 飞书 master content background
+     (lark-content-bg.jpg via --fs-asset-content-bg) already provides the
+     ambient gradient. .grid-bg on top creates double-noise. Only opt in
+     for engineered/technical layouts that need an explicit grid backdrop. -->
 ```
 
 ---
