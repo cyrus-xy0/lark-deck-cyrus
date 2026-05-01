@@ -1,0 +1,89 @@
+# Install — agent-readable spec
+
+> This file is the canonical install procedure for `feishu-deck-h5`.
+> If you are a Claude (or any AI agent) and the user asked you to install
+> this skill from a git URL, follow these steps in order.
+> If you are a human, [README.md](./README.md) is friendlier.
+
+## TL;DR for the user
+
+Tell your Claude agent:
+
+> "帮我安装 feishu-deck-h5 这个 skill：`git@github.com:FuQiang/feishu-deck-h5.git`"
+
+The agent will detect your harness, pick the right install path, and verify.
+
+---
+
+## Decision tree (for the agent)
+
+Run these checks **in order**, stop at the first match:
+
+### 1. Plugin marketplace path (Claude Code with `/plugin` support)
+
+**Detect:** the user is running Claude Code CLI / Claude Desktop and `/plugin marketplace add` is a known slash command.
+
+**Action — instruct the user to run:**
+
+```
+/plugin marketplace add git@github.com:FuQiang/feishu-deck-h5.git
+/plugin install feishu-deck-h5@feishu-deck-h5
+```
+
+Then restart the session. (Slash commands cannot be invoked by an agent — the user has to type them.)
+
+**Verify:** after restart, `bash ~/.claude/skills/feishu-deck-h5/assets/preflight.sh` should print `PREFLIGHT OK`.
+
+### 2. install.sh path (any harness with `~/.claude/skills/` convention)
+
+**Detect:** plugin marketplace not available, but `~/.claude/skills/` (or `$CLAUDE_DIR/skills/`) is the skill registration directory.
+
+**Action — run as the user:**
+
+```bash
+git clone git@github.com:FuQiang/feishu-deck-h5.git /tmp/feishu-deck-h5-installer
+bash /tmp/feishu-deck-h5-installer/install.sh
+rm -rf /tmp/feishu-deck-h5-installer
+```
+
+For non-Claude-Code harnesses (e.g. openclaw if it uses a different skill root), set `CLAUDE_DIR` first:
+
+```bash
+CLAUDE_DIR=~/.openclaw bash install.sh
+```
+
+**Verify:** the script auto-runs `preflight.sh` at the end. Look for `PREFLIGHT OK`.
+
+### 3. Manual path (fallback when nothing else fits)
+
+```bash
+git clone git@github.com:FuQiang/feishu-deck-h5.git ~/Projects/feishu-deck-h5
+mkdir -p ~/.claude/skills
+ln -s ~/Projects/feishu-deck-h5/skills/feishu-deck-h5 ~/.claude/skills/feishu-deck-h5
+bash ~/.claude/skills/feishu-deck-h5/assets/preflight.sh
+```
+
+---
+
+## Prerequisites (verify before installing)
+
+- SSH key registered with GitHub: `ssh -T git@github.com` returns `Hi <user>!`
+- Collaborator access on `FuQiang/feishu-deck-h5` (repo is private — ask FuQiang)
+- `python3`, `bash`, `node` on PATH (used by build/validate)
+
+If `ssh -T git@github.com` fails, stop and ask the user to set up their SSH key first — every install path depends on it.
+
+---
+
+## Repo structure (so agents know what they cloned)
+
+```
+.claude-plugin/marketplace.json   ← present means: plugin path supported
+.claude-plugin/plugin.json
+skills/feishu-deck-h5/SKILL.md    ← present means: manual/install.sh path supported
+install.sh                        ← present means: install.sh path supported
+INSTALL.md                        ← this file
+README.md                         ← human-facing docs
+```
+
+Any of the three indicators present → that install path is supported.

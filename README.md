@@ -20,7 +20,16 @@ audit/check functions:    20  · CSS / JS / 文档全覆盖
 仓库目前是 private，先让仓库 owner（FuQiang）把你加为 collaborator，并确认本机
 SSH key 已加到 GitHub 账号（`ssh -T git@github.com` 能跑通即可）。
 
-### 推荐：通过 plugin marketplace（Claude Code）
+### 最简：让 Claude 帮你装
+
+跟你的 Claude Code agent 说：
+
+> 帮我安装 feishu-deck-h5 这个 skill：`git@github.com:FuQiang/feishu-deck-h5.git`
+
+Agent 会读 [INSTALL.md](./INSTALL.md) 自动选对应的安装路径并验证。完整决策树和
+prerequisites 也在那个文件里。
+
+### 路径 A：通过 plugin marketplace（Claude Code）
 
 ```
 /plugin marketplace add git@github.com:FuQiang/feishu-deck-h5.git
@@ -31,11 +40,25 @@ SSH key 已加到 GitHub 账号（`ssh -T git@github.com` 能跑通即可）。
 - 升级：`/plugin marketplace update feishu-deck-h5`
 - 卸载：`/plugin uninstall feishu-deck-h5`
 
-### 备用：手动 git clone（不支持 plugin 的环境，例如老版 CLI）
+### 路径 B：通过 install.sh（不支持 plugin 的环境，例如 openclaw / 老版 CLI）
 
 ```bash
-mkdir -p ~/.claude/skills
+git clone git@github.com:FuQiang/feishu-deck-h5.git /tmp/feishu-deck-h5-installer
+bash /tmp/feishu-deck-h5-installer/install.sh
+rm -rf /tmp/feishu-deck-h5-installer
+```
+
+非 Claude Code 的 harness 用 `CLAUDE_DIR` 覆盖 skill 注册目录：
+
+```bash
+CLAUDE_DIR=~/.openclaw bash install.sh
+```
+
+### 路径 C：纯手动 git clone
+
+```bash
 git clone git@github.com:FuQiang/feishu-deck-h5.git ~/Projects/feishu-deck-h5
+mkdir -p ~/.claude/skills
 ln -s ~/Projects/feishu-deck-h5/skills/feishu-deck-h5 ~/.claude/skills/feishu-deck-h5
 ```
 
