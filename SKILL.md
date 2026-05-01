@@ -53,6 +53,28 @@ The script exits 0 on success. Exit codes 1 / 2 / 3 mean: no mount /
 read-only / running from ephemeral output. Any non-zero exit blocks
 all subsequent work.
 
+**Step P-2.5.** If the script's stdout contains the line
+`WARNING · another clone of this repo lives on disk:`, the user has
+TWO checkouts of `feishu-deck-h5` on the machine (e.g. one in
+`~/Documents/Github/feishu-deck-h5/` and one in the Claude Code
+session-mount path). Outputs you create here will NOT appear in the
+other one — same GitHub remote, different filesystem directories.
+
+**STOP. Do NOT call `new-run.sh` yet.** Surface the conflict to the
+user and ask which clone they want this run's deck to land in:
+
+> "我看到你机器上有两份 feishu-deck-h5 的 clone：
+> · 我现在挂载的：`<current skill root>`
+> · 另一份：`<other clone path>`
+>
+> 这次生成的 `runs/<ts>/` 只会出现在我挂载的这份里。如果你平时
+> 在另一份编辑/commit，我建议切到那份再继续。要切吗？"
+
+If the user says "切到 X" / "use the other one", abort this run and
+ask them to re-invoke the skill with Claude Code mounted at the
+other path. If the user says "use this one" / explicitly picks the
+current root, proceed to Step W-1.
+
 **Step P-3.** Call `mcp__cowork__request_cowork_directory` and ask the
 user to select their project folder. Phrase the request like:
 

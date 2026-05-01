@@ -84,6 +84,70 @@ if [[ ${#MISSING[@]} -gt 0 ]]; then
   exit 1
 fi
 
+# ---- Check 5: warn if another clone of the same repo lives elsewhere on disk ----
+# This catches the "Claude Code mounted a session-storage copy, not the user's
+# main GitHub clone" footgun: deck output lands in a folder the user can't
+# easily find / commit / push from. Soft-warn (don't fail), and surface the
+# competing paths so the agent can ask the user which one to use.
+if command -v git >/dev/null 2>&1 && [ -d "$SKILL_ROOT/.git" ]; then
+  CURRENT_REMOTE=$(git -C "$SKILL_ROOT" remote get-url origin 2>/dev/null || echo "")
+  if [ -n "$CURRENT_REMOTE" ]; then
+    # Search the most common dev locations on macOS / Linux. Bounded depth so
+    # this stays cheap (< 1s on a typical home dir).
+    SEARCH_ROOTS=(
+      "$HOME/Documents/Github" "$HOME/Documents/GitHub"
+      "$HOME/Documents"        "$HOME/Projects"
+      "$HOME/GitHub"           "$HOME/Github"
+      "$HOME/code"             "$HOME/Code"
+      "$HOME/dev"              "$HOME/Dev"
+      "$HOME/src"
+    )
+    # Identify directories by (device, inode) instead of path string, so the
+    # comparison survives macOS APFS/HFS case-insensitivity (~/Documents/Github
+    # vs ~/Documents/GitHub) and symlinks. `pwd -P` doesn't normalize case on
+    # macOS, but inode IDs do.
+    fs_id() {
+      stat -f '%d:%i' "$1" 2>/dev/null \
+        || stat -c '%d:%i' "$1" 2>/dev/null \
+        || echo "$1"   # last-ditch fallback if neither stat flavor works
+    }
+    SKILL_ROOT_ID="$(fs_id "$SKILL_ROOT")"
+    OTHER_CLONES=""
+    SEEN_IDS=":"
+    for root in "${SEARCH_ROOTS[@]}"; do
+      [ -d "$root" ] || continue
+      while IFS= read -r git_dir; do
+        clone_dir="$(dirname "$git_dir")"
+        clone_id="$(fs_id "$clone_dir")"
+        # skip ourselves
+        [ "$clone_id" = "$SKILL_ROOT_ID" ] && continue
+        # dedupe — same physical dir reached via different SEARCH_ROOTS
+        case "$SEEN_IDS" in *":$clone_id:"*) continue ;; esac
+        SEEN_IDS="$SEEN_IDS$clone_id:"
+        # check it's the same remote
+        clone_remote=$(git -C "$clone_dir" remote get-url origin 2>/dev/null || echo "")
+        if [ "$clone_remote" = "$CURRENT_REMOTE" ]; then
+          OTHER_CLONES+="    - $clone_dir"$'\n'
+        fi
+      done < <(find "$root" -maxdepth 4 -type d -name '.git' 2>/dev/null)
+    done
+    if [ -n "$OTHER_CLONES" ]; then
+      echo
+      echo "WARNING · another clone of this repo lives on disk:"
+      printf "%s" "$OTHER_CLONES"
+      echo "  Current skill root  : $SKILL_ROOT"
+      echo
+      echo "  This means: outputs created here (runs/<ts>/, generated decks)"
+      echo "  WILL NOT appear in the other clone(s). If the user usually"
+      echo "  edits / commits from one of those, abort and re-run the skill"
+      echo "  from inside that clone instead. Shared GitHub remote ≠ shared"
+      echo "  filesystem — they're independent working directories."
+      echo
+      echo "  Agent: surface this to the user before creating the run folder."
+    fi
+  fi
+fi
+
 # ---- All checks passed ----
 echo "PREFLIGHT OK"
 echo "  skill root: $SKILL_ROOT"
