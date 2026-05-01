@@ -1,0 +1,11 @@
+{
+  "name": "feishu-deck-h5",
+  "version": "1.0.0",
+  "description": "飞书风格 HTML deck 生成技能 — 单文件 16:9 网页演示，深色商务汇报",
+  "author": {
+    "name": "FuQiang",
+    "url": "https://github.com/FuQiang"
+  },
+  "homepage": "https://github.com/FuQiang/feishu-deck-h5",
+  "license": "MIT"
+}

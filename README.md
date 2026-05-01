@@ -15,60 +15,55 @@ audit/check functions:    20  · CSS / JS / 文档全覆盖
 
 ---
 
-## Install (mandatory: local-mount mode)
+## Install
 
-This skill **requires a local mount**. It refuses to work in ephemeral
-session storage. See [SKILL.md PREFLIGHT](./SKILL.md#preflight-mandatory-blocks-all-work--local-mount-required)
-for the full reasoning. TL;DR — without a mount you lose the deck when
-the conversation ends, you can't `git commit`, you can't open it in
-your browser.
+仓库目前是 private，先让仓库 owner（FuQiang）把你加为 collaborator，并确认本机
+SSH key 已加到 GitHub 账号（`ssh -T git@github.com` 能跑通即可）。
 
-### Install option A — git clone into your project
+### 推荐：通过 plugin marketplace（Claude Code）
+
+```
+/plugin marketplace add git@github.com:FuQiang/feishu-deck-h5.git
+/plugin install feishu-deck-h5@feishu-deck-h5
+```
+
+装完 SKILL 自动注册，重启会话即可让 agent 调用。
+- 升级：`/plugin marketplace update feishu-deck-h5`
+- 卸载：`/plugin uninstall feishu-deck-h5`
+
+### 备用：手动 git clone（不支持 plugin 的环境，例如老版 CLI）
 
 ```bash
-# 1. Clone the repo somewhere persistent
+mkdir -p ~/.claude/skills
 git clone git@github.com:FuQiang/feishu-deck-h5.git ~/Projects/feishu-deck-h5
-cd ~/Projects/feishu-deck-h5
-
-# 2. In Claude Code / Cowork, mount this directory:
-#    macOS / Cowork app → settings → Cowork directory → ~/Projects/feishu-deck-h5
-#    or via tool: mcp__cowork__request_cowork_directory
+ln -s ~/Projects/feishu-deck-h5/skills/feishu-deck-h5 ~/.claude/skills/feishu-deck-h5
 ```
-
-### Install option B — git clone into a parent project
-
-```bash
-# Use this when you want the deck output to live alongside other project files
-mkdir -p ~/Projects/q1-customer-pitch
-cd ~/Projects/q1-customer-pitch
-git clone git@github.com:FuQiang/feishu-deck-h5.git
-# Mount ~/Projects/q1-customer-pitch in Claude Code; the deck files end up
-# in q1-customer-pitch/feishu-deck-h5/examples/
-```
-
-### Install option C — Cowork plugin marketplace
-
-If installed via the Cowork plugin marketplace (when published), the
-skill files live in `~/.claude/skills/feishu-deck-h5/` and are loaded
-automatically. You STILL need to mount a project folder where the
-generated deck will be written — the plugin path is read-only.
 
 ### Verify install
 
 ```bash
-# Run the preflight check from inside the mounted skill folder:
-bash assets/preflight.sh
+bash ~/.claude/skills/feishu-deck-h5/assets/preflight.sh
 # Expected: "PREFLIGHT OK · skill root: ... · writable: yes · ..."
 # Any non-zero exit → fix before generating decks.
 ```
+
+### Local-mount requirement
+
+This skill **requires a local mount**. It refuses to work in ephemeral
+session storage. See [SKILL.md PREFLIGHT](./skills/feishu-deck-h5/SKILL.md#preflight-mandatory-blocks-all-work--local-mount-required)
+for the full reasoning. TL;DR — without a mount you lose the deck when
+the conversation ends, you can't `git commit`, you can't open it in
+your browser. Plugin install puts files at `~/.claude/skills/feishu-deck-h5/`
+which is read-only; mount a project folder where the generated deck will
+be written.
 
 ---
 
 ## Quick start (after install + mount)
 
 ```bash
-# 1. From inside the mounted skill folder
-cd ~/Projects/feishu-deck-h5
+# 1. From inside the skill folder (plugin install or manual clone)
+cd ~/Projects/feishu-deck-h5/skills/feishu-deck-h5
 
 # 2. Verify mount + write access
 bash assets/preflight.sh
@@ -121,27 +116,35 @@ exist for maintainers regenerating the reference sample deck.
 
 ```
 feishu-deck-h5/
-├── SKILL.md                   ← 主文档：13 layouts + 55 自检项 + 所有规范
+├── .claude-plugin/
+│   ├── marketplace.json       ← Claude Code marketplace 入口
+│   └── plugin.json            ← 插件元数据
+├── skills/
+│   └── feishu-deck-h5/        ← 实际 skill 内容（plugin loader 从这里读）
+│       ├── SKILL.md           ← 主文档：13 layouts + 55 自检项 + 所有规范
+│       ├── build.sh           ← 构建脚本（默认 linked，--inline 出单文件版）
+│       ├── assets/
+│       │   ├── feishu-deck.css        ← 全部 design tokens + layouts + decor + UI primitives
+│       │   ├── feishu-deck.js         ← 运行时（scale-fit, fullscreen, idle-fade, etc.）
+│       │   ├── validate.py            ← 程序化自检（20 个 audit/check 函数）
+│       │   ├── lark-logo.png          ← 飞书品牌资产（从 .thmx 母版抽取）
+│       │   ├── lark-logo-mono-white.png
+│       │   ├── lark-cover-bg.jpg
+│       │   ├── lark-section-bg.jpg
+│       │   ├── lark-content-bg.jpg
+│       │   └── lark-slogan.png
+│       ├── templates/
+│       │   ├── _shell.html            ← 空 deck 骨架，复制改名即可
+│       │   └── slide-recipes.html     ← 13 layouts 全部示范
+│       ├── examples/
+│       │   ├── sample-deck.html       ← 默认交付样品（linked, 24 KB）
+│       │   └── sample-deck-inline.html← 单文件版（inlined, 361 KB，opt-in）
+│       ├── preview-dark.html          ← 设计令牌 + 组件可视化
+│       └── _body.partial.html         ← build.sh 用的 body 片段
 ├── DESIGN.md                  ← 9-section design system（awesome-design-md 格式）
-├── build.sh                   ← 构建脚本（默认 linked，--inline 出单文件版）
-├── assets/
-│   ├── feishu-deck.css        ← 全部 design tokens + layouts + decor + UI primitives
-│   ├── feishu-deck.js         ← 运行时（scale-fit, fullscreen, idle-fade, etc.）
-│   ├── validate.py            ← 程序化自检（20 个 audit/check 函数）
-│   ├── lark-logo.png          ← 飞书品牌资产（从 .thmx 母版抽取）
-│   ├── lark-logo-mono-white.png
-│   ├── lark-cover-bg.jpg
-│   ├── lark-section-bg.jpg
-│   ├── lark-content-bg.jpg
-│   └── lark-slogan.png
-├── templates/
-│   ├── _shell.html            ← 空 deck 骨架，复制改名即可
-│   └── slide-recipes.html     ← 13 layouts 全部示范
-├── examples/
-│   ├── sample-deck.html       ← 默认交付样品（linked, 24 KB）
-│   └── sample-deck-inline.html← 单文件版（inlined, 361 KB，opt-in）
-├── preview-dark.html          ← 设计令牌 + 组件可视化
-└── _body.partial.html         ← build.sh 用的 body 片段
+├── README.md
+├── LICENSE
+└── runs/                      ← per-run workspace（agent 生成 deck 时写这里）
 ```
 
 ---
@@ -193,7 +196,7 @@ python3 assets/validate.py path/to/your-deck.html --strict
 
 ## 设计原则
 
-完整规范在 [SKILL.md](./SKILL.md) 和 [DESIGN.md](./DESIGN.md)。简单说：
+完整规范在 [SKILL.md](./skills/feishu-deck-h5/SKILL.md) 和 [DESIGN.md](./DESIGN.md)。简单说：
 
 1. **每张 slide 1920×1080 设计画布**，运行时缩放
 2. **彩色 logo 永远默认**，mono 是 opt-in 边缘 case
