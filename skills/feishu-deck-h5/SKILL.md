@@ -5,9 +5,12 @@ description: |
   HTML file (NOT a real .pptx). Triggers: "飞书风格 PPT", "Lark deck", "汇报材料", "客户提案",
   "h5 deck", "presentation html", "16:9 网页演示", "用 html 模仿 ppt", "深色商务汇报",
   or whenever the user attaches the 飞书 .thmx master and asks for an HTML version. The skill
-  produces a dark, cinematic, bilingual (ZH primary / EN secondary) deck at 1920×1080 design
-  canvas with auto-responsive scale-to-fit, plus a built-in mobile vertical browse mode in the
-  same file. Outputs look indistinguishable from a hand-built Lark sales deck. Do NOT use this
+  produces a dark, cinematic deck at 1920×1080 design canvas with auto-responsive scale-to-fit,
+  plus a built-in mobile vertical browse mode in the same file. The default language is
+  CHINESE-ONLY (the body text, card titles, agenda items, section labels are all ZH; do NOT
+  mirror them with EN translations underneath). Bilingual ZH + EN output is opt-in only —
+  switch to it only when the user explicitly asks (e.g. for an external bilingual customer
+  pitch). Outputs look indistinguishable from a hand-built Lark sales deck. Do NOT use this
   skill when the user actually wants a real PowerPoint (.pptx) file — that's the pptx skill.
 ---
 
@@ -409,6 +412,58 @@ Default to **Mode 2 (zip with edit kit)** unless the user explicitly
 says "this is the final version, no more edits" or "send to the
 customer, just the visual." Most internal handoffs eventually need
 copy tweaks; shipping the edit kit pre-empts a round-trip back to you.
+
+---
+
+## LANGUAGE POLICY (mandatory) — Chinese-only by default
+
+When the user writes to you in Chinese, **every piece of slide copy is
+ZH-only**. Do NOT pair Chinese with English translations underneath
+("instinct sync / Instant sync" stacked, "三大共识 / Three principles"
+stacked). Bilingual ZH + EN is opt-in only — switch to it ONLY when the
+user explicitly asks (e.g. "give me a bilingual deck for an external
+customer", "面向英文客户"). The default is monolingual ZH.
+
+### Why this is mandatory
+
+- Internal team / customer-summary decks read like marketing
+  brochures when every Chinese line is mirrored in English. Native
+  Chinese speakers find the EN line redundant and visually noisy.
+- The flower-master visual + 飞书 brand wordmark is already strongly
+  Chinese-aligned. Stacking EN underneath every ZH item dilutes that.
+- Most decks this skill produces are internal alignment / 汇报材料 /
+  客户提案 — none of these need an EN translation track.
+
+### Specifically — drop these by default
+
+| Element | Old (bilingual) | New (default ZH-only) |
+|---|---|---|
+| Agenda item | `<div class="title-zh">背景与挑战</div><div class="title-en">Context and challenges</div>` | `<div class="title-zh">背景与挑战</div>` (drop the `.title-en` div entirely) |
+| `content-3up` card title | `<h3 class="ctitle">即时同步<br>Instant sync</h3>` | `<h3 class="ctitle">即时同步</h3>` (drop the `<br>` and EN line) |
+| Two-hand-arch motto | `<h3>左手 · 透明化管控</h3><span class="em">CONTROL</span>` | `<h3>左手 · 透明化管控</h3>` (drop the `.em` EN motto span) |
+| Cover subtitle | `<p class="subtitle">The way advanced teams work</p>` | (already removed by Step 2 cover spec — no subtitle at all) |
+| Section lede | "实时同步 · 共识对齐 · 闭环交付 / Instant sync · …" | "即时同步 · 共识对齐 · 闭环交付" (no EN trail) |
+
+### When bilingual IS appropriate (opt-in)
+
+Switch to bilingual ZH + EN ONLY when the user says one of:
+- "做一份双语的 deck"
+- "面向 [国际/英文/海外] 客户"
+- "ZH + EN bilingual"
+- Or the user is writing to you in English and the deck is for a
+  Chinese audience the user is helping.
+
+In those cases, restore `.title-en` divs in agenda, EN second line in
+card titles, and so on. The CSS shipped already supports both modes
+without any token changes.
+
+### Tokenized vocabulary stays English
+
+Brand names (Lark, Base, Wiki, Meetings), product code names
+(Salesforce, C360), numerical units (px, pt, %), and tokenized
+vocabulary (KPI, ROI, OKR, CEO, KOL, agent, demo) stay in their
+original form even in ZH-only decks. The ban is on **translation
+tracks**, not on every Latin-script word.
 
 ---
 
