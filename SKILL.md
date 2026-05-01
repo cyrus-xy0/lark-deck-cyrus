@@ -530,13 +530,18 @@ Do NOT invent a 14th layout.
 
 ### Step 2 · Cover page (`data-layout="cover"`) — MUST follow master spec
 
+The cover is intentionally minimal: **title + initiator name + date,
+nothing else**. NO English subtitle, NO team/company line, NO meeting
+type label. The cover earns its weight through composition, not text
+volume — the right-half flower image carries the atmosphere.
+
 | Element | Spec |
 |---|---|
 | Background | `lark-cover-bg.jpg` (the master flower image — NOT a solid color, NOT a gradient invented on the fly) |
 | Logo | top-LEFT at (120, 113), size 235×74, **COLORED** tri-petal `--fs-asset-logo` |
 | Title | left-half only (max-width 884px), 100/700, can be 1-2 lines (hero allowed `<br>`) |
-| Subtitle | 40/600 white below title |
-| Author block | bottom-left at top:803, with `.role` muted prefix + main text |
+| Subtitle | **NONE** (no EN translation, no marketing tagline — drop it; if you really need a sentence, put it on slide 02) |
+| Author block | bottom-left at top:803. Two stacked spans separated by `<br>`: line 1 = the **initiator's personal name** (the meeting host / deck owner / report author — NOT a team / department / role title); line 2 = the date (`YYYY.MM.DD`). |
 | Footer chrome | NONE (cover doesn't have a footer row) |
 | Eyebrow | NONE |
 
@@ -544,14 +549,28 @@ Do NOT invent a 14th layout.
 <div class="slide" data-layout="cover" data-screen-label="01 Cover">
   <div class="wordmark">飞书</div>
   <div class="stage">
-    <h1 class="title title-zh">〔Source title — can wrap with &lt;br&gt;〕</h1>
-    <p class="subtitle">〔Source EN subtitle, or translated〕</p>
+    <h1 class="title title-zh" data-text-id="slide-01.title">〔主标题 — can wrap with &lt;br&gt;〕</h1>
   </div>
   <div class="author">
-    <span class="role">〔议题类型 · 日期〕</span>〔团队 / 公司〕
+    <span data-text-id="slide-01.author">〔发起人名字〕</span><br>
+    <span data-text-id="slide-01.date">〔YYYY.MM.DD〕</span>
   </div>
 </div>
 ```
+
+**Why the minimalism is non-negotiable** (this rule was elevated from
+user feedback after a 2026-Q2 deck):
+
+- An EN subtitle on every cover reads like marketing copy — clients
+  who only need an internal summary find it noisy.
+- A team line ("飞书企业服务团队") is generic; an actual person's name
+  ("杰森" / "FuQiang") tells the reader who to push back to.
+- The cover is a hero composition; the less text it carries, the more
+  the title and the flower image can breathe.
+
+If the user explicitly asks for an English subtitle on a particular
+deck (e.g. for a bilingual external pitch), allow it — but the
+default authoring behavior is "no subtitle" unless asked.
 
 ### Step 3 · Every content page — title-only header + colored top-right logo
 
@@ -751,17 +770,19 @@ The markup uses only tokens defined in `assets/feishu-deck.css`.
 
 ### 1. Cover (`data-layout="cover"`) — matches 飞书 母版 slideLayout1
 
-The cover uses the master flower background (`lark-cover-bg.jpg`) with content positioned on the **left half** (the dark negative space). The color logo sits **top-left** at master coordinates. Title is **100 px / 700** (smaller than you'd expect — that's the master's spec). No eyebrow, no keyline bar, no footer chrome on the cover.
+The cover uses the master flower background (`lark-cover-bg.jpg`) with content positioned on the **left half** (the dark negative space). The color logo sits **top-left** at master coordinates. Title is **100 px / 700** (smaller than you'd expect — that's the master's spec). No eyebrow, no subtitle, no keyline bar, no footer chrome.
+
+The cover is intentionally minimal: **title + initiator's personal name + date, nothing else.** No English subtitle. No team / company / department label. The flower image and the title carry the entire composition. (See "Step 2 · Cover page" above for the full rationale.)
 
 ```html
 <div class="slide" data-layout="cover" data-screen-label="01 Cover">
   <div class="wordmark">飞书</div>
   <div class="stage">
-    <h1 class="title title-zh">先进团队的<br>工作方式</h1>
-    <p class="subtitle">The way advanced teams work</p>
+    <h1 class="title title-zh" data-text-id="slide-01.title">先进团队的<br>工作方式</h1>
   </div>
   <div class="author">
-    <span class="role">客户提案 · 2026.04</span>飞书企业服务团队
+    <span data-text-id="slide-01.author">杰森</span><br>
+    <span data-text-id="slide-01.date">2026.04.30</span>
   </div>
 </div>
 ```
@@ -772,8 +793,7 @@ inside their titles. The validator (R13) skips `<br>` checking on these three.
 Master pixel grid (1920×1080 design canvas):
 - Logo top-left: `120, 113` size `235×74` (color logo with petals + 飞书 wordmark — `lark-logo.png`)
 - Title: `124, 285`, max-width `884`, font 100/700
-- Subtitle: directly below title, font 40/600 white
-- Author block: `124, 803`, font 30/600 with optional `.role` muted prefix
+- Author block: `124, 803`, font 30/600 — two stacked spans, name on top, date below. Do NOT use `.role` muted prefix on the cover (the date alone is enough chrome).
 - Right half: reserved for the flower image — DO NOT place text there.
 
 ### 2. Agenda (`data-layout="agenda"`)
