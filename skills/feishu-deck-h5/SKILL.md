@@ -1483,6 +1483,49 @@ images.**
 
 If it's a UI element — re-render. If it's a photograph or art — inline.
 
+### `.data-panel` vs `.ui-window` — pick the right container
+
+Two ways to frame structured data on a slide. They look superficially
+similar, but the visual associations are very different and the rule
+for picking is strict:
+
+| Container | When to use | Visual signal |
+|---|---|---|
+| **`.data-panel`** (default) | You're showing structured data — status rows, KPI summaries, value-translation tables, agent step lists, "下一步" callouts. The data isn't part of any app's UI; you just need a brand-aligned framing. | Side accent bar (4 px blue / teal / violet) + clean header + gradient keyline. NO traffic lights. NO window chrome. |
+| **`.ui-window` + `.ui-traffic-lights`** | You're actually mocking a macOS desktop app (real screenshot replacement). The traffic lights tell the viewer "this is a software window." | Three colored dots (red/yellow/green) + titlebar + window-style framing. |
+
+**Default to `.data-panel`.** Reach for `.ui-window` only when the
+content WOULD HAVE BEEN a screenshot of a real app — chat thread,
+browser dashboard, spreadsheet panel, modal dialog. If the same
+content could legitimately appear as a "report module" without app
+chrome, it's a `.data-panel`.
+
+`.data-panel` markup pattern:
+
+```html
+<div class="data-panel">                  <!-- or .data-panel.is-teal / .is-violet -->
+  <h4>客户类型 · 共创进入条件</h4>
+  <hr>
+  <div class="row">
+    <span class="lbl">先进型 · 流程已成熟</span>
+    <span class="val">学过来 → 教别人</span>     <!-- default: teal -->
+  </div>
+  <div class="row">
+    <span class="lbl">中间型 · R&amp;D VP 接洽</span>
+    <span class="val warn">权限不够 → 暂缓</span>  <!-- .warn = orange -->
+  </div>
+  <div class="ui-alert">                   <!-- .ui-alert reuses fine inside .data-panel -->
+    <div class="t">下一步</div>
+    <h5>古茗 / 瑞幸先进流程调研</h5>
+    <p>凯轩节后跟进。</p>
+  </div>
+</div>
+```
+
+Tonal variants (`.is-teal` / `.is-violet`) recolor the side accent bar
+and the row arrows for differentiation when multiple panels coexist on
+a slide (e.g. content-2col with two side-by-side panels).
+
 ### UI primitives shipped in the CSS
 
 The `feishu-deck.css` ships a set of `.ui-*` primitive classes that compose
@@ -1491,9 +1534,10 @@ from the existing tokens. None of them require additional assets.
 
 | Primitive             | Renders                                          |
 |-----------------------|--------------------------------------------------|
-| `.ui-window`          | Generic dark app panel + 16 px radius + soft shadow |
+| **`.data-panel`**     | **Default** brand-aligned container for structured data — side accent + keyline, no window chrome. Tonal variants `.is-teal` / `.is-violet`. **Use this for non-app data;** `.ui-window` only for actual macOS app UI mocks. |
+| `.ui-window`          | Generic dark app panel + 16 px radius + soft shadow — for app UI mocks |
 | `.ui-titlebar`        | Top bar inside `.ui-window`                       |
-| `.ui-traffic-lights`  | macOS-style red/yellow/green dots                |
+| `.ui-traffic-lights`  | macOS-style red/yellow/green dots — only inside real app mocks |
 | `.ui-browser`         | `.ui-window` variant w/ a URL pill in titlebar   |
 | `.ui-urlbar`          | Pill-shaped URL display                          |
 | `.ui-body`            | Flex container holding `.ui-sidebar` + `.ui-main`|
