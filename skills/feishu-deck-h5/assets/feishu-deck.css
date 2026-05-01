@@ -2417,6 +2417,186 @@ body {
 }
 
 /* ----------------------------------------------------------------------------
+   .north-star-map — N-up survey of parallel projects / initiatives.
+   Each card carries a per-card accent color, an idx numeral, a single h4 title,
+   the project's North-Star metric, the core sellable, and 3 tag chips listing
+   sub-capabilities. Optional `.is-hero` modifier highlights the lead card with
+   a thicker accent border. Pattern L · DESIGN.md §9-L.
+   ---------------------------------------------------------------------------- */
+.slide .north-star-map {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), 1fr);
+  gap: 14px;
+  align-self: center;        /* vertical center inside .stage */
+}
+.slide .ns-card {
+  background: rgba(15, 22, 50, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.slide .ns-card.is-hero {
+  border-width: 2px;
+  border-color: var(--fs-blue);
+  box-shadow: 0 0 0 4px rgba(60, 127, 255, 0.10);
+}
+.slide .ns-card .idx {
+  font: 800 44px/1 var(--fs-font-cjk);
+  letter-spacing: -0.02em;
+  color: var(--fs-blue);
+}
+.slide .ns-card h4 {
+  font: 700 26px/1.3 var(--fs-font-cjk);
+  color: var(--fs-text);
+  margin: 0;
+}
+.slide .ns-card .star-label,
+.slide .ns-card .core-label {
+  font: 700 14px/1 var(--fs-font-cjk);
+  letter-spacing: 0.18em;
+  color: var(--fs-text-72);
+  margin-top: 4px;
+}
+.slide .ns-card .star {
+  font: 700 22px/1.3 var(--fs-font-cjk);
+  color: var(--fs-teal);
+}
+.slide .ns-card .core {
+  font: 600 18px/1.4 var(--fs-font-cjk);
+  color: var(--fs-text);
+}
+.slide .ns-card .tags {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.slide .ns-card .tag-chip {
+  font: 600 14px/1.3 var(--fs-font-cjk);
+  padding: 6px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: center;
+  color: var(--fs-blue);    /* default — overridden by tonal variant */
+}
+/* Tonal variants — accent the idx numeral, the star value, and the chips. */
+.slide .ns-card.is-blue   .idx,
+.slide .ns-card.is-blue   .tag-chip { color: var(--fs-blue);   }
+.slide .ns-card.is-violet .idx,
+.slide .ns-card.is-violet .tag-chip { color: #5C3FFB;          }
+.slide .ns-card.is-teal   .idx,
+.slide .ns-card.is-teal   .tag-chip { color: var(--fs-teal);   }
+.slide .ns-card.is-purple .idx,
+.slide .ns-card.is-purple .tag-chip { color: #9F6FF1;          }
+.slide .ns-card.is-orange .idx,
+.slide .ns-card.is-orange .tag-chip { color: var(--fs-orange); }
+.slide .ns-card.is-violet.is-hero { border-color: #5C3FFB; box-shadow: 0 0 0 4px rgba(92, 63, 251, 0.10); }
+.slide .ns-card.is-teal.is-hero   { border-color: var(--fs-teal);   box-shadow: 0 0 0 4px rgba(51, 214, 192, 0.10); }
+.slide .ns-card.is-purple.is-hero { border-color: #9F6FF1; box-shadow: 0 0 0 4px rgba(159, 111, 241, 0.10); }
+.slide .ns-card.is-orange.is-hero { border-color: var(--fs-orange); box-shadow: 0 0 0 4px rgba(254, 127, 0, 0.10); }
+
+/* ----------------------------------------------------------------------------
+   .scene-grid / .scene-card — adjacency grid showing how one principle applies
+   across N domains, with a quantified economic lever per scene. Default 3×2 = 6
+   scenes; override grid via `style="--cols:4"` etc. The lever uses dashed outline
+   + a bold <em> for the impact number — that's the rhetorical hook. Pattern M.
+   ---------------------------------------------------------------------------- */
+.slide .scene-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: 14px;
+  align-self: center;
+}
+.slide .scene-card {
+  background: rgba(15, 22, 50, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  padding: 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  /* `color` is set by the tonal variant below; ::before reads it via currentColor. */
+  color: var(--fs-blue);
+}
+.slide .scene-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0;
+  height: 3px; width: 100%;
+  background: currentColor;
+  opacity: 0.85;
+}
+.slide .scene-card .sc-icon {
+  width: 42px; height: 42px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.slide .scene-card .sc-icon svg {
+  width: 22px; height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.slide .scene-card .sc-top {
+  display: flex; align-items: center; gap: 12px;
+}
+.slide .scene-card .sc-name {
+  font: 700 24px/1.2 var(--fs-font-cjk);
+  color: var(--fs-text);
+  letter-spacing: -0.005em;
+}
+.slide .scene-card hr,
+.slide .scene-card .sc-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 4px 0;
+  border: 0;
+}
+.slide .scene-card .sc-label {
+  font: 700 14px/1 var(--fs-font-cjk);
+  letter-spacing: 0.18em;
+  color: currentColor;
+}
+.slide .scene-card .sc-obj {
+  font: 600 18px/1.5 var(--fs-font-cjk);
+  color: var(--fs-text);
+}
+.slide .scene-card .sc-lever {
+  font: 500 16px/1.5 var(--fs-font-cjk);
+  color: var(--fs-text-72);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  margin-top: auto;
+}
+.slide .scene-card .sc-lever em {
+  font-style: normal;
+  font-weight: 800;
+  color: var(--fs-text);
+}
+/* Tonal variants — recolor the top accent bar, icon, and label. */
+.slide .scene-card.is-blue   { color: var(--fs-blue);   }
+.slide .scene-card.is-violet { color: #5C3FFB;          }
+.slide .scene-card.is-teal   { color: var(--fs-teal);   }
+.slide .scene-card.is-purple { color: #9F6FF1;          }
+.slide .scene-card.is-orange { color: var(--fs-orange); }
+
+/* ----------------------------------------------------------------------------
    .report-item — tagged finding row for the OUTPUT side of a transform widget.
    Default = teal (做得好). .is-warn = orange (漏关键). .is-info = blue (建议).
    ---------------------------------------------------------------------------- */

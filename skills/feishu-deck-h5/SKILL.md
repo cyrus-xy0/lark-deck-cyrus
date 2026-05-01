@@ -2216,6 +2216,107 @@ Each principle prefixed by a glowing dot in its own color.
 Two side-by-side tags. Current mode highlighted; alternative mode rendered
 with `text-decoration: line-through`. Use for "我们当前做 1+1; 不做 1+1+N".
 
+### L. North-Star Map — `north-star-map`
+N-up survey of parallel projects / initiatives in a single slide. Each card
+distills one project to its essentials: **idx → 项目名 → 北极星指标 →
+核心售卖 → 3 个 sub-capability tag chip**. Use this on the "deck-level
+overview" slide right after the agenda / section divider — it gives the
+viewer a single-frame mental model before each project gets its own deep-dive.
+
+Markup:
+```html
+<div class="north-star-map" style="--cols:5">
+  <div class="ns-card is-blue is-hero">     <!-- .is-hero highlights the lead card -->
+    <span class="idx">01</span>
+    <h4>门店管理</h4>
+    <span class="star-label">北极星指标</span>
+    <span class="star">门店坪效</span>
+    <span class="core-label">核心售卖</span>
+    <span class="core">千店千面个性化</span>
+    <div class="tags">
+      <span class="tag-chip">人 · 排班</span>
+      <span class="tag-chip">货 · 菜单</span>
+      <span class="tag-chip">场 · 陈列</span>
+    </div>
+  </div>
+  <div class="ns-card is-violet">
+    <span class="idx">02</span>
+    <h4>内容营销</h4>
+    <span class="star-label">北极星指标</span>
+    <span class="star">广告投放 ROI</span>
+    <span class="core-label">核心售卖</span>
+    <span class="core">素材全生命周期</span>
+    <div class="tags">
+      <span class="tag-chip">内容洞察</span>
+      <span class="tag-chip">内容生成</span>
+      <span class="tag-chip">IP 探针</span>
+    </div>
+  </div>
+  <!-- repeat for ns-card.is-teal / .is-purple / .is-orange -->
+</div>
+```
+
+Tonal variants (`.is-blue / .is-violet / .is-teal / .is-purple / .is-orange`)
+recolor the idx numeral and tag chip text. Keep them in deck order so the eye
+can scan left-to-right by accent. Set `--cols` (default 5) to adjust grid
+density: 4-up for shorter narrative arcs, 6-up only when content stays terse.
+**Why this beats a comparison table**: a table forces the eye to read across;
+the map lets each card breathe and treats every project as a peer. For "5
+专项" or "4 战场" content this is the strongest single-slide overview shape.
+
+### M. Adjacency-scenes grid — `scene-grid`
+3×2 = 6 cards (or `--cols` adjusted) showing how a single principle / product
+applies across **N adjacent industry domains**, with a quantified **economic
+lever** per scene. Each card carries:
+- a top accent bar (3 px, per-card color)
+- an icon tile + scene name (one row)
+- a divider
+- 个性化对象 / 适用对象 label
+- a one-line description of WHAT is personalized
+- a `.sc-lever` callout with a **bold `<em>` for the impact number**
+  (e.g. `经济杠杆 · <em>报损率 ↓1pp = 头部一年增利 1-2 亿</em>`)
+
+Markup:
+```html
+<div class="scene-grid" style="--cols:3">
+  <div class="scene-card is-blue">
+    <div class="sc-top">
+      <span class="sc-icon"><svg viewBox="0 0 24 24" stroke="currentColor"
+        stroke-width="1.6" fill="none" stroke-linecap="round"
+        stroke-linejoin="round"><path d="M3 7h18l-2 12H5L3 7Z"/>
+        <path d="M8 7V5a4 4 0 0 1 8 0v2"/></svg></span>
+      <span class="sc-name">生鲜超市</span>
+    </div>
+    <hr>
+    <span class="sc-label">个性化对象</span>
+    <span class="sc-obj">千店千策订货 · 加工 · 临期 · 调价</span>
+    <span class="sc-lever">经济杠杆 · <em>报损率 ↓1pp = 头部一年增利 1-2 亿</em></span>
+  </div>
+  <div class="scene-card is-violet">
+    <div class="sc-top">
+      <span class="sc-icon"><svg viewBox="0 0 24 24" stroke="currentColor"
+        stroke-width="1.6" fill="none" stroke-linecap="round"
+        stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/>
+        <path d="M7 6V4h10v2"/><path d="M3 11h18"/></svg></span>
+      <span class="sc-name">便利店选品</span>
+    </div>
+    <hr>
+    <span class="sc-label">个性化对象</span>
+    <span class="sc-obj">千店千策的 SKU 组合</span>
+    <span class="sc-lever">经济杠杆 · <em>单店日销提升 5%+</em></span>
+  </div>
+  <!-- 4 more scene-cards … -->
+</div>
+```
+
+The lever is the rhetorical hook — without a real, quantified impact number
+this layout collapses into a generic "list of use cases". If you can't fill
+in a credible `<em>` value for a scene, drop it from the grid; six soft
+scenes are weaker than three hard ones. Per-card tonal variants
+(`.is-blue / .is-violet / .is-teal / .is-purple / .is-orange`) recolor the
+accent bar, icon, and label; keep adjacent cards in different tones so the
+viewer can pre-attentively count the panels.
+
 ---
 
 ## Copy / numbering 规范
@@ -2257,6 +2358,8 @@ named helpers; expand each to the recipe block above when generating a deck:
 | `source_footer(text)`            | Every content page footer line       | `.source-footer`       |
 | `aurora_background()`            | Add `data-decor="aurora"` on `.slide`| `[data-decor~="aurora"]` |
 | `fullscreen_button()`            | Already shipped in `.deck-ui`        | `.deck-controls .ctl.fs` (auto) |
+| `north_star_map(N, cards)`       | Pattern L · N-up project survey, idx + title + 北极星 + 核心售卖 + 3 chips | `.north-star-map / .ns-card` |
+| `scene_grid(cards)`              | Pattern M · 3×2 industry-adjacency grid with quantified economic lever per scene | `.scene-grid / .scene-card` |
 
 Roadmap helpers (no CSS yet — write the markup by hand and follow the spec):
 fork visualization, iron-4-corners, 6-step pipeline timeline, two-track
