@@ -52,9 +52,44 @@ decks. Running without a mount defeats every reason this skill exists.
 bash assets/preflight.sh
 ```
 
-The script exits 0 on success. Exit codes 1 / 2 / 3 mean: no mount /
-read-only / running from ephemeral output. Any non-zero exit blocks
-all subsequent work.
+The script exits 0 on success and prints one of two stdout markers:
+
+- `PREFLIGHT OK` — skill root is writable; proceed normally from
+  the current directory.
+- `PREFLIGHT BOOTSTRAPPED` — skill root was read-only (e.g. Mira-style
+  harness mounting the skill RO). The script auto-mirrored the skill
+  into a writable workspace and printed its path. **You MUST `cd` into
+  that workspace before any further skill commands.** See Step P-2.4.
+
+Exit codes 1 / 2 / 3 mean: missing files or no mount / read-only AND
+no writable bootstrap area / running from ephemeral output. Any
+non-zero exit blocks all subsequent work.
+
+**Step P-2.4.** If preflight printed `PREFLIGHT BOOTSTRAPPED`, the
+skill is mounted read-only and a writable mirror was just created.
+Parse the `workspace (RW) : <path>` line from the output and `cd`
+into it before doing anything else:
+
+```bash
+cd "<workspace path from preflight stdout>"
+```
+
+Once inside the workspace, EVERY subsequent skill command —
+`assets/new-run.sh`, `assets/render.py`, `assets/validate.py`,
+`build.sh`, `assets/package-deliverable.sh` — runs from this
+workspace, NOT from the original RO mount. The `runs/<ts>/output/`
+artifact will land here; that's the path you hand back to the user
+per the Hand-back rule (see DELIVERY MODES below).
+
+If the harness can pre-set `FS_DECK_WORKSPACE` to a known location,
+honor it — preflight uses that value when present. Otherwise the
+default is `$PWD/.feishu-deck-h5-workspace/`.
+
+Why this exists: harnesses like Mira mount the whole skill RO. We
+can't write `runs/<ts>/{input,output}/` next to `assets/` in that
+case, so preflight rsyncs the skill into a writable area and chmods
+the mirror back to writable. All relative paths inside the skill
+keep working because the workspace IS a complete copy.
 
 **Step P-2.5.** If the script's stdout contains the line
 `WARNING · another clone of this repo lives on disk:`, the user has
@@ -107,8 +142,10 @@ gate.
 | User cloned the repo + mounted | `~/Projects/feishu-deck-h5/` mounted; SKILL.md visible | OK, proceed |
 | User mounted a parent project folder | `~/Projects/q1-pitch/` mounted; cloned skill in subfolder OR via plugin install | OK, proceed |
 | User mounted a fresh empty folder | Mounted but no skill files yet | Copy skill files into the mount first (`git clone` or copy from `~/.claude/skills/`), then proceed |
+| Harness mounts skill read-only (Mira / sandbox) | `preflight.sh` prints `PREFLIGHT BOOTSTRAPPED` and exit 0 | `cd` into the workspace path it printed, then run all skill commands from there (Step P-2.4) |
 | User has not mounted anything | `User selected a folder: no` in env | Request mount, refuse if declined |
 | Working in `/sessions/*/mnt/outputs/` only | `preflight.sh` returns exit 3 | Treat as no-mount, refuse |
+| Skill RO AND no writable area for bootstrap | `preflight.sh` returns exit 2 | Tell the user to set `FS_DECK_WORKSPACE` to any writable directory, or mount the skill RW |
 
 The skill treats "ephemeral outputs only" the same as "no mount" — both
 are non-persistent and equally broken for this skill's purpose.

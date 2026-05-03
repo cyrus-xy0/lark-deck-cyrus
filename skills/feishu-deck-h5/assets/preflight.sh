@@ -5,10 +5,26 @@
 # Usage: bash assets/preflight.sh
 #
 # Exit codes:
-#   0  OK — running from a real local mount, writable
-#   1  no mount detected (working from a non-mounted path entirely)
-#   2  read-only (mounted but can't write)
+#   0  OK — running from a writable mount OR successfully bootstrapped a
+#      writable mirror of a read-only skill mount. Distinguish between the
+#      two via stdout (see "stdout markers" below).
+#   1  no mount detected / required skill files missing in source
+#   2  read-only AND no writable area available for bootstrap
 #   3  ephemeral session output only (/sessions/*/mnt/outputs/) — not allowed
+#
+# stdout markers (always on the first line of the success/fail message):
+#   PREFLIGHT OK              skill root is writable, run skill from $SKILL_ROOT
+#   PREFLIGHT BOOTSTRAPPED    skill root was RO; mirrored to a writable
+#                             workspace — agent MUST cd into the printed
+#                             workspace path before any further skill commands
+#   PREFLIGHT FAIL · exit N   gated, do not proceed
+#
+# Why bootstrap exists: harnesses like Mira mount the skill read-only into
+# /opt or similar. We can't write runs/<ts>/{input,output}/ next to assets/
+# in that case. Instead we rsync the whole skill (minus runs/, .git/) into
+# $PWD/.feishu-deck-h5-workspace (override via FS_DECK_WORKSPACE env var),
+# and tell the agent to cd there. All relative paths inside the skill (CSS
+# link, template lookups, render.py) keep working unchanged.
 #
 # This script is the LAST LINE of the skill's preflight. It's a hard gate;
 # any non-zero exit means the agent must STOP and refuse to proceed.
@@ -44,17 +60,9 @@ if [[ -z "$SKILL_ROOT" ]]; then
   exit 1
 fi
 
-# ---- Check 3: is the skill root writable? ----
-PROBE="$SKILL_ROOT/.feishu-deck-h5-preflight-$$"
-if ! ( touch "$PROBE" 2>/dev/null && rm -f "$PROBE" 2>/dev/null ); then
-  echo "PREFLIGHT FAIL · exit 2 · skill root is read-only"
-  echo
-  echo "  $SKILL_ROOT exists but is not writable."
-  echo "  Mount with write access so build.sh can produce examples/."
-  exit 2
-fi
-
-# ---- Check 4: required asset files present? ----
+# ---- Check 3: required asset files present in source? ----
+# Done BEFORE the writable check so an empty/incomplete RO mount fails fast
+# (rather than bootstrapping a broken mirror).
 REQUIRED=(
   "assets/feishu-deck.css"
   "assets/feishu-deck.js"
@@ -82,6 +90,61 @@ if [[ ${#MISSING[@]} -gt 0 ]]; then
   echo "  the feishu-deck-h5 repo into the mount, or copy from"
   echo "  ~/.claude/skills/feishu-deck-h5/ if installed via plugin."
   exit 1
+fi
+
+# ---- Check 4: skill root writable, OR bootstrap a writable mirror ----
+PROBE="$SKILL_ROOT/.feishu-deck-h5-preflight-$$"
+if ! ( touch "$PROBE" 2>/dev/null && rm -f "$PROBE" 2>/dev/null ); then
+  # ---- RO mount → bootstrap a writable workspace ----
+  WORKSPACE="${FS_DECK_WORKSPACE:-$PWD/.feishu-deck-h5-workspace}"
+  WORKSPACE_PARENT="$(dirname "$WORKSPACE")"
+  WORKSPACE_PROBE="$WORKSPACE_PARENT/.feishu-deck-h5-bootstrap-probe-$$"
+  if ! ( mkdir -p "$WORKSPACE_PARENT" 2>/dev/null && \
+         touch "$WORKSPACE_PROBE" 2>/dev/null && \
+         rm -f "$WORKSPACE_PROBE" 2>/dev/null ); then
+    echo "PREFLIGHT FAIL · exit 2 · skill root read-only AND no writable bootstrap area"
+    echo
+    echo "  Skill root         : $SKILL_ROOT (RO)"
+    echo "  Tried workspace at : $WORKSPACE (parent not writable)"
+    echo
+    echo "  Set FS_DECK_WORKSPACE=<writable-dir> and re-run, or mount the"
+    echo "  skill RW so writes can land next to assets/."
+    exit 2
+  fi
+  if ! command -v rsync >/dev/null 2>&1; then
+    echo "PREFLIGHT FAIL · exit 2 · rsync required to bootstrap RO mount"
+    echo
+    echo "  Skill root: $SKILL_ROOT (RO)"
+    echo "  rsync isn't installed — can't mirror the skill to a writable area."
+    echo "  Install rsync, or mount the skill RW."
+    exit 2
+  fi
+  mkdir -p "$WORKSPACE"
+  rsync -a --delete \
+    --exclude='runs/' \
+    --exclude='.git/' \
+    --exclude='__pycache__' \
+    --exclude='.DS_Store' \
+    "$SKILL_ROOT/" "$WORKSPACE/"
+  # rsync -a preserves source perms — including the very RO bits we're trying
+  # to escape. Restore owner write/exec on the mirror so the workspace can
+  # actually accept runs/<ts>/ creation, edits, and validate-pass writes.
+  chmod -R u+w "$WORKSPACE"
+  echo "PREFLIGHT BOOTSTRAPPED"
+  echo "  source (RO)    : $SKILL_ROOT"
+  echo "  workspace (RW) : $WORKSPACE"
+  echo "  ephemeral      : no"
+  echo "  files          : ${#REQUIRED[@]}/${#REQUIRED[@]} present (mirrored)"
+  echo
+  echo "  ACTION REQUIRED — agent MUST cd into the workspace before running"
+  echo "  any further skill commands (new-run.sh, render.py, build.sh, etc.):"
+  echo
+  echo "    cd \"$WORKSPACE\""
+  echo
+  echo "  All paths in SKILL.md become relative to the workspace once you cd."
+  echo "  The runs/<ts>/output/ artifact will land in the workspace, where"
+  echo "  the user (or harness) can pick it up for delivery."
+  exit 0
 fi
 
 # ---- Check 5: warn if another clone of the same repo lives elsewhere on disk ----
