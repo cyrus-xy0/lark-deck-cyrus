@@ -789,7 +789,7 @@ arranged as:
 - **Right column** (`.col-visual`): the case illustration as a hero
   frame (see "Image is the visual hero" below for sizing rules — image
   goes in via `background-image`, NEVER an `<img>` tag, to satisfy UI1).
-- **`.source-footer`** (single line at slide bottom): "数据来源 · …" — used when a slide cites a data source.
+- ~~**`.source-footer`** (data citation line below the body)~~ **Retired 2026-05** alongside `.footer`. Data citations now live inline in the slide body (as a `.caption`, in a corner `.eyebrow`, or just trailing text). Hide-only CSS keeps any leftover DOM invisible.
 - ~~**Chrome footer**: brand line + page number.~~ **Retired 2026-05.** The fullscreen present-mode pager (bottom-center prev/next/page-no bar) now shows the page number; the corner `.wordmark` carries the brand. Templates and `render.py` no longer emit `<div class="footer">` / `<span class="pageno">`. Validator R07 no longer requires it. Don't add it to new slides.
 
 The 4-beat 痛点/冲突/解法/价值 arc IS the rhetorical structure of a
@@ -913,7 +913,6 @@ History of the rule (relevant context for future maintainers):
       </div>
     </div>
   </div>
-  <p class="source-footer">数据来源 · …</p>
 </div>
 ```
 
@@ -2814,7 +2813,7 @@ the helper to ~70% of the available vertical room.
 - All `.stage > .scene-grid` and `.stage > .north-star-map` get
   `align-self: stretch; width: 100%` so they span the stage horizontally.
 - When the helper is the dominant body block (alone, or paired only with a
-  trailing pullquote / source-footer / lede — detected via
+  trailing pullquote / lede — detected via
   `:only-child` and `:first-child:nth-last-child(-n+2)`), the CSS bumps
   per-card padding (scene-card 32×28, ns-card 28×22) AND grid gap
   (scene-grid 24px, north-star-map 18px). Cards stay content-sized; the
@@ -3235,9 +3234,12 @@ viewer can pre-attentively count the panels.
 
 These are content rules — they affect what to *write*, not how to render it.
 
-1. **Source footer on every content page.** Use `class="source-footer"` near
-   the bottom-left: `数据来源：xxx · 内部口径`. Without this, the deck reads
-   like marketing copy; with it, it reads like a board memo.
+1. **Cite numbers inline.** When a slide cites a number, put the
+   citation right next to the number — as a trailing `<span class="caption">`,
+   a small `<p class="caption">` under the heading, or in the body
+   sentence itself ("…根据 12 家中国头部企业 2024 Q3-Q4 实测"). This
+   keeps the deck reading like a board memo. (`.source-footer` was the
+   pre-2026-05 way; retired alongside `.footer` chrome.)
 2. **Eyebrow numbering uses `01 / 02 / 03 / 04-A / 04-B / 04-C / …`** to
    express chapter+sub-page hierarchy. When a focus area expands across
    multiple pages, sub-letters are mandatory.
@@ -3267,7 +3269,6 @@ named helpers; expand each to the recipe block above when generating a deck:
 | `principle_band(items)`          | Three-color strategy principles      | `.principle-band`      |
 | `phone_frame_iframe(src)`        | Mobile prototype embed               | `.phone-frame`         |
 | `desktop_iframe(src)`            | Desktop prototype embed + hint       | `.desktop-frame`       |
-| `source_footer(text)`            | Every content page footer line       | `.source-footer`       |
 | `aurora_background()`            | Add `data-decor="aurora"` on `.slide`| `[data-decor~="aurora"]` |
 | `fullscreen_button()`            | Already shipped in `.deck-ui`        | `.deck-controls .ctl.fs` (auto) |
 | `north_star_map(N, cards)`       | Pattern L · N-up project survey, idx + title + 北极星 + 核心售卖 + 3 chips | `.north-star-map / .ns-card` |
@@ -3309,7 +3310,6 @@ The fix is to wrap the body container AND its helpers in `<div class="stage">`:
     <p class="pullquote">…</p>              <!-- helper, flows below body -->
     <div class="cta-box">…</div>            <!-- helper, flows below pullquote -->
   </div>
-  <p class="source-footer">…</p>            <!-- stays OUTSIDE .stage -->
 </div>
 ```
 
@@ -3572,8 +3572,8 @@ Layout-specific sizes
         right-corner numerals / verdict badges).
 
 Copy & narrative
-[ ] 21. Every content page that cites a number carries a .source-footer line
-        ("数据来源：xxx · 内部口径"). Without it, the deck reads as marketing.
+[ ] 21. (Retired 2026-05 — .source-footer is gone; cite numbers inline
+        in the body or via `.caption`. Item kept as a numbering anchor.)
 [ ] 22. Eyebrow numbering uses 01 / 02 / 03 / 04-A / 04-B / … sub-letters when
         a focus area expands across multiple pages.
 [ ] 23. CN-EN separator inside titles/eyebrows is space + · + space.

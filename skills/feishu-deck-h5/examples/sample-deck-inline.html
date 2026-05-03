@@ -1032,8 +1032,7 @@ body {
          <p class="pullquote">…</p>        ← optional emphasis
          <div class="cta-box">…</div>      ← optional CTA
        </div>
-       <p class="source-footer">…</p>      ← stays outside .stage
-     </div>     <!-- .footer removed 2026-05; pager UI handles page no. -->
+     </div>     <!-- .footer / .source-footer both retired 2026-05; pager UI handles page no., data citations go inline. -->
 
    No backward-compat impact: pre-1.3.2 decks (no .stage wrapper) keep
    absolute body positioning unchanged via the rules at lines 936-943.
@@ -1556,12 +1555,11 @@ body {
 }
 .slide .arch-base b { color: var(--fs-text); font-weight: 700; }
 
-/* Source footer (Section 七 #1) — every content page should carry one */
-.slide .source-footer {
-  position: absolute; left: 73px; bottom: 92px;
-  font: 500 14px/1.5 var(--fs-font-latin);
-  color: var(--fs-text-40); letter-spacing: 0.04em;
-}
+/* .source-footer (data-citation line) RETIRED 2026-05 alongside .footer
+   chrome. Data citations now go inline in slide body or as a normal
+   .caption/.eyebrow if context requires. Hide any leftover DOM in
+   legacy decks. Templates and render.py no longer emit this markup. */
+.slide .source-footer { display: none; }
 
 /* Mobile portrait toast (Section 六 #4) */
 @media (orientation: portrait) and (max-width: 900px) {
@@ -2743,7 +2741,7 @@ body {
   width: 100%;
 }
 /* When the helper is the major body block (alone, or paired only with a
-   trailing pullquote / source-footer / lede), bump card padding + grid gap
+   trailing pullquote / lede), bump card padding + grid gap
    so the visual mass spreads across the canvas naturally. NO stretch on
    the grid or the cards — content-sized cards keep .tags / lever items
    close to their content rather than against the bottom border. */

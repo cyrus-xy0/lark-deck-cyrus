@@ -48,7 +48,6 @@ VALIDATOR = ASSETS_DIR / "validate.py"
 ONE_PAGER_REQUIRED = (
     "title",
     "industry",
-    "source",
     "hook.lead", "hook.accent", "hook.tail",
     "arc.pain",
     "arc.conflict",
@@ -78,7 +77,6 @@ ONE_PAGER_TEXT_IDS = (
     ("slide-01.arc.value.accent", "arc.value.accent"),
     ("slide-01.arc.value.tail",   "arc.value.tail"),
     ("slide-01.scene.caption",    "scene.caption"),
-    ("slide-01.source",           "source"),
 )
 
 # Beats whose content carries the rhetorical weight of the case. If an
@@ -138,7 +136,6 @@ BIG_STAT_REQUIRED = (
 BIG_STAT_DEFAULTS = {
     "decor": "",
     "eyebrow": "",
-    "source": "",
     "screen_label": None,
 }
 BIG_STAT_TEXT_IDS = (
@@ -147,7 +144,6 @@ BIG_STAT_TEXT_IDS = (
     ("slide-01.eyebrow",      "eyebrow"),
     ("slide-01.heading",      "heading"),
     ("slide-01.body",         "body"),
-    ("slide-01.source",       "source"),
 )
 # stat.number / stat.unit can be naturally short (e.g. "30" / "%"). Skip
 # them in fit_check; only the narrative beats need the safety net.
