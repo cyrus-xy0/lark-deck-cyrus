@@ -41,14 +41,16 @@ TEXT_LEAF_RE     = _apply.TEXT_LEAF_RE
 decode_inner_to_value = _apply.decode_inner_to_value
 
 
-# Find each `<div class="slide" data-layout="..." data-screen-label="..." ...>`
-# then walk forward, depth-counting <div>/</div> to find its matching close.
+# Find each `<div class="slide" ...>` open tag. Match the whole attribute blob
+# greedily — attribute order isn't fixed (data-decor / data-accent / data-variant
+# legitimately sit between data-layout and data-screen-label). Pull layout and
+# label out of the blob in a second pass, NOT positionally in the open-tag regex.
+# Then walk forward, depth-counting <div>/</div> to find its matching close.
 # Naive `.*?</div>\s*</div>` was buggy — slide bodies contain many nested
 # `</div></div>` pairs, so the non-greedy match stopped after the first one.
-SLIDE_OPEN_RE = re.compile(
-    r'<div class="slide" data-layout="(?P<layout>[^"]+)" '
-    r'data-screen-label="(?P<label>[^"]+)"[^>]*>'
-)
+SLIDE_OPEN_RE = re.compile(r'<div\s+class="slide(?:\s+[^"]*)?"(?P<attrs>[^>]*)>')
+LAYOUT_ATTR_RE = re.compile(r'\bdata-layout="([^"]+)"')
+LABEL_ATTR_RE  = re.compile(r'\bdata-screen-label="([^"]+)"')
 
 # Any <div ...> open or </div> close. Self-closing isn't valid for div in HTML5,
 # so we don't bother accommodating it here.
@@ -84,9 +86,12 @@ def dump_annotated(html: str) -> tuple[str, list[tuple[str, str, str]]]:
     by_slide: dict[str, OrderedDict[str, str]] = OrderedDict()
 
     for slide_idx, (m_open, b_start, b_end) in enumerate(find_slides(html), 1):
-        layout = m_open.group('layout')
-        label  = m_open.group('label')
-        body   = html[b_start:b_end]
+        attrs = m_open.group('attrs')
+        layout_m = LAYOUT_ATTR_RE.search(attrs)
+        label_m  = LABEL_ATTR_RE.search(attrs)
+        layout   = layout_m.group(1) if layout_m else 'unknown'
+        label    = label_m.group(1)  if label_m  else f'slide-{slide_idx}'
+        body     = html[b_start:b_end]
         slide_id = f'slide-{slide_idx:02d}'
         slides.append((slide_id, layout, label))
         by_slide[slide_id] = OrderedDict()
@@ -342,9 +347,12 @@ def annotate_html(html: str) -> tuple[str, str, list[tuple[str, str, str]]]:
     for m_open, b_start, b_end in find_slides(html):
         slide_idx += 1
         new_html_parts.append(html[cursor:b_start])
-        layout = m_open.group('layout')
-        label  = m_open.group('label')
-        body   = html[b_start:b_end]
+        attrs    = m_open.group('attrs')
+        layout_m = LAYOUT_ATTR_RE.search(attrs)
+        label_m  = LABEL_ATTR_RE.search(attrs)
+        layout   = layout_m.group(1) if layout_m else 'unknown'
+        label    = label_m.group(1)  if label_m  else f'slide-{slide_idx}'
+        body     = html[b_start:b_end]
         slide_id = f'slide-{slide_idx:02d}'
         new_body, fields = retrofit_slide(slide_idx, body)
         slides.append((slide_id, layout, label))

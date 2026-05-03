@@ -490,6 +490,699 @@ tracks**, not on every Latin-script word.
 
 ---
 
+## ONE-PAGER CASE POLICY (mandatory) — 一页纸案例 layout
+
+This is the **canonical layout for a single customer case rendered on
+one slide** (一页纸案例 / one-pager case study). When the trigger
+applies, use the `.story-case` recipe documented below — don't
+improvise a different layout, don't add a cover, don't expand it into
+multiple slides unless the user explicitly asks for that.
+
+### How to render — TWO paths · template by default, LLM when better
+
+| Path | Command | When |
+|---|---|---|
+| **A · Template (canonical, ~0.5s, 0 tokens)** | `python3 assets/render.py one-pager <input.toml> <output-dir>/` | The case content fits the schema cleanly (4-beat 痛点/冲突/解法/价值 + hook + scene image). Validator-pass guaranteed; visual frozen at template `v1`; same input → same output. |
+| **B · LLM authoring (creative, ~30-60s, ~70K tokens)** | The agent writes the HTML/CSS by hand, staying within brand tokens | The case content does NOT fit the schema, OR the LLM judges a substantially better visual treatment for *this specific story*. Brand styling must still match — see "Brand floor" below. |
+
+**Default is Path A — but only when it actually fits.** Don't force a
+square peg through the schema. The template is the right tool for the
+80% of cases that look like the瑞幸 example; for the rest, mechanical
+templating is worse than thoughtful authoring.
+
+#### When to deviate from the template (Path B)
+
+Take Path B if ANY of these apply:
+
+1. **User explicitly asks for something the schema can't express** —
+   "加一段客户原话", "做成 timeline", "用 big-stat 突出 ROI 数字",
+   "做成竖版手机端", "把 4 个 beat 改成 6 个观察", "图分两张拼贴",
+   "case 没有冲突,只有 3 个发现". The schema is intentionally narrow;
+   when the ask exceeds it, deviate rather than mutilate the content.
+2. **The story's natural shape isn't 4-beat** — e.g. it's really a
+   one-sentence customer testimonial (`quote` layout fits better),
+   a hero metric with prose around it (`big-stat`), a chronological
+   roadmap (`timeline`), or a 3-up parallel observation (`content-3up`).
+3. **You judge a clearly stronger visual approach for THIS case** —
+   the illustration calls for full-bleed not framed; the value beat
+   is so quantifiable it should be a `.stats` row; the conflict is
+   so visceral it deserves to be a quote, etc. **Trust this judgment**
+   — going Path B for genuine creative reasons is the right call,
+   not a failure to template.
+4. **It's a brand-new pattern that may itself become a template
+   later** — author it manually first; if it ships well and recurs,
+   propose lifting it into a new `templates/<name>.html` + a
+   `render.py <name>` subcommand.
+
+Don't take Path B just to add per-case flair (different fonts,
+off-palette colors, custom logo treatment) — that's drift, not
+creativity. The brand floor below applies regardless of path.
+
+#### Brand floor (mandatory, applies to BOTH paths)
+
+When deviating, you can break with the template's *layout shape* but
+NOT with these brand basics. The validator enforces most of them:
+
+- Dark cinematic background — `lark-content-bg.jpg` via the master
+  decor system, OR a brand-aligned `data-decor` token (no white /
+  cream / "Apple style" backgrounds).
+- Color palette from `--fs-*` tokens only — no off-palette hex (R10),
+  no cyan as slide accent (R49).
+- 飞书 wordmark present per L1 (color logo top-right on content,
+  mono opt-in only on chapter dividers).
+- 16:9 design canvas (1920×1080) — `data-screen-label` on every slide.
+- ZH-only by default (no EN translation tracks under every CN line).
+- All other validator rules (L1-L4, R02-R56, P50-P55, UI1, T01-T03)
+  must still PASS strict. Deviation is a layout choice, not a license
+  to skip integrity checks.
+
+If the deviation is solid (story really fit better, brand floor held,
+validator green), proactively offer to lift it into a new template:
+
+> 这次走了 Path B,因为 [reason]。如果这种结构会在别的案例复现,
+> 我可以把它沉淀成 `templates/<new-name>.html` + render.py 子命令,
+> 下次同类故事就 0 token 出图。要不要做?
+
+This is how the template library grows — Path B today becomes Path A
+tomorrow.
+
+#### When the user rejects a Path A output
+
+If the output's problem is *visual or structural*, fix the **template**
+(`templates/one-pager-case.html`) and bump
+`PATTERNS["one-pager"].version` in `render.py`. Don't hand-patch the
+single output — the next case will hit the same bug.
+
+If the problem is *copy / wording / strategic emphasis*, edit
+`input.toml` (or `texts.md`) and re-render. The template is fine; the
+content fed in was wrong.
+
+If the problem is *"this case shouldn't have used the template at
+all"*, that's a Path A → Path B retroactive switch — surface this
+to the user as a learning signal for next time, and proactively
+expand the trigger-detection rules so similar cases route to Path B
+up front.
+
+### Path A safety nets — schema-fit refusal + accent review
+
+`render.py` runs two automatic checks every Path A invocation. They
+exist because the failure modes of "Layer 2 抽 TOML → Layer 1 渲染"
+are predictable: extractors stuff placeholders when they can't fill a
+beat, and miss-frame the accent boundary when the source is wordy.
+
+**1 · Schema-fit refusal (exit 4).** Before rendering, every beat in
+`fit_check` is scanned for:
+
+- Placeholder content: `TBD / TODO / TBC / XXX / N/A / 待补 / 占位 /
+  稍后补充 / 未填 / None`, ellipsis-only strings, question-mark-only
+  strings.
+- Length floor: meaty beats (`arc.pain / arc.conflict / arc.solution`)
+  must be ≥ 10 chars; `*.accent` must be ≥ 2 chars; `*.lead / *.tail`
+  can be very short (connective tissue, ≥ 1 char).
+- Duplicate content across beats (LLM laziness signal).
+
+If any beat fails, render REFUSES (exit 4) and surfaces the offenders.
+The agent's correct response is one of:
+
+- Re-extract the TOML from the source if a beat got lost in extraction.
+- **Take Path B** — the failure is the schema's way of saying "this
+  story doesn't have a clean 4-beat arc". Don't fight it.
+- Add `--skip-fit-check` to bypass, but only if you have a specific
+  reason (e.g. the user gave you intentionally terse copy and confirmed
+  it's fine). The flag exists for the rare legit case; not as a way to
+  silence the warning.
+
+**2 · Accent boundary review (post-render print).** After successful
+render, render.py prints each accent-bearing field with the highlight
+visually marked (ANSI bold-teal in TTY, `[brackets]` otherwise):
+
+```
+ACCENT 复核 (1 秒目测,被高亮的词是该突出的吗?)
+    hook  ·  新店垃圾桶距出餐窄 1 米,按 SOP 必须 [砸墙返工] —— 老专家随手两招就解决。
+   value  ·  飞书把这种不在手册里的隐形经验萃取到 [企业 AI 知识库],新人...
+```
+
+Eyeball it. If the bracketed word isn't the emotional pivot of the
+sentence (e.g. extractor highlighted `1 米` instead of `砸墙返工`),
+edit `input.toml`'s `*.accent` and rerun — 0.2 seconds, no LLM cost.
+
+These two checks together close the two real failure modes of the
+Layer 2 extraction pipeline. They don't replace human judgment, but
+they catch the dumb cases automatically.
+
+### Path A — input.toml schema (all fields required unless marked)
+
+See `examples/one-pager-luckin/input.toml` for the canonical example.
+
+```toml
+title    = "客户/项目 · 案例标题"     # ≤22 chars recommended (single-line at 52px)
+industry = "行业 · 场景 · 客户案例"   # short tag, fits in pill
+brand    = "飞书企业 AI · 客户案例 · STORY 0NN"
+source   = "数据来源 · 客户访谈 / 调研口径"
+
+[hook]                                  # one-line story trailer with teal accent
+lead   = "...before the accent..."
+accent = "强调动词"                    # rendered teal
+tail   = "...after the accent..."
+
+[arc]                                   # 4 narrative beats
+pain     = "..."                        # blue
+conflict = "..."                        # orange
+solution = "..."                        # teal
+
+[arc.value]                             # value beat with its own teal accent
+lead   = "..."
+accent = "..."
+tail   = "..."
+
+[scene]
+image    = "./scene.png"               # path RELATIVE to this TOML
+caption  = "现场 · 一句话场景说明"
+alt      = "无障碍描述,完整场景内容"
+# fit      = "cover"                    # optional: cover (default) | contain
+# position = "center"                   # optional: any CSS background-position
+```
+
+Run:
+```
+python3 assets/render.py one-pager input.toml runs/<ts>/output/
+```
+
+Outputs: `index.html`, `texts.md`, `scene.png`, `FEEDBACK.md` — all in
+the output directory. Validator runs automatically; non-zero exit means
+the **template** is broken (file an issue), not the input.
+
+### Trigger detection — when to use this layout
+
+Apply the one-pager case layout when ANY of the following is true:
+
+- The user explicitly says **"一页纸案例" / "one-pager case" / "做成一页"
+  / "single-page case study" / "压成一页" / "one-page version"**.
+- The user hands you ONE row of a customer-story table / story library
+  / 案例库 and asks to "make a deck" / "试试效果" / "把这一行做出来" /
+  "这个案例做一下".
+- The user provides a single customer case with these typical fields:
+  题目 / 行业痛点 / 钩子 / 故事背景 / 核心情节 / 核心价值. That field
+  shape IS the one-pager case shape.
+- The user asks you to "render this case" / "show this customer story"
+  / "做这个客户案例" without specifying length.
+
+When in doubt between one-pager vs multi-slide expansion, **default to
+one-pager** and offer to expand if the user wants more depth. One-pager
+is faster to consume, easier to forward, and works as the IM preview.
+
+The CSS class `.story-case` (added on the `.slide` element) is the
+canonical marker for this layout. Any slide with `class="story-case"`
+on `.slide` MUST follow the rules in this section.
+
+### Skip the cover page
+
+When the trigger above applies, **SKIP the `cover` layout entirely**
+and open the deck with the one-pager content slide.
+
+### Why this is mandatory
+
+- A single-case deck has no deck-level title that needs a hero cover.
+  The case IS the content — a separate cover page wastes a slide and
+  forces the reader through a click of pure ceremony before they reach
+  the value.
+- The case illustration belongs **inside** the content slide as the
+  visual (right column / hero image), not isolated on a cover. Putting
+  it on a cover divorces the image from the narrative.
+- Internal sharers / WeCom forwards / IM previews show only the first
+  slide. If that slide is a generic cover, the recipient sees nothing
+  about the actual story. If it's the content slide, they see the hook,
+  the title, and the visual all at once.
+
+### The one-pager structure (mandatory shape)
+
+`data-layout="content-2col"` with `class="story-case"` on the `.slide`,
+arranged as:
+
+- **Header**: the case title (one line, no `<br>`, no eyebrow per R56).
+- **Left column** (`.col-text`):
+  - `.industry-tag` — small accent chip naming the industry / scenario
+  - `.story-hook` — the one-line hook (use a `.accent` span on the
+    pivot keyword to highlight in teal)
+  - `.story-arc` — 4-row labeled narrative beats:
+    `痛点` (blue) → `冲突` (orange) → `解法` (teal) → `价值` (violet)
+- **Right column** (`.col-visual`): the case illustration as a hero
+  frame (see "Image is the visual hero" below for sizing rules — image
+  goes in via `background-image`, NEVER an `<img>` tag, to satisfy UI1).
+- **`.source-footer`** (above the chrome footer): "数据来源 · …"
+- **Chrome footer**: brand line + page number.
+
+The 4-beat 痛点/冲突/解法/价值 arc IS the rhetorical structure of a
+one-pager case. Don't replace it with generic bullets; the labeled
+beats are what carry the narrative through one slide.
+
+### When the case doesn't fit the 4-beat shape
+
+Substitute layouts ONLY when the case content forces it:
+- `content-3up` — case naturally splits into 3 parallel beats (e.g.
+  "三个发现" without a clear conflict→solution narrative)
+- `quote` — case IS a one-sentence customer testimonial (no narrative
+  arc, just the voice)
+- `image-text` — case is more about the scene than the analysis (e.g.
+  "看这家门店一周的状态变化")
+
+NEVER use `cover` / `agenda` / `section` / `end` for a one-pager case.
+And NEVER expand a one-pager into multiple slides without the user
+explicitly asking — the whole point is that it fits on ONE page.
+
+### Multi-case bundles are different
+
+A deck that bundles **3+ cases** (a "客户案例集" / "story library" /
+"quarterly customer review") DOES get the standard treatment:
+- `cover` slide with the deck title
+- `agenda` listing the cases
+- `section` divider per case (optional)
+- One or more content slides per case
+
+The "skip the cover" rule is specifically for single-case / one-row decks.
+If unsure, ask: "is this one case or a bundle?" — the answer determines
+whether the cover stays.
+
+### When the user explicitly wants a cover
+
+Override the default if the user says one of:
+- "我要一个封面页" / "give it a cover" / "加一张封面"
+- "做成正式提案" (formal proposal explicitly needs a hero cover)
+- The single case is going to a board / external customer (formal
+  context, cover earns its keep)
+
+In all other single-case scenarios, default = no cover, content slide
+opens the deck.
+
+### Image sizing — magazine-spread top-aligned (v2, frozen 2026-05-03)
+
+The case illustration is the slide's emotional anchor on the right.
+History of the rule (relevant context for future maintainers):
+
+- **v0 (broken)**: `aspect-ratio: 16/9` thumbnail → ~460 px tall image
+  with 300 px of empty space below. User feedback: "图太小了".
+- **v1 (overshot)**: `min-height: 680 px` hero filling ~88 % of the
+  770 px stage zone → image taller than text content, awkward visual
+  imbalance. User feedback: "右边的图还是有点大,能不能和左边文字
+  的标题对齐".
+- **v2 (current)**: image height = LEFT text column's natural height,
+  both columns top-aligned, row vertically centered in stage. Reads
+  like a magazine spread; image is still ~57 % of the grid width
+  (clearly hero by area), but its proportions match the text it
+  illustrates.
+
+**Mandatory sizing rules (v2)**:
+
+1. **Column ratio still favors the image.** `1fr 1.3fr` (text 43 %,
+   image 57 %). Image is hero by *area*, not by *being taller*.
+
+2. **Top-align both columns; image height equals text height.**
+   `grid-template-rows: auto` on `.grid` makes the row natural-sized;
+   `align-items: stretch` makes the visual column match the text
+   column's height. **Do NOT** set `min-height: 680 px` (the v1 bug)
+   or `justify-content: center` on `.col-text` (also v1).
+
+3. **Image is cropped via `background-size: cover`** to fit the
+   text-determined height. The 16:9 illustration sitting in a
+   ~440 × 950 frame loses ~50 px from top and bottom — fine as long
+   as the illustration's main subject is centered (most are).
+   Side crop is also fine for the same reason.
+
+4. **Use `background-image`, NOT `<img>`** (UI1 validator treats
+   `<img>` in slide content as a possible UI screenshot). Mark the
+   frame `role="img" aria-label="..."` for a11y. Per-instance image
+   URL goes in inline `style="background-image: url(...)"`, NOT in
+   the shared CSS — bundles need per-case `scene-NN.png` filenames.
+
+5. **Caption goes INSIDE the frame as an overlay** (bottom-left
+   absolute pill, rgba dark + backdrop blur). Reads like a
+   documentary still. Don't stack `frame + caption-below` — it
+   shrinks the frame.
+
+6. **`min-height: 360 px` floor** on the frame catches degenerate
+   cases where the left text column is unusually short (e.g. a
+   one-pager with 2-line beats). Below that, the image stops
+   shrinking and the row gets a touch of extra height. Tune this if
+   real cases hit it; default is fine for the typical 4-beat shape.
+
+### Reference markup — copy this for a single-case content slide
+
+```html
+<div class="slide story-case" data-layout="content-2col" data-accent="blue"
+     data-decor="blue-glow" data-screen-label="01 客户案例 — 标题">
+  <div class="wordmark"></div>
+  <div class="header">
+    <h2 class="title-zh" data-text-id="slide-01.title">客户/项目 · 案例标题(单行)</h2>
+  </div>
+  <div class="stage">
+    <div class="grid">
+      <div class="col-text">
+        <span class="industry-tag">行业 · 场景 · 客户案例</span>
+        <p class="story-hook">钩子(一句话定调,核心动词用 .accent 标 teal)。</p>
+        <div class="story-arc">
+          <div class="row"><span class="lbl">痛点</span><p>…</p></div>
+          <div class="row"><span class="lbl is-orange">冲突</span><p>…</p></div>
+          <div class="row"><span class="lbl is-teal">解法</span><p>…</p></div>
+          <div class="row"><span class="lbl is-violet">价值</span><p>…</p></div>
+        </div>
+      </div>
+      <div class="col-visual">
+        <div class="scene-frame" role="img" aria-label="…现场描述…">
+          <span class="scene-cap">现场 · 一句话场景说明</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="source-footer">数据来源 · …</p>
+  <div class="footer">
+    <span>飞书企业 AI · 客户案例 · STORY 0NN</span>
+    <span class="pageno">01</span>
+  </div>
+</div>
+```
+
+When using `render.py one-pager`, the v2 CSS lives in
+`assets/feishu-deck-patterns.css` — DO NOT inline these rules in the
+`<style>` block. The standalone template + bundle shell both `<link>`
+to that single source of truth so a v2 → v3 refactor only touches one
+file.
+
+For Path B (LLM-authored one-pager that doesn't use render.py), copy
+this block verbatim into the slide's `<style>`:
+
+```css
+.slide.story-case[data-layout="content-2col"] .grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  grid-template-rows: auto;             /* row sizes to content (v2) */
+  column-gap: 56px;
+  align-content: center;                /* center the row in the 770px stage */
+  align-items: stretch;                 /* both cols share row height */
+}
+.slide.story-case .col-text {
+  display: flex; flex-direction: column;
+  gap: 28px; min-width: 0;
+  /* no justify-content: center — content top-aligns inside col (v2) */
+}
+.slide.story-case .col-visual {
+  display: flex; align-items: stretch; min-width: 0; min-height: 0;
+}
+.slide.story-case .scene-frame {
+  position: relative;
+  flex: 1; width: 100%;
+  min-height: 360px;                    /* floor for degenerate cases (v2) */
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background-color: rgba(8,12,24,0.45);
+  background-repeat: no-repeat;
+  /* per-instance: inline style="background-image: url('./scene.png');
+                                background-position: center;
+                                background-size: cover;" */
+  box-shadow: 0 24px 64px -24px rgba(0,0,0,0.65),
+              0 0 0 1px rgba(60,127,255,0.16);
+}
+.slide.story-case .scene-frame .scene-cap {
+  position: absolute; left: 18px; bottom: 18px;
+  padding: 8px 14px;
+  background: rgba(8,12,24,0.72);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  font: 500 16px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.04em;
+}
+```
+
+### Quick check before delivering
+
+Open the slide and ask: *do the left column's first text element
+(industry tag) and the right column's image top-edge sit on the same
+horizontal line?* If yes, v2 is rendering correctly. If the image
+extends above OR below the text content, the row is using `1fr`
+instead of `auto` (regression to v1 behavior — fix it).
+
+---
+
+## OTHER LAYER 1 PATTERNS — quote · big-stat · multi-case-bundle
+
+`render.py` supports more patterns than just `one-pager`. Each one
+follows the same Path A / Path B logic as the one-pager case, the same
+schema-fit safety nets, and the same brand-floor requirements. Pick
+whichever pattern fits the user's content shape.
+
+The fragment-composition architecture means **adding a new pattern
+later doesn't break existing ones**: pattern CSS lives in
+`assets/feishu-deck-patterns.css` (single source of truth), and each
+slide layout exists as both a standalone `templates/<name>.html` (for
+single-slide decks) and a `templates/<name>.fragment.html` (for
+composition inside multi-case-bundle).
+
+### `quote` — single customer testimonial slide
+
+**Trigger**: user gives a one-line customer quote / 客户原话 / 金句 +
+attribution. The case is the quote itself, no narrative arc.
+
+**Run**:
+```bash
+python3 assets/render.py quote <input.toml> <output-dir>/
+```
+
+**Schema** (see `examples/quote-luckin/input.toml`):
+
+```toml
+title       = "案例 · 客户原话"
+brand       = "飞书企业 AI · Customer Voice"
+attribution = "客户名 · 角色 · 年份"
+# pageno = "01"           # default
+# decor  = "blue-glow"    # default; or "mix-glow" / "teal-glow" etc.
+
+[quote]
+lead   = "...before the accent phrase..."
+accent = "强调短语"            # rendered teal, the emotional pivot
+tail   = "...after the accent..."
+```
+
+Required fields: `title`, `brand`, `attribution`, `quote.lead`,
+`quote.accent`, `quote.tail`. Fit-check covers all 4 narrative fields.
+Accent review prints the bracketed quote line for 1-second verification.
+
+### `big-stat` — one hero number + supporting prose
+
+**Trigger**: user wants to surface a single dominant metric (覆盖率 /
+ROI / 时延 / 占比) with surrounding context. The number IS the slide.
+
+**Run**:
+```bash
+python3 assets/render.py big-stat <input.toml> <output-dir>/
+```
+
+**Schema** (see `examples/big-stat-luckin/input.toml`):
+
+```toml
+title   = "案例 · 关键数字"
+brand   = "飞书企业 AI · 客户案例 · STORY 0NN"
+source  = "数据来源 · 客户内部口径"     # required if you cite a number
+
+# top-level body fields — MUST come before any [table] header in TOML
+eyebrow = "IMPACT · 数字标签"          # optional small accent label
+heading = "一句话 takeaway"            # the meaning of the number
+body    = "解释这个数字背后的方法 / 范围 / 适用条件 ..."
+
+# the hero number — declared LAST because TOML scopes everything below
+# the [stat] header into the stat table.
+[stat]
+number = "82"
+unit   = "%"
+```
+
+Required: `title`, `brand`, `stat.number`, `stat.unit`, `heading`,
+`body`. Fit-check covers `heading` + `body` (numbers can naturally be
+short, so `stat.number / stat.unit` skip the length floor).
+
+### `multi-case-bundle` — full deck (cover + agenda + N cases + end)
+
+**Trigger**: user has 2+ customer cases and wants ONE deliverable
+(e.g. quarterly customer review, batch case-study export, "把这 5 个
+案例打包成一份 deck"). Each case must already exist as a one-pager
+TOML (or be authored as one first).
+
+**Run**:
+```bash
+python3 assets/render.py multi-case-bundle <bundle.toml> <output-dir>/
+```
+
+**Schema** (see `examples/bundle-luckin/bundle.toml`):
+
+```toml
+[deck]
+title  = "客户案例集 · 2026 Q1"
+author = "飞书企业 AI · 故事栏"
+date   = "2026.05.03"
+
+[agenda]
+title = "本期共 N 个案例"
+
+[brand]
+line    = "飞书企业 AI · 客户案例集"
+contact = "contact@feishu.cn  ·  feishu.cn"
+
+# Each case = relative path to an existing one-pager input.toml.
+# `label` is the short name shown in the agenda.
+[[cases]]
+input = "../one-pager-luckin/input.toml"
+label = "瑞幸营建 · 萃取隐形经验"
+
+[[cases]]
+input = "../one-pager-guming/input.toml"
+label = "古茗 SOP · ..."
+```
+
+**Composed deck layout**:
+- Slide 01 = cover (title + author + date, master spec — no subtitle)
+- Slide 02 = agenda (numbered list of case `label`s)
+- Slides 03..(N+2) = one-pager case fragments (one per `[[cases]]`)
+- Slide (N+3) = end (slogan + optional contact)
+
+**Fail-fast validation**: bundle render loads + validates EVERY case
+TOML up front (full schema-fit check) before writing any output. If
+ANY case has placeholder content / too-short beats / duplicate beats,
+bundle render aborts with the offending case name — no half-baked
+bundle ever ships. Each case's scene image is copied as
+`scene-NN.png` into the output directory; per-case data-text-ids
+become `slide-NN.field` so a unified texts.md works.
+
+### TOML pitfall (applies to all patterns)
+
+In TOML, **top-level keys must come before any `[table]` header** —
+otherwise they get scoped into that table. If `render.py` complains
+about missing top-level fields like `heading` or `eyebrow`, check that
+they appear above your first `[table]` block. The `[stat]` /
+`[quote]` / `[hook]` / `[arc]` / `[scene]` tables should be at the
+bottom of the file.
+
+### Adding new patterns later
+
+When a Path B authoring pattern recurs (the agent ships ≥ 2-3 cases
+that all use the same custom layout), promote it to Layer 1:
+
+1. Author `templates/<name>.html` with `{{ field }}` placeholders.
+2. Add a `<NAME>_REQUIRED / DEFAULTS / TEXT_IDS / FIT_CHECK /
+   ACCENT_PATHS` block to `assets/render.py`.
+3. Register it in `PATTERNS = {...}` with `version: "v1"` and
+   `needs_image: True/False`.
+4. Add a sample TOML under `examples/<name>-<demo>/`.
+5. Add a section here in SKILL.md following the quote / big-stat
+   shape above.
+
+This keeps the template library growing organically — every recurring
+Path B pattern eventually becomes a Path A template, and the LLM
+budget gets reclaimed for the next genuinely new shape.
+
+---
+
+## RUN-FEEDBACK CAPTURE (mandatory) — auto-generated `FEEDBACK.md` per run
+
+Every successful run MUST produce a `FEEDBACK.md` file in
+`runs/<ts>/output/` alongside `index.html` and `texts.md`. This is the
+manual feedback loop that drives skill maintenance: the agent
+auto-records the **judgment calls and workarounds it actually made
+during this run**, the user spot-checks them, and when they accumulate
+≥3 things worth raising, sends the file to the skill maintainer for
+integration into the next skill version.
+
+### Why "auto-generated, not template"
+
+A blank "tell us what's broken" form gets blank answers. What works is
+showing the user **the specific decisions the agent made on their
+content** — layout choices, sizing tweaks, validator workarounds, copy
+shortenings, master deviations — and asking them to confirm or push
+back per-decision. The user reads through the list, sees one item that
+feels wrong, makes a note, moves on. No reconstruction effort needed.
+
+### What goes into `FEEDBACK.md` (REQUIRED sections)
+
+The agent fills the file based on **what actually happened in this
+run** — not from a fixed template. Every run is different; the file
+content reflects this run's specific decisions. Required sections:
+
+1. **Header** — run timestamp + one-line description of what was built
+   (layout, slide count, source material).
+
+2. **关键决策 (auto-detected from this run)** — every non-trivial choice
+   the agent made on the user's content. Each item gets:
+   - what was decided (1-2 sentences)
+   - why (the constraint or content shape that drove it)
+   - a `你的看法:` line with checkboxes covering the realistic
+     pushback shapes for that decision (`[ ] 对 / [ ] 应改成 X / [ ] 备注`)
+
+   Examples of decisions that belong here:
+   - layout pick (e.g. "用了 `.story-case` 因为 …")
+   - column ratios / sizing tweaks (e.g. "图片列从 1fr 1fr 改到 1fr 1.3fr")
+   - copy shortenings (e.g. "标题从 22 字压到 17 字以单行容纳")
+   - validator workarounds (e.g. "把 '#001' 改成 'STORY 001' 因为 R10 误判 hex")
+   - master deviations (e.g. "封面加了 subtitle 偏离 master,因为 …")
+   - asset choices (e.g. "用 background-image 而非 `<img>` 满足 UI1")
+
+3. **本次没解决的小毛病** (if any) — warnings the agent noticed but
+   didn't fix (e.g. "validator 对 `.scene-cap` 做 backdrop-filter 警告
+   但在阈值内,没改").
+
+4. **你的额外建议** — empty bullets for the user to add anything not
+   already auto-detected.
+
+5. **末尾提示** — exactly:
+   > 累计 ≥3 条值得反馈的(打钩 / 备注 / 自填),把这个文件发给 skill 维护者整合到下一版.
+
+### What does NOT go into `FEEDBACK.md`
+
+- Generic / boilerplate self-checklist questions ("layout 对吗? 字号对吗?")
+  — useless without context. Only ask about decisions that were
+  actually made.
+- The validator's PASS report (already shipped in delivery message).
+- The slide count or token usage (irrelevant to maintainer).
+- Praise of the skill ("looks great!"). The file is for upgrade
+  signal only.
+
+### Don't hardcode contact info
+
+`FEEDBACK.md` says "send to skill maintainer" — NOT a specific email,
+handle, or IM address. Different installs of this skill have different
+maintainers; the recipient identity is implicit per repo convention
+(GitHub `CONTRIBUTING.md`, `git log`, the install team's group chat).
+Hardcoding a personal address would couple the skill to one person.
+
+### How the agent surfaces it at end of run
+
+After validator passes and files are written, the agent's delivery
+message (Mode 1 — Claude Code on local) MUST include:
+
+> · `runs/<ts>/output/FEEDBACK.md` — 这次 build 的关键决策清单,
+>   见到不对的地方打钩或备注;累 ≥3 条发给维护者整合到下版.
+
+For Mode 2 (zip / remote / Feishu bot), `FEEDBACK.md` ships INSIDE
+`deck-editable.zip` so the recipient can fill it offline. The
+`package-deliverable.sh` script already includes `*.md` files in the
+zip; no extra work needed.
+
+### Maintainer-side workflow (informational, not enforced)
+
+When the maintainer receives a batch of `FEEDBACK.md` files (e.g. 5+
+forwarded over a few weeks), the integration ritual is:
+1. Read all files; cluster comments by decision class (sizing,
+   validator, layout choice, …).
+2. Promote any cluster ≥3 reports into a SKILL.md rule update,
+   citing the sample FEEDBACK files in the commit message.
+3. One-off comments without cluster support → log in
+   `LESSONS.md` (or the equivalent), revisit at next batch.
+
+This step is the maintainer's call, not the agent's — the agent's job
+ends at producing high-quality `FEEDBACK.md` files. Keeping the
+integration manual is the user's explicit control point over skill
+evolution.
+
+---
+
 Generate a dark, cinematic Lark / 飞书 brand-aligned **HTML deck** at 1920×1080 in a single
 self-contained file that:
 
@@ -2016,6 +2709,186 @@ for all of them, but be aware:
 
 If you write a custom layout, follow these patterns. If a slide overflows in
 practice, run through this list before tweaking pixel values.
+
+---
+
+## Production deck layout fixes (BF1-BF4 — v1.4, 2026-05-02)
+
+These four bugs surfaced in the 数字员工指南 deck and now have permanent
+defenses in `feishu-deck.css`. Each captures a specific user-visible failure;
+the defense is automatic, but the AUTHORING rule still matters — knowing
+why the defense exists keeps you from working around it.
+
+### BF1 — short-numeral big-stat hugs the left edge
+
+**Symptom**: Big-stat slide with a single-character `.num` value (e.g. `5`,
+`3`) — the digit visually clings to the slide's left padding (96px from the
+edge), looking orphaned. Multi-character values like `30万人` filled the
+left grid cell and hid the issue.
+
+**Defense (CSS)** — *v2, 2026-05-03, replaced v1's right-anchor approach*:
+`.slide[data-layout="big-stat"] .num { justify-self: center; text-align:
+center; }` — sits the numeral in the visual center of its left half-canvas
+cell, so the digit reads as a balanced focal element regardless of value
+length.
+
+**v1 → v2 history**: v1 used `justify-self: end / text-align: right` to
+anchor the number against the slide centerline next to the .copy block.
+That hugged the number too close to the .copy text, creating a
+visually-jammed-up feeling on the centerline. v2 centers in the cell
+instead, with breathing room on both sides.
+
+**Authoring rule**: prefer multi-character values that show the FULL
+story — e.g. `30 → 5` instead of bare `5`. The transformation reads in
+one glance AND the cell fills naturally. Single-character values are
+allowed; the v2 centering keeps them looking deliberate. Don't
+hand-tune position.
+
+### BF2 — `.col-visual` double-frames a self-decorated child
+
+**Symptom**: Putting a `.data-panel`, `.ui-window`, `.kpi-strip`,
+`.scene-grid`, `.north-star-map`, `.calc`, or `.ui-kpi` directly inside
+`.col-visual` produces a visible "browser-chrome" border WRAPPED AROUND the
+inner panel — the `.col-visual` default frame (1px hairline + 16px radius +
+faint top-down gradient) was meant for raw image / placeholder mocks only.
+
+**Defense (CSS)**: `.col-visual:has(> .data-panel) { border: none;
+background: none; padding: 0; border-radius: 0; }` — and the same for
+each self-decorated component class. The wrapper frame disappears
+automatically; the inner panel's own decoration takes over.
+
+**Authoring rule**: prefer putting structured data containers
+(`.data-panel`, etc.) directly inside `.col-visual` — the CSS will
+silently strip the wrapper frame. Only keep `.col-visual`'s own frame
+when the column carries a raw image, an inline SVG mock, a screenshot,
+or a custom hand-built block that has no border of its own.
+
+### BF3 — helpers compressed in stage middle, surrounded by empty space
+
+**Symptom**: `.scene-grid` (especially 2×2 / 4-card layouts) or
+`.north-star-map` placed inside a layout's `.stage` shows up as a small
+block in the canvas vertical centre, with conspicuous empty space above
+AND below. Default `align-self: center` + content-natural height collapse
+the helper to ~70% of the available vertical room.
+
+**Defense (CSS)** — *v2, 2026-05-02 PM, replaced v1's vertical-stretch approach*:
+- All `.stage > .scene-grid` and `.stage > .north-star-map` get
+  `align-self: stretch; width: 100%` so they span the stage horizontally.
+- When the helper is the dominant body block (alone, or paired only with a
+  trailing pullquote / source-footer / lede — detected via
+  `:only-child` and `:first-child:nth-last-child(-n+2)`), the CSS bumps
+  per-card padding (scene-card 32×28, ns-card 28×22) AND grid gap
+  (scene-grid 24px, north-star-map 18px). Cards stay content-sized; the
+  visual mass spreads across the canvas via richer padding + gaps, not
+  via stretching empty card interiors.
+
+**v1 → v2 history**: the first version added `flex: 1; align-content:
+stretch` on the grid to force cards to fill the stage vertically. That
+overshot — ns-cards at --cols:5 stretched to ~750px tall while content
+was only ~400px, leaving giant empty borders, and `.tags`
+(`margin-top: auto`) ended up jammed against the bottom border, looking
+like the border was "blocking" the text. Lesson: stretch FILLS space but
+doesn't distribute content — bigger padding + bigger gaps achieve the
+same "feels filled" without the empty-card-interior failure mode.
+
+**Authoring rule**: when you want a 2×2 or 1×N helper to occupy the
+canvas, just place it as the major body block of `.stage`. The defense
+triggers automatically and bumps padding/gap. If you DON'T want the
+extra padding (e.g. 3 short rows of dense cards where tight spacing is
+the look), add a non-trivial sibling AFTER the helper (a `.kpi-strip`,
+a `.cta-box`, etc.) so the :nth-last-child detector skips the bump.
+The auto-bump only fires when there's no significant content following
+the helper.
+
+### BF4 — pullquote left-bar shifts text 32px right of grid
+
+**Symptom**: A `.pullquote` placed below a body grid (`.grid`,
+`.scene-grid`, `.north-star-map`) reads as "indented" — its text starts
+32px to the right of the cards' left edge because the bar uses
+`border-left: 4px` + `padding-left: 28px`. The visual misalignment
+nags the reader even when they can't articulate why.
+
+**Defense (CSS)**: `.stage > .pullquote { margin-left: -32px; }` pulls
+the bar OUTSIDE the text column, so the text-left aligns with the grid's
+left edge while the bar still reads as decoration to the left of the
+content area.
+
+**Authoring rule**: don't reach for inline `style="margin-left: ..."` to
+fix pullquote alignment. The defense handles content-2col / content-3up /
+agenda / process / stats / timeline / table stages uniformly. If a
+pullquote sits OUTSIDE `.stage` (legacy decks pre-1.3.2 with no stage
+wrapper), the rule doesn't fire — but you should be migrating those
+decks to the stage pattern anyway.
+
+### BF5 — macOS traffic-lights forbidden by default
+
+**Symptom**: A `.ui-window` mock with `<span class="ui-traffic-lights">`
+renders three colored dots (red / yellow / green) at the top-left of
+the titlebar, mimicking a macOS app window. In a 飞书 enterprise pitch
+the dots feel **too consumer / casual** — the slide stops reading as a
+brand-aligned data panel and starts reading as "someone's screenshot."
+Reported by users on multiple decks.
+
+**Defense (CSS)**:
+`.slide .ui-window:not([data-show-chrome]) .ui-traffic-lights { display:
+none; }` — the dots disappear automatically. The `.ui-titlebar` without
+dots still reads as a window-style header, which is sufficient chrome
+when mocking a Lark Base spreadsheet, a chat panel, or a browser dashboard.
+
+**Opt-in for genuine macOS-screenshot context**: add `data-show-chrome`
+on the parent `.ui-window`. This is the documented escape hatch when
+a slide genuinely needs the macOS aesthetic (e.g. an "app review" deck
+that's literally about macOS apps). Default is HIDDEN.
+
+**Authoring rule**: do NOT include `<span class="ui-traffic-lights">`
+in new decks unless you've explicitly decided the slide needs the macOS
+window aesthetic. Even if the recipe at the top of `templates/slide-recipes.html`
+shows the dots, the brand expectation for 飞书 / 汇报 / 客户提案 contexts
+is no traffic lights. The CSS will hide them anyway, but cleaner markup
+makes it obvious this isn't a macOS screenshot.
+
+### BF6 — `.ui-grid` clusters at one side of `.ui-window`
+
+**Symptom**: A `.ui-grid` (Lark Base / spreadsheet mock) inside a
+`.ui-window` inside `.col-visual` clusters at the LEFT edge of its
+parent, leaving large empty space on the right. Reported as
+"内容都在一头" (content all stuck on one side) on a sales-table slide
+where columns were `style="grid-template-columns: 130px 90px 80px 70px"`
+(370px total width) inside an 864px col-visual.
+
+**Defense (CSS)**: `.slide .ui-grid { width: 100%; align-self: stretch; }`
+— the grid container always fills its parent's available row width.
+Authors using fixed-px columns will see the grid expand and the leftover
+space distributed proportionally if their `grid-template-columns`
+includes `fr` units.
+
+**Authoring rule**: prefer `fr`-based proportions for `.ui-grid` — e.g.
+`style="grid-template-columns: 1.5fr 1fr 1fr 0.8fr"` keeps the relative
+column widths AND fills the parent uniformly. If you genuinely need a
+narrow content-sized table (e.g. a left-aligned key-value box), override
+inline with `style="width: max-content"` on the .ui-grid.
+
+### R57 — quote / 金句 pages: no trailing periods
+
+**Symptom**: A `<blockquote>` ending with `。` (or `.`) reads as a
+formal full-stop sentence in the headline frame — too declarative,
+breaks the rhetorical "this hangs in the air" feel of a 金句 / 客户证言
+page. Reported repeatedly across multiple decks.
+
+**Authoring rule**: on `data-layout="quote"` slides:
+- Drop the trailing `。` / `.` from the final span of the blockquote
+  text (the `.tail` leaf in the mixed-content split).
+- Mid-sentence `,` `、` `—` are fine — they structure the sentence;
+  it's only the TRAILING terminator that should disappear.
+- The `.attrib` line below the quote MAY keep a trailing period if it's
+  a complete attribution sentence, but most look better without.
+- This applies to inline `<span class="accent-text">` emphasis splits
+  too — make sure the LAST span doesn't terminate with a period.
+
+**Why no programmatic enforcement**: a deck may have a quote spanning
+multiple sentences with internal `。` (legitimate). Detecting "trailing
+period only" reliably requires a parsing pass we haven't bothered to
+write. The authoring rule + manual check on every quote slide is enough.
 
 ---
 

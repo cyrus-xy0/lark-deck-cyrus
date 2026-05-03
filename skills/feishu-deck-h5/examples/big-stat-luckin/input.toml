@@ -1,0 +1,22 @@
+# big-stat pattern · 一个大数字 + 旁白
+#
+# Render with:
+#   python3 ../../assets/render.py big-stat input.toml runs/<ts>/output/
+#
+# NOTE: in TOML, top-level keys MUST come before any [table] header.
+# `eyebrow / heading / body / source` are top-level — keep them above [stat].
+
+title   = "瑞幸营建 · AI 知识库提效"
+brand   = "飞书企业 AI · 客户案例 · STORY 001"
+source  = "数据来源 · 瑞幸营建团队 2026 Q1 内部统计"
+
+# Optional: pageno = "01" (default), decor = "" (default)
+eyebrow = "IMPACT · 隐形经验数字化"
+heading = "新店 SOP 例外问题, 一搜可得"
+body    = "AI 知识库上线 6 个月,一线营建发现的 SOP 之外解法被沉淀 320 条;新店遇到例外问题 82% 可在 1 分钟内搜到老专家方案,无需口头追问。"
+
+# The hero number — declared LAST because [stat] makes everything below it
+# part of the stat table.
+[stat]
+number = "82"
+unit   = "%"
