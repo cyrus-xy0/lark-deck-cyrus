@@ -2649,6 +2649,140 @@ body {
 
 
 /* ============================================================================
+   v1.4 layout fixes — 2026-05-02
+   Four production-deck regressions caught in the 数字员工指南 deck (杰森
+   2026-04-28 transcript). Each fix maps to one user-visible bug; comment
+   names the rule id (BF1-BF4) so the validator can reference them later.
+   ============================================================================ */
+
+/* BF1 — big-stat short numerals hugging the canvas left edge.
+   The .stage uses a 1fr | 1fr grid and .num lives in the LEFT cell, defaulting
+   to justify-self: stretch / text-align: left. With single-character values
+   ("5", "3"), the digit sits at the very left padding (96px from slide edge)
+   and looks orphaned.
+
+   v2 (2026-05-03) — v1 used justify-self: end / text-align: right. That
+   right-anchored the numeral against the slide centerline, which made it
+   feel jammed up against the .copy block on the right side. v2 uses
+   center alignment instead, sitting the numeral in the visual center of
+   its left half-canvas. Authors are encouraged to use multi-character
+   values (e.g. "30 → 5" instead of bare "5") so the cell fills naturally
+   AND the comparison is visible in one glance. */
+.slide[data-layout="big-stat"] .num {
+  justify-self: center;
+  text-align: center;
+}
+
+/* BF2 — .col-visual double-frame when carrying a self-decorated child.
+   The .col-visual default frame (1px hairline + 16px radius + faint
+   gradient) is meant for raw image / mock placeholders. Putting a
+   self-framed component inside (data-panel, ui-window, kpi-strip,
+   scene-grid, north-star-map, calc, ui-kpi) renders an outer "browser
+   chrome" wrapper around the inner panel — the user reads it as visual
+   noise. When such a child is detected, strip the wrapper frame so only
+   the inner component's decoration shows. */
+.slide[data-layout="content-2col"] .col-visual:has(> .data-panel),
+.slide[data-layout="content-2col"] .col-visual:has(> .ui-window),
+.slide[data-layout="content-2col"] .col-visual:has(> .kpi-strip),
+.slide[data-layout="content-2col"] .col-visual:has(> .scene-grid),
+.slide[data-layout="content-2col"] .col-visual:has(> .north-star-map),
+.slide[data-layout="content-2col"] .col-visual:has(> .calc),
+.slide[data-layout="content-2col"] .col-visual:has(> .ui-kpi) {
+  border: none !important;
+  background: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+/* BF3 — helpers (.scene-grid / .north-star-map) compressed in middle of stage.
+   These helpers default to align-self: center and take only their content's
+   natural height. Inside a layout's .stage flex column, this leaves visible
+   empty space top + bottom when the cell count is small (e.g. 4 cards at
+   --cols:2 = 2x2). Override so they span full stage width.
+
+   v2 (2026-05-02 PM) — v1 also added `flex: 1; align-content: stretch` to
+   force cards to fill the stage vertically. That overshot: ns-cards at
+   --cols:5 stretched to ~750px tall while content was only ~400px,
+   leaving giant empty borders, and `.tags` (which uses margin-top: auto)
+   ended up jammed against the bottom border, looking like the border was
+   "blocking" the text. v2 drops the vertical stretch and instead bumps
+   card padding + grid gap when the helper is dominant — cards stay
+   content-sized but feel naturally richer, so the grid occupies more of
+   the canvas without empty interiors. */
+.slide > .stage > .scene-grid,
+.slide > .stage > .north-star-map {
+  align-self: stretch;          /* full horizontal width */
+  width: 100%;
+}
+/* When the helper is the major body block (alone, or paired only with a
+   trailing pullquote / source-footer / lede), bump card padding + grid gap
+   so the visual mass spreads across the canvas naturally. NO stretch on
+   the grid or the cards — content-sized cards keep .tags / lever items
+   close to their content rather than against the bottom border. */
+.slide > .stage > .scene-grid:only-child,
+.slide > .stage > .scene-grid:first-child:nth-last-child(-n+2) {
+  gap: 24px;
+}
+.slide > .stage > .scene-grid:only-child .scene-card,
+.slide > .stage > .scene-grid:first-child:nth-last-child(-n+2) .scene-card {
+  padding: 32px 28px;
+}
+.slide > .stage > .north-star-map:only-child,
+.slide > .stage > .north-star-map:first-child:nth-last-child(-n+2) {
+  gap: 18px;
+}
+.slide > .stage > .north-star-map:only-child .ns-card,
+.slide > .stage > .north-star-map:first-child:nth-last-child(-n+2) .ns-card {
+  padding: 28px 22px;
+}
+
+/* BF4 — pullquote left-bar pulls text 32px right of grid edge.
+   A pullquote placed below a body grid (.grid / .scene-grid /
+   .north-star-map) inherits padding-left: 28px + border-left: 4px,
+   which shifts its text 32px to the right of the grid's left edge.
+   Visually the pullquote text appears INDENTED relative to the cards
+   above — readers register it as misaligned. Pull the bar OUTSIDE
+   the text column with negative margin so the text-left aligns with
+   the grid's left edge while the bar still reads as decoration. */
+.slide > .stage > .pullquote,
+.slide > .stage > * + .pullquote {
+  margin-left: -32px;           /* compensate for border + padding */
+}
+
+/* BF5 — macOS traffic-lights (red/yellow/green dots) hidden by default
+   in 飞书 enterprise decks. The dots make any .ui-window mock read as a
+   casual macOS screenshot rather than a brand-aligned data panel — too
+   consumer/playful for 汇报 / 客户提案 contexts. The .ui-titlebar without
+   the dots still reads as a "window header bar", which is enough chrome
+   for an app-mock context (e.g. mocking a Lark Base 多维表格 view).
+   To opt back in for a genuine macOS-aesthetic real-screenshot mock,
+   add `data-show-chrome` on the parent .ui-window. */
+.slide .ui-window:not([data-show-chrome]) .ui-traffic-lights {
+  display: none;
+}
+
+/* BF6 — .ui-grid (Lark Base / spreadsheet mock) defaulting to fixed-px
+   columns sits at intrinsic width and clusters at the left of its parent.
+   Reported as "内容都在一头" (content stuck on one side) on a sales-table
+   slide where columns were `130px 90px 80px 70px` (370px total) inside an
+   864px col-visual.
+
+   Defense: every .ui-grid stretches to fill its container by default.
+   Authors can keep the relative column proportions by switching to fr
+   units (`grid-template-columns: 1.5fr 1fr 1fr 0.8fr`); the absolute
+   widths get redistributed proportionally. If a deck legitimately needs
+   a narrow content-sized table (e.g. left-aligned key-value box),
+   override `.ui-grid { width: max-content; }` inline.
+
+   The flex stretching also propagates correctly through .ui-window's
+   flex column — the grid takes the row width that .ui-window provides. */
+.slide .ui-grid {
+  width: 100%;
+  align-self: stretch;
+}
+
+/* ============================================================================
    Print (export) hint
    ============================================================================ */
 @media print {
