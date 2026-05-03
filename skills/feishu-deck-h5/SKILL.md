@@ -558,6 +558,40 @@ applies, use the `.story-case` recipe documented below — don't
 improvise a different layout, don't add a cover, don't expand it into
 multiple slides unless the user explicitly asks for that.
 
+### NEVER fabricate STORY ids, source attributions, or interview citations
+
+Case slides have a strong gravitational pull toward "looking like a
+finished case-library entry" — a STORY 0NN suffix, a "数据来源 · XX
+客户访谈" caption, a "本院实践访谈" footer. When the user hands you
+raw material that doesn't carry these, the agent fills them in by
+default, because the schema and recipe markup show them as fields.
+
+**Don't.** Rule:
+
+- If the user did NOT give you a story id, the brand line is
+  `"飞书企业 AI · 客户案例"` — period. Do NOT append `STORY 015` /
+  `STORY 0NN` / a fabricated number. The 0NN in template comments is
+  a placeholder showing where the user-provided id WOULD go, not an
+  instruction to make one up.
+- If the user did NOT give you a source citation, OMIT the source
+  line entirely (drop `.case-caption` / `.source-footer` from the
+  markup; leave `source = ""` in the TOML schema). Do NOT write
+  "客户访谈" / "内部口径" / "实践访谈" / "调研口径" as a placeholder
+   — these read as factual claims and break trust if the customer
+  reads the deck.
+- The same rule applies to attribution lines under quotes
+  (`<div class="attrib">`) and any `Source · ...` line under stats.
+  Either the user gave you a real source, or the line doesn't ship.
+
+When in doubt, ask: "do you have a story id / source citation for
+this, or should I leave those off?" — one ping is cheaper than the
+trust hit of a fake STORY 015 reaching a customer.
+
+This rule overrides the example schemas. Treat schema fields like
+`brand` and `source` that show specimen STORY/source values as
+**form**, not **content**: the field exists; you fill it ONLY with
+what the user actually provided.
+
 ### How to render — TWO paths · template by default, LLM when better
 
 | Path | Command | When |
@@ -697,8 +731,8 @@ See `examples/one-pager-luckin/input.toml` for the canonical example.
 ```toml
 title    = "客户/项目 · 案例标题"     # ≤22 chars recommended (single-line at 52px)
 industry = "行业 · 场景 · 客户案例"   # short tag, fits in pill
-brand    = "飞书企业 AI · 客户案例 · STORY 0NN"
-source   = "数据来源 · 客户访谈 / 调研口径"
+brand    = "飞书企业 AI · 客户案例"   # OPTIONAL story-id suffix (e.g. " · STORY 015") — only if the user gives you one. NEVER fabricate.
+source   = ""                          # OPTIONAL — leave blank if user didn't cite a source. NEVER fabricate "客户访谈" / "内部口径".
 
 [hook]                                  # one-line story trailer with teal accent
 lead   = "...before the accent..."
@@ -1035,8 +1069,8 @@ python3 assets/render.py big-stat <input.toml> <output-dir>/
 
 ```toml
 title   = "案例 · 关键数字"
-brand   = "飞书企业 AI · 客户案例 · STORY 0NN"
-source  = "数据来源 · 客户内部口径"     # required if you cite a number
+brand   = "飞书企业 AI · 客户案例"      # OPTIONAL story-id suffix — only if user gives one
+source  = "数据来源 · <用户给的具体口径>"   # required when you cite a number — but cite the user's actual source. NEVER fabricate "客户内部口径".
 
 # top-level body fields — MUST come before any [table] header in TOML
 eyebrow = "IMPACT · 数字标签"          # optional small accent label
