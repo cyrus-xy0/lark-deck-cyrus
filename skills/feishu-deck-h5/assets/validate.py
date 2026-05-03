@@ -449,8 +449,13 @@ def check_balance(html: str) -> tuple[bool, str | None]:
     consciously handled vertical balance. We also accept .stage / .grid /
     .flow / .nodes as canonical container names.
     """
+    # NOTE: 'timeline' is intentionally excluded. Its .axis line is absolutely
+    # positioned at a fixed slide y, and its .node dots are at a fixed y inside
+    # each .node — vertical-centering the .nodes row shifts the dots down by
+    # (zone_h - row_h)/2 and unaligns them from the axis line. Timeline accepts
+    # an empty-bottom tradeoff to keep axis-dot alignment.
     layouts_with_short_content = (
-        'content-2col', 'process', 'content-3up', 'pipeline', 'timeline')
+        'content-2col', 'process', 'content-3up', 'pipeline')
     aliases = ('stage', 'grid', 'flow', 'nodes')
     for layout in layouts_with_short_content:
         ok = False

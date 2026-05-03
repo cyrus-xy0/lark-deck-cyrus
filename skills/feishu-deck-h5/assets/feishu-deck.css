@@ -559,13 +559,17 @@ body {
 .slide[data-layout="content-2col"] .col-text ul.feature-list {
   display: flex; flex-direction: column; gap: 22px; margin-top: 12px;
 }
+/* li uses block + left padding (NOT grid). Grid would treat <b> and the
+   trailing text node as two separate items: text node would auto-place
+   into row 2 / col 1 (36px wide) and CJK chars would wrap one-per-line. */
 .slide[data-layout="content-2col"] .col-text ul.feature-list li {
-  display: grid; grid-template-columns: 36px 1fr; gap: 18px; align-items: start;
+  position: relative; padding-left: 36px;
   font: 500 24px/1.45 var(--fs-font-cjk); color: var(--fs-text-72);
 }
 .slide[data-layout="content-2col"] .col-text ul.feature-list li::before {
-  content: ""; width: 8px; height: 8px; border-radius: 999px;
-  background: var(--fs-accent); margin-top: 14px; align-self: start;
+  content: ""; position: absolute; left: 0; top: 14px;
+  width: 8px; height: 8px; border-radius: 999px;
+  background: var(--fs-accent);
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--fs-accent) 16%, transparent);
 }
 .slide[data-layout="content-2col"] .col-visual {
@@ -696,6 +700,17 @@ body {
   color: #fff; font-weight: 600;
 }
 .slide[data-layout="table"] tbody tr:last-child td { border-bottom: 0; }
+/* Optional caption / 说明 paragraph under the table. Same convention as
+   stats layout — pin above the page footer. Without this rule, .footnote
+   is the only non-absolute child in the slide and gets dumped at the top
+   of the canvas (above the header). :has() so tables WITHOUT a footnote
+   keep using the full body zone — no penalty. */
+.slide[data-layout="table"]:has(.footnote) .table-wrap { bottom: 180px; }
+.slide[data-layout="table"] .footnote {
+  position: absolute; left: 96px; right: 96px; bottom: 96px;
+  font: 500 16px/1.5 var(--fs-font-cjk); color: var(--fs-text-40);
+  letter-spacing: 0.02em;
+}
 
 /* ============================================================================
    LAYOUT 09 — Timeline (horizontal milestones)
@@ -974,8 +989,13 @@ body {
 .slide[data-layout="stats"]        .grid       { top: 220px; align-content: center; }
 .slide[data-layout="stats"]        .footnote   { bottom: 96px; }
 .slide[data-layout="table"]        .table-wrap { top: 200px; bottom: 110px; }
-.slide[data-layout="timeline"]     .nodes      { top: 240px; bottom: 160px; align-content: center; }
-.slide[data-layout="timeline"]     .axis       { top: 380px; }
+/* Timeline opts OUT of L2 vertical centering. .axis is absolutely positioned
+   relative to .slide (not .nodes), so it can't follow when .nodes' rows center
+   vertically — dots drift down by (zone_h - row_h)/2 and unalign from the
+   horizontal line. Keep nodes top-pinned at 400 so dot center (400 + node
+   padding-top 132 + dot radius 9) = 541 = .axis center (540 + 1). */
+.slide[data-layout="timeline"]     .nodes      { top: 400px; bottom: 160px; }
+.slide[data-layout="timeline"]     .axis       { top: 540px; }
 .slide[data-layout="process"]      .flow       { top: 240px; bottom: 130px; align-content: center; }
 
 /* `.stage` is the canonical name for a body-content container in the abstract

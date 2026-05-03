@@ -372,6 +372,29 @@ The skill produces files in `runs/<timestamp>/output/`. How those files
 reach the human depends on which harness invoked the skill. Pick the
 right delivery mode and call it out explicitly when handing off.
 
+### Hand-back rule (read this first)
+
+**Decide whether to surface the file in the reply by the run mode, NOT
+by file path.**
+
+- **Interactive / chat / dialog** (the user sent a message and is
+  waiting for your reply — Claude Code, Lark bot, web chat, any
+  agent platform with a conversation UI): **MUST** end the reply by
+  pointing at — or attaching — the new artifact under
+  `runs/<ts>/output/`. Every iteration. "已修复" alone is a bug; the
+  user has nothing to open. This applies on **every** edit pass, not
+  just the first generation: a fix to an existing deck is a new
+  artifact too — surface its path again.
+- **Non-interactive / CLI / cron / batch / unattended**: writing the
+  file under `runs/<ts>/output/` is the entire deliverable. Don't
+  echo paths into stdout for show.
+
+**The output directory is always the skill's own
+`runs/<ts>/output/`** — never `~/Downloads/`, `/tmp/`, the user's
+desktop, or any other ad-hoc location, unless the user explicitly
+asks ("放到下载目录"). If the harness sandbox can't reach
+`runs/<ts>/output/`, that's Mode 2 — package and attach, don't relocate.
+
 ### Mode 1 · Claude Code on the user's local machine
 
 Default. The user has filesystem access to `runs/<timestamp>/output/`
