@@ -294,6 +294,53 @@ data-text-id="slide-{NN}.{field}"
 </div>
 ```
 
+### Authoring rule — every `.slide` gets a `data-slide-key`
+
+Separate from `data-text-id` (which is positional and serves this skill's
+own apply-texts.py tooling), every `<div class="slide">` MUST also carry a
+`data-slide-key` attribute that is a **semantic, kebab-case slug**:
+
+```html
+<div class="slide"
+     data-layout="big-stat"
+     data-screen-label="08 ARR Evolution"
+     data-slide-key="arr-history">
+  ...
+</div>
+```
+
+Rules:
+
+- Slug is **deck-internal unique** (no two `.slide` in the same file share a key).
+- Slug is **semantic** — describes what the slide is about, not its position.
+  Good: `cover`, `agenda`, `arr-history`, `case-meiyijia-display`, `closing`.
+  Bad: `slide-01`, `section-3`, `page-7` (positional → breaks on reorder).
+- Slug **MUST stay stable across reorders**. If you move a slide from page 7 to
+  page 3, `data-slide-key` does not change. (This is the whole point — it's
+  why we don't use the position-based `slide-NN` for this purpose.)
+- Slug **MAY change when a slide's content materially changes** in a future
+  deck (e.g., `arr-history` → `arr-history-v3` when the storyline shifts).
+  That's how the slide-library detects "this is a new version" without
+  losing the link to the old one.
+
+#### Why this matters (consumer: feishu-slide-library)
+
+The companion `feishu-slide-library` skill ingests rendered decks into a
+reusable slide asset library. Its locator (`canonical_source.slide_key`)
+points back to `[data-slide-key="..."]` in the deck's source.html. **No key
+→ no locator → the slide is unindexable**.
+
+If a deck is authored without `data-slide-key` on every `.slide`, the
+slide-library ingestion will halt and require the keys to be backfilled.
+Don't ship without them.
+
+#### Bundled cover/agenda/end fragments
+
+The `bundle-*.fragment.html` and `_shell.html` templates need `data-slide-key`
+added too. Suggested defaults: `cover`, `agenda`, `closing` (or `end`).
+For section dividers and content slides authored from `slide-recipes.html`,
+pick a slug that names the topic, not the layout.
+
 ### Excluded from `data-text-id` (NEVER annotate these)
 
 - `<svg>` and any element inside SVG (decorative, not user copy).
@@ -431,6 +478,46 @@ by file path.**
 desktop, or any other ad-hoc location, unless the user explicitly
 asks ("放到下载目录"). If the harness sandbox can't reach
 `runs/<ts>/output/`, that's Mode 2 — package and attach, don't relocate.
+
+### Self-contained output (mandatory · runs before every hand-back)
+
+The HTML files in `runs/<ts>/output/` reference assets via relative
+paths back into the skill folder:
+`../../../../skills/feishu-deck-h5/assets/<file>`. That works **only**
+while the run folder lives next to the skill folder. The moment the
+user moves, zips, or shares `runs/<ts>/output/`, every image / logo /
+CSS / video link breaks.
+
+**Rule**: before handing the artifact back to the user, run
+
+```bash
+python3 skills/feishu-deck-h5/assets/copy-assets.py runs/<ts>/output/
+```
+
+The script:
+
+- Scans every `*.html` under `output/` for asset references matching
+  `((\.\./)+)skills/feishu-deck-h5/(assets|examples|templates)/<file>`
+  and `((\.\./)+)input/<file>`.
+- Copies **only the referenced files** into `output/assets/` and
+  `output/input/` (never the entire `clientlogo/` or `数字员工/` directory
+  if only a subset is used — typical run drops 3–5 logos out of 250+).
+- Rewrites the HTML paths from skill-relative to local-relative
+  (`../assets/<file>` and `../input/<file>`).
+- Idempotent — running twice is safe; only changed/new files re-copy.
+
+After running, `runs/<ts>/output/` is **portable**: cut/copy the
+folder anywhere on disk (or zip and send), every link still resolves.
+
+When NOT to run it:
+- Mid-iteration, when you know the user will keep editing in-place.
+  (Just delays inevitable work but doesn't break anything.)
+- When the user explicitly asks to keep skill-relative paths to
+  share `assets/` updates across runs.
+
+In every other case (delivery, hand-off, demo, attachment, "请给我看看"),
+**run it**. The user's "把所有引用 assets 的文件复制到 output 下" instruction
+is a baseline, not a special request.
 
 ### Mode 1 · Claude Code on the user's local machine
 
@@ -1346,6 +1433,387 @@ inline them into a `:root { --fs-asset-… }` override block — see how
 | `--fs-asset-content-bg` | `lark-content-bg.jpg`         | `theme/media/image1.jpg`    | content / agenda / stats / table / etc |
 | `--fs-asset-slogan`     | `lark-slogan.png`             | `theme/media/image6.png`    | end / 封底带 slogan |
 
+### 飞书 product-line icons (2026-05-06) — `assets/飞书标识_*.png`
+
+Beyond the master 6 brand assets above, the skill also ships the
+**飞书产品线 official 标识** PNGs covering all product modules. Use these
+when a slide references a specific 飞书 product (aily / 多维表格 / 妙搭 /
+…) — DON'T draw a stylized clone, DON'T hand-write SVG approximations,
+DON'T fetch from the web. The licensed PNGs are right here.
+
+**Naming convention**: `飞书标识_{产品}_{变体}.png`
+
+| 产品 (中文) | Reference path (Color variant by default) | Use for |
+|---|---|---|
+| AI (飞书 AI 通用) | `assets/飞书标识_AI_Color.png`             | 飞书 AI 入口 / AI 主题页(P04 中卡 hero) |
+| aily          | `assets/飞书标识_aily_Color.png`            | aily 智能体相关 |
+| aPaaS         | `assets/飞书标识_aPaaS_Color.png`           | 业务搭建 / 低代码相关 |
+| 妙搭          | `assets/飞书标识_妙搭_Color.png`            | 妙搭轻量系统 |
+| 知识问答      | `assets/飞书标识_知识问答_Color.png`        | 飞书知识问答 / Wiki AI |
+| 飞书会议      | `assets/飞书标识_飞书会议_Color.png`        | AI 会议 / 视频会议页 |
+| 飞书多维表格  | `assets/飞书标识_飞书多维表格_Color.png`    | Base / 业务一张表 |
+| 飞书人事      | `assets/飞书标识_飞书人事_Color.png`        | HR 模块 |
+| 飞书招聘      | `assets/飞书标识_飞书招聘_Color.png`        | 招聘模块 |
+| 飞书绩效      | `assets/飞书标识_飞书绩效_Color.png`        | 绩效模块 |
+| 飞书项目      | `assets/飞书标识_飞书项目_Color.png`        | 项目管理模块 |
+| 飞书People    | `assets/飞书标识_飞书People_Color.png`      | HR 套件总称 |
+| 集成平台      | `assets/飞书标识_集成平台_Color.png`        | 集成 / 中台 |
+
+**3 variants per product** — pick by background tone:
+
+- `_Color.png` (default) · 全彩,深色背景上用(我们 deck 默认就是深色,所以
+  绝大部分场景用这个)
+- `_White.png` · 单色白,在已有强色块/品牌色背景上用,避免色彩打架
+- `_Black.png` · 单色黑,白色背景 deck 用(本 skill 默认深色 deck,基本用不到)
+
+**How to embed (UI1-friendly)**:
+
+```html
+<!-- Use background-image on a div (NOT <img>) so UI1 validator stays
+     quiet and the PNG can be controlled via CSS sizing -->
+<div class="card-logo" role="img" aria-label="飞书 aily"
+     style="background-image: url('../../../skills/feishu-deck-h5/assets/飞书标识_aily_Color.png')"></div>
+```
+
+```css
+.card-logo {
+  width: 56px; height: 56px;             /* 方形 icon 默认尺寸 */
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+/* Hero card: 用 lark-logo.png (含 wordmark) 而不是产品 icon */
+.card.is-hero .card-logo {
+  width: 180px; height: 57px;            /* lark-logo 是宽比例 (582:183 ≈ 3.18:1) */
+  background-image: url('../../../skills/feishu-deck-h5/assets/lark-logo.png');
+}
+```
+
+**Authoring discipline**:
+
+1. 任何 slide 提到具体 飞书 产品 → **优先从 `assets/` 找现成 PNG**,不要自己画 SVG / 用 emoji / 用文字代替
+2. 找不到对应产品的 icon → 用 `lark-logo.png` (飞书品牌总标志,含 wordmark) 兜底,**不要自己设计**
+3. 多个产品并列出现 (如 P04 三入口卡) → 中卡用 `lark-logo.png` (品牌总标志) 突出,边卡用产品 icon 区分
+4. 编辑器路径相对值跟你的文件位置变 — 一般 `runs/<ts>/output/` 下用 `../../../skills/feishu-deck-h5/assets/...`,`single-pages/` 子目录加多一层
+
+**Why this is mandatory**: 飞书的 brand guidelines 要求产品标识必须用 official
+PNG,不允许重绘。手写 SVG 模仿就是商标违规;用 emoji 替代失专业感;
+fetch 远程图既慢又怕版权链接失效。`assets/` 里 39 张就是定稿版本,直接拿来用。
+
+### Client / portfolio brand logos (mandatory) — `assets/clientlogo/`
+
+When a slide shows a **client brand**, **portfolio company**, **PE/VC firm**,
+or any "we serve / 这些客户都在用" matrix, the logo PNG MUST come from
+`assets/clientlogo/<filename>.{png|jpg|jpeg}`. **Do NOT** put per-client
+logos in `assets/` root — that folder is reserved for 飞书 brand identity
+(lark logo / cover bg / slogan / 飞书标识_*) only.
+
+**Filename matching rule**:
+
+1. **First** look for the client's Chinese name as filename: `霸王茶姬.png`,
+   `茶百道.png`, `益禾堂.png`, `源码资本.png`, `中金公司.png`.
+2. **Fall back** to canonical English short name / abbreviation: `IDG资本.png`,
+   `KKR.png`, `PAG.png`, `CPE源峰.png`, `Mistine_1.png`, `moodytiger.png`.
+3. Multiple variants for the same brand → suffix `_N` (`太平鸟_1.png`,
+   `新希望_2.png`) or `_paired` for the smaller variant used in 2-up
+   paired cells (`CPE源峰_paired.png`).
+
+**Lookup workflow** (every time you author a slide that references client logos):
+
+```bash
+ls /Users/<user>/.claude/skills/feishu-deck-h5/assets/clientlogo/ | grep -i "<name>"
+```
+
+If the brand exists → use that file. If it doesn't → ask the user to drop
+it into `assets/clientlogo/` first; do NOT save it to the run's
+`input/` folder, do NOT save it to `assets/` root, do NOT generate a
+text fallback PNG without telling the user.
+
+**HTML embed pattern**:
+
+```html
+<!-- Bg-image on div for UI1-friendliness -->
+<div class="logo-card" role="img" aria-label="霸王茶姬">
+  <div class="logo" style="background-image: url('../../../../skills/feishu-deck-h5/assets/clientlogo/霸王茶姬.png')"></div>
+</div>
+
+<!-- Or <img> when explicit dimensions / max-width matter -->
+<img src="../../../../skills/feishu-deck-h5/assets/clientlogo/中金公司.png" alt="中金公司">
+```
+
+(Path depth: `runs/<ts>/output/single-pages/p<NN>.html` → 4 levels up to
+repo root, then `skills/feishu-deck-h5/assets/clientlogo/`.)
+
+**Why this is mandatory**: the user maintains `assets/clientlogo/` as a
+versioned, growing library shared across all decks. Old per-deck `input/`
+copies go stale; `assets/` root pollution makes the brand asset surface
+unmaintainable. Single source of truth = `assets/clientlogo/`.
+
+### Digital employee portraits (mandatory) — TWO source folders
+
+**Decision rule (apply in order):**
+
+1. **Named, specific persona** (睿睿 / 参参 / 探探 / 呆呆 / 图图 the 5 内部
+   AI 助手, or any task-specific persona like 门店 FFDI 营运助手 / 销售知识
+   助手) → portrait MUST come from `assets/mydigitalemployee/<name>.png`.
+   (Legacy alias: `assets/数字员工/` — same content, prefer the new path
+   when authoring fresh.)
+
+2. **Anonymous / generic AI agent slot** (e.g. P33 row "门店巡检" of
+   品牌X — the row needs a digital-employee face but no specific named
+   persona is assigned) → portrait MUST come from
+   `assets/digital_employee_avatars_50/NN_<traits>.png` (50-portrait
+   generic library, diverse demographics, named by index +
+   ethnic/style traits like `01_east_asian_woman_white_shirt.png`).
+   Use them in numerical order or pick by visual fit; do not duplicate
+   on the same slide.
+
+**Where portraits do NOT belong**:
+
+- ❌ `assets/clientlogo/` — that's customer brand logos, not agents.
+- ❌ `assets/` root — reserved for 飞书 brand identity (lark logo /
+  cover bg / slogan / 飞书标识_*) only.
+- ❌ `runs/<ts>/input/` — input is per-run, ephemeral; portraits are
+  cross-deck shared assets.
+- ❌ Generated CSS gradient placeholder (gray circle) when the slide
+  REALLY needs a face — pick a generic from `digital_employee_avatars_50/`
+  instead.
+
+**Folder structure**:
+
+```
+assets/
+├── mydigitalemployee/      — user's OWN named personas (was 数字员工/)
+│   ├── 睿睿.png             — AI 汇报复盘助手
+│   ├── 参参.png             — AI 故事线参谋
+│   ├── 探探.png             — AI 客户调研助手
+│   ├── 呆呆.png             — AI Demo 素材助手
+│   ├── 图图.png             — AI PPT 插画助手
+│   └── … (extend as new named personas appear)
+└── digital_employee_avatars_50/   — 50-portrait generic library
+    ├── 01_east_asian_woman_white_shirt.png
+    ├── 03_southeast_asian_man_hoodie.png
+    ├── 05_african_man_beard_polo.png
+    └── … (45+ diverse portraits, gaps in numbering OK)
+```
+
+When a slide shows a **digital employee / AI agent persona**, the
+portrait PNG MUST come from one of the two folders above per the
+decision rule.
+
+**Where these portraits do NOT belong**:
+
+- ❌ `assets/clientlogo/` — that's customer brand logos, not internal agents.
+- ❌ `assets/` root — reserved for 飞书 brand identity (lark logo / cover bg
+  / slogan / 飞书标识_*) only.
+- ❌ `runs/<ts>/input/` — input is per-run, ephemeral; portraits are
+  cross-deck shared assets.
+
+**Filename = the agent's Chinese name**:
+
+```
+assets/数字员工/
+├── 睿睿.png        — AI 汇报复盘助手
+├── 参参.png        — AI 故事线参谋
+├── 探探.png        — AI 客户调研助手
+├── 呆呆.png        — AI Demo 素材助手
+├── 图图.png        — AI PPT 插画助手
+├── 门店FFDI营运助手.png
+├── 采购选品小助手.png
+├── 销售知识助手.png
+├── 应收应付助手.png
+└── … (extend as new personas appear)
+```
+
+Native circular crop (transparent PNG, 160–230 px square typical), so a
+plain `background-image` + `border-radius: 50%` renders cleanly.
+
+**HTML embed pattern**:
+
+```html
+<!-- Named persona (睿睿/参参/etc.) — use mydigitalemployee/ -->
+<div class="avatar"
+     style="background-image: url('../assets/mydigitalemployee/睿睿.png');
+            background-position: center; background-size: cover; border-radius: 50%;"
+     role="img" aria-label="睿睿"></div>
+
+<!-- Anonymous slot — use digital_employee_avatars_50/ -->
+<div class="avatar"
+     style="background-image: url('../assets/digital_employee_avatars_50/01_east_asian_woman_white_shirt.png');
+            background-position: center; background-size: cover; border-radius: 50%;"
+     role="img" aria-label=""></div>
+```
+
+**Lookup workflow** (every time a slide references a persona):
+
+```bash
+# Step 1: try named persona first
+ls ~/.claude/skills/feishu-deck-h5/assets/mydigitalemployee/ | grep -i "<name>"
+# (legacy alias: assets/数字员工/ — same content; prefer the new path)
+
+# Step 2: if no named match, fall back to generic library
+ls ~/.claude/skills/feishu-deck-h5/assets/digital_employee_avatars_50/ | head
+```
+
+If named persona exists → use `mydigitalemployee/`. If the slide just
+needs a generic AI-agent face (no specific name) → use
+`digital_employee_avatars_50/`. **Do NOT** generate a gradient
+placeholder, **do NOT** crop from input/, **do NOT** save to
+`assets/` root.
+
+**Why this is mandatory**: the user maintains both folders as
+versioned, growing libraries shared across decks (P25 / P26 / P27 /
+P29 / P33 / P41 reference these portraits). The historical mistake of
+saving the same avatar in three places (input/, assets/ root,
+clientlogo/) led to drift and broken refs. **Single source of truth**:
+named → `mydigitalemployee/`, generic → `digital_employee_avatars_50/`.
+
+### Interactive demo / phone mockup spec (mandatory) — when a slide animates a chat / app
+
+Some slides need a **live H5 demo** in place of a screenshot or GIF
+(e.g. P20 海底捞大明白 chat,product-launch reels,onboarding flows).
+Native CSS animations beat GIFs for these reasons: fully crisp at any
+projector size,can be paused / toggled,inherit deck typography, and
+the deck file stays self-contained without large binary blobs.
+
+**Anatomy of a phone-mockup demo:**
+
+```
+.phone (the device shell)
+├── ::before (notch / dynamic island — solid #11141c rounded rect, top center)
+├── .ph-status (battery / signal / clock — flex 0 0 50px)
+├── .ph-bar (app nav: back ‹ + badge + title + more — flex 0 0 52px)
+├── .ph-tabs (in-app tab strip if applicable)
+├── .ph-divider (e.g. 新话题 thin separator)
+├── .ph-chat (flex: 1 — scrollable / animated content area)
+│   └── .ph-chat-inner (the actual messages; can `transform: translateY()` to scroll)
+├── .ph-foot-ribbon (e.g. 新话题 button)
+├── .ph-input (the text field row)
+└── .ph-tools (the emoji / @ / mic / image / Aa / + tool row)
+```
+
+**Phone shell — bezel via ring shadows, NEVER `box-shadow` with offset:**
+
+R12 forbids real drop shadows. Build the bezel as concentric rings
+(`box-shadow: 0 0 0 Npx <color>`),which the validator allows:
+
+```css
+.phone {
+  width: 380px; height: 780px;
+  background: #f6f6f6;
+  border-radius: 46px;
+  box-shadow: 0 0 0 10px #11141c,         /* 内圈黑 bezel */
+              0 0 0 11px #2c3142,         /* 外圈一圈 1px 高光 */
+              inset 0 0 0 1px rgba(0,0,0,0.04);  /* 屏内 hairline */
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+               var(--fs-font-cjk);
+}
+```
+
+NEVER use `box-shadow: 0 20px 56px ...` for "depth" — it's a real drop
+shadow and R12 fails it. Outer rings only.
+
+**Match the platform — iOS-flavor or 飞书-flavor or 企微-flavor:**
+
+If the user gives you a reference screenshot (e.g. they drop a
+`参考飞书交互样式.png` in `input/`), **read it pixel-by-pixel** and
+match:
+
+- Status bar font weight / color
+- Notch/island shape and dimensions
+- Nav bar back arrow style (chevron `‹` not arrow `←`)
+- Tab strip underline color/width (e.g. 飞书 = blue `#3370FF`,3px,
+  centered under active label)
+- Bubble corner radii (asymmetric: `4px 14px 14px 14px` for "from
+  this side")
+- Bubble fill (bot = `#fff` border `rgba(0,0,0,0.04)`,user-side
+  飞书 = `#DCEDFF`)
+- Avatar gradient direction (135deg)
+- Robot tag color (`#FFE7B0` bg + `#B87600` text in 飞书)
+- Tool bar icon stroke width (1.8 in 飞书)
+
+When in doubt, pick the user's reference over your imagination.
+
+**Animation timing — looping demo, 12–14s typical:**
+
+```
+0.3s  · welcome / opening message
+1.4s  · user msg 1
+2.6s  · user msg 2
+3.8s  · typing dots in
+5.0s  · typing dots out + bot reply 1 in
+6.0s  · input field starts typing user q3
+8.4s  · field clears, user q3 message appears in chat
+9.4s  · typing dots 2 in
+10.8s · typing dots 2 out + bot reply 2 in
+12.0s · pause / hold final state
+14.0s · loop (animation re-fires)
+```
+
+`.ph-chat-inner` should `transform: translateY()` upward in the second
+half of the loop so the early messages naturally scroll out of view —
+matches how a real chat behaves when 5+ messages exceed the visible
+area.
+
+**Animation patterns to keep:**
+
+```css
+@keyframes msg-in  { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+@keyframes msg-out { to { opacity: 0; height: 0; padding: 0; margin: 0;} }      /* for typing dots退场 */
+@keyframes dot-pulse { 0%,60%,100% { opacity:.3; transform: translateY(0);} 30% { opacity:1; transform: translateY(-3px);} }
+@keyframes type-in   { to { max-width: 86%; } }                   /* steps(N, end) for terminal-style */
+@keyframes caret-blink { to { opacity: 0; } }                     /* steps(2) for hard blink */
+```
+
+Stagger via individual `animation-delay` on each `.msg.mN` selector
+rather than `nth-child` — gives you absolute control and survives
+DOM reordering.
+
+**Typography floors apply identically inside the phone:**
+
+- Bubble body text: ≥ 14 px (chrome floor — phone screens are visually
+  smaller, so 14 px in mockup ≈ 22 px on the slide it lives in)
+- Bubble lead / title (e.g. "你好,我是 \<bot name\>"): ≥ 16 px
+- Status bar / tabs / nav bar: ≥ 14 px
+- DON'T fall below 14 px even though the mockup looks like a real
+  phone — the validator counts these as slide content,not chrome,
+  so R06 still applies.
+
+**No emoji, no real shadows, all icons via SVG:**
+
+```html
+<!-- Status bar wifi/battery: SVG, never 📶 🔋 (R05 fail) -->
+<svg viewBox="0 0 16 12" width="16" height="12" fill="currentColor">...</svg>
+
+<!-- Tool icons (emoji 😀 / @ / mic / image / Aa / +): SVG -->
+<span class="tool"><svg viewBox="0 0 24 24">...</svg></span>
+```
+
+**Pause-on-hover (optional but recommended):**
+
+```css
+.phone:hover .ph-chat-inner,
+.phone:hover .msg { animation-play-state: paused; }
+```
+
+Lets a presenter hover on the demo to freeze the animation mid-flow
+during Q&A.
+
+**When to use a phone demo vs a static screenshot:**
+
+| Use phone demo | Use static screenshot |
+|---|---|
+| Showing a flow / conversation / progressive UI | Showing a single screen state |
+| Highlighting an interaction beat (typing, sending, switching skill) | Listing app features statically |
+| Replacing a low-res GIF | Showing exact production pixel art |
+| Reference image is high-fidelity & faithful copy is feasible | Reference is too dense to recreate (full dashboards / tables) |
+
+If the source is a 3-second video or a 10-frame GIF, a CSS demo
+almost always wins. If the source is a 2000×1200 dashboard packed
+with data, just use the screenshot — `<img>` it with `max-width: native`.
+
 ---
 
 ## Converting existing material (PDF / HTML / PPT export / docs) into a compliant deck
@@ -1539,6 +2007,78 @@ Second attempt was Rewrite (1:1 page count) — rejected with "整体
 If ambiguous, **ask the user once** before deciding — the rebuild
 cost between modes is high, but the question cost is one IM line.
 
+#### Per-page polish mode (4th mode · iterative)
+
+Distinct from Replica / Rewrite / one-pager: this is the iterative
+mode where the user reviews each slide individually and gives
+focused feedback ("第 N 页改成 X / 字小一点 / 列宽窄一点"), and the
+agent ships a **single-slide HTML** per round under
+`runs/<ts>/output/single-pages/p-NN.html`. Trigger phrases:
+
+- "一页一页来" / "每页精修" / "一张张做"
+- User reviews a slide in isolation and gives detailed visual feedback
+- User drops per-page assets ("这一页的 logo / 截图我放在 input/")
+
+In this mode, **the source PDF/PPT title is verbatim** — every
+character, every punctuation mark, every parenthetical note must
+reach the HTML unchanged. The agent's licence is to redo BUILD
+(layout / typography / decoration), not COPY.
+
+##### Title verbatim — strict rule
+
+In per-page polish mode the slide's `<h2 class="title-zh">` (or
+`<h1 class="title">` for hero layouts) MUST mirror the source
+title byte-for-byte:
+
+- **Don't drop characters** — "飞书对博裕资本及星巴克价值" can't
+  be compressed to "飞书对博裕及星巴克价值". The 资本 stays.
+- **Don't add characters** — "AI原生组织" (no space between AI
+  and CJK) stays exactly that. Don't insert " AI " spaces by
+  reflex.
+- **Don't swap punctuation** — full-width "：" (chinese colon)
+  / "；" (semicolon) / "（）" (parens) stay full-width. Don't
+  replace with "·" or ":" by reflex.
+- **Keep parenthetical notes** — "字节跳动的全方位AI布局：飞书
+  （企业豆包）定位企业级AI入口" — the "（企业豆包）" annotation
+  carries a positioning claim ("飞书 = 企业版豆包"); dropping
+  it loses information.
+- **Subtitles / agenda items / chapter ledes / pill labels are
+  also verbatim**. The "title preservation" rule extends to all
+  short headings — anything user might re-read aloud.
+
+The ONLY editable text in per-page polish mode is the body copy:
+story-hook, feature descriptions, paragraph bodies. Those the agent
+may re-organize / compress / expand to fit the new layout. Headings
+are off-limits.
+
+##### When the rule is suspended
+
+Only when the user explicitly says one of:
+- "标题改成 X" / "把标题压缩"
+- "这个标题太长,帮我精简" / "起一个新标题"
+- The user is co-authoring the title in dialogue ("我觉得标题改
+  「飞书 × 博裕」更直接")
+
+If the source has an obvious typo (e.g. duplicated character),
+**flag it to the user** and ask whether to fix; don't fix silently.
+
+##### Self-check before shipping each polish round
+
+Before declaring a single-page p-NN.html done, verify:
+
+```
+(1) <h2> innerText === source-page-N title (visual byte-compare)
+(2) Punctuation classes match (full-width vs ASCII)
+(3) Parenthetical notes / 数字注释 preserved
+(4) Subtitles / pill labels / agenda items also verbatim
+```
+
+This rule was elevated 2026-05-06 from the 博裕&星巴克 polish
+session: P01 "AI原生组织" got "AI 原生组织" (added space), P02
+"飞书对博裕资本及星巴克价值" lost 资本, P04 dropped 「（企业豆
+包）」. User feedback: "之前PDF的标题默认是不变的,一个字都
+不要改". Verbatim-title is the per-page polish mode contract.
+
 ### Step 1 · Inventory the source
 
 For every source page, write down:
@@ -1576,7 +2116,7 @@ volume — the right-half flower image carries the atmosphere.
 | Logo | top-LEFT at (120, 113), size 235×74, **COLORED** tri-petal `--fs-asset-logo` |
 | Title | left-half only (max-width 884px), 100/700, can be 1-2 lines (hero allowed `<br>`) |
 | Subtitle | **NONE** (no EN translation, no marketing tagline — drop it; if you really need a sentence, put it on slide 02) |
-| Author block | bottom-left at top:803. Two stacked spans separated by `<br>`: line 1 = the **initiator's personal name** (the meeting host / deck owner / report author — NOT a team / department / role title); line 2 = the date (`YYYY.MM.DD`). |
+| Author block | left-side at top:720 (2026-05-06 · was 803, moved up to sit ~215px below a 2-line title so name+date read as part of the title block, not a separate stack). Two stacked spans separated by `<br>`: line 1 = the **initiator's personal name** (the meeting host / deck owner / report author — NOT a team / department / role title); line 2 = the date (`YYYY.MM.DD`). |
 | Footer chrome | NONE (retired 2026-05; pager UI shows page number) |
 | Eyebrow | NONE |
 
@@ -1636,6 +2176,410 @@ What you MUST preserve:
 - System UI / app screenshots → recreate as HTML using `.ui-*` primitives,
   NOT as raster images (UI1)
 - Photographic backgrounds → use `data-decor="photo-bg"` with `style="--photo: url(...)"`
+
+#### Typography floor — content body & captions (mandatory, ≥ 22 px)
+
+The validator R06 catches anything < 14 px (chrome floor). But on a
+1920×1080 canvas viewed full-screen / projected, **body copy and
+captions must be ≥ 22 px** or they read as illegible "fine print"
+even though they technically pass R06. Apply these floors when
+authoring per-page CSS (especially in `<style>` blocks inside
+single-page polish files):
+
+| Role | Minimum | Notes |
+|---|---|---|
+| Card body description (e.g. `.dir-desc`, `.brand-desc`, `.feat-body`) | **22 px** | Often paired with 1.45–1.55 line-height |
+| Image caption under a `pic-frame` / `pic-cell` (e.g. `.pic-cap`) | **22 px** | Use body, not chrome — captions are content |
+| Sub-heading under a card name (e.g. `.dir-sub`) | **22 px** | Bump to 700 weight for hierarchy if needed |
+| Timeline / table cell content (e.g. `.ts-tasks`, `.tr td`) | **20–22 px** | Each cell IS body content, not chrome — don't drop to 16 px to fit more rows |
+| Time-slot label / row header (e.g. `.ts-time`) | **22 px** | Even a 4-character header is body |
+| Content chips that carry meaning (e.g. `.lib-chip` listing knowledge sources) | **18 px min** | These are content tags, not pure chrome |
+| Large numerals as visual markers (e.g. `01` / `02` / `03` / `04`) | **36 px** | They are typographic icons, not chrome — go bigger |
+| Tag pills (filter / category toggles, only meta) | 14–16 px allowed | True chrome |
+| Footnote / "排名不分先后" disclaimer | 14 px allowed | True chrome |
+
+If a card layout can't fit 22 px body without overflow, the fix is to
+**reduce content / shorten copy / reduce columns** — never shrink the
+body below 22 px. Changing `font-size` to escape an overflow is a
+content-density problem masquerading as a typography problem.
+
+Why: master 母版 content pages put body at 22–28 pt, projected on
+1920×1080 from 5+ meters back. 16 px body works in a desktop preview
+but vanishes on a meeting-room screen.
+
+#### Modular type scale — pick from the ladder, do NOT free-style (mandatory)
+
+Body floor (22 px) is a *minimum*, not a target. To keep cross-page
+visual rhythm consistent, **every `font-size` declaration in per-page
+`<style>` MUST be picked from this 8-rung ladder**, not invented:
+
+| Rung | Px | Role | Example |
+|---|---|---|---|
+| 1 | **100** | cover hero title | `data-layout="cover"` H1 |
+| 2 | **44** | page H2 (slide title) | `.title-zh` |
+| 3 | **38** | content title (sub-heading inside body) | `.ctitle` |
+| 4 | **28** | column-title / section heading inside a card | `.col-title`, `.persona-meta h3`, `.lede` |
+| 5 | **22** | body copy (= R06 floor) | `.dir-desc`, list items, `.sec ul` |
+| 6 | **18** | pill / inline tag / sub-meta inside a card | `.persona-meta dl`, `.skill-pill` |
+| 7 | **14** | chrome (footnote, disclaimer, present-mode pager) | `.deck-pageno`, `.eyebrow` Latin caps |
+| 8 | **10–13** | mockup-internal text (simulated Lark Doc body, doc-card titles) | `.report-toc .l1`, `.doc-card .doc-h` |
+
+Decreasing ratio between rungs is ~1.3–1.5× — the standard modular
+scale. Ascending ratios are: 13→14 (1.08, chrome jitter), 14→18 (1.29),
+18→22 (1.22), 22→28 (1.27), 28→38 (1.36), 38→44 (1.16), 44→100 (2.27).
+
+**Forbidden between-rung values**: 16 px, 17 px, 19 px, 20 px, 24 px,
+26 px, 32 px, 36 px (unless it's the `.dir-num` numeral marker per the
+table above), 48 px. If you find yourself wanting one of these, you've
+mis-classified the role — pick the correct rung instead.
+
+**Mockup-internal exception (rung 8)**: text *inside* a simulated UI
+(Lark Doc preview, dashboard mock, chart label) sits at 10–13 px to
+look "small inside a real-size doc". Use this ONLY when the parent is
+visually a UI mockup, never for actual slide copy.
+
+**Postmortem**: P32 reached 5+ iterations because I chose 16 / 22 / 24
+ad-hoc per element. The screen-side eye reads 22 vs 24 vs 28 as "three
+slightly different sub-titles" instead of one consistent rhythm. Once
+ladder values were applied (22→28 for `.lede` and `.persona-meta h3`,
+16→18 for `.persona-meta dl`), the page snapped into rhythm.
+
+#### Nested grids must replicate the parent's column ratio (mandatory)
+
+When a region (e.g. `bottom-cta`, a strip of CTA pills) sits *underneath*
+a 2-column main grid and is supposed to align with those columns, its
+internal `grid-template-columns` MUST replicate the parent's ratio AND
+gap, not default to `1fr 1fr; gap: 24px`.
+
+```css
+/* parent stage */
+.stage {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  column-gap: 36px;
+}
+
+/* ✅ CORRECT — child grid copies parent's ratio + gap */
+.bottom-cta {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  column-gap: 36px;
+}
+
+/* ❌ WRONG — child re-invents 1fr 1fr; split line ≠ parent's */
+.bottom-cta {
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+```
+
+Why: the user's design rule is "right-side elements (lede, report-mock,
+right-CTA) all share the same left edge — the 96 px-derived right
+column line". With unequal column ratios (1fr vs 1.05fr) the split line
+is at ~52 % of stage width, not 50 %. A nested 1fr/1fr CTA strip places
+its split at 50 %, leaving the right pill ~14 px misaligned vs the
+report-mock's left edge.
+
+The same rule applies to ANY nested grid that visually overlaps the
+parent's columns: footer toolbars, KPI strips spanning two columns,
+gallery rows under a 2-col content area. If the child doesn't need to
+align (e.g. bottom-cta is intentionally a 3-equal-pill strip), this
+rule doesn't apply — but say so explicitly with a comment.
+
+**Postmortem**: P32 right CTA pill kept misaligning by ~14 px under
+the report-mock. Root cause: parent stage was 1fr/1.05fr but
+bottom-cta was 1fr/1fr. Fixed by replicating the ratio.
+
+#### Color contrast floor — body text on dark slides MUST be white (mandatory)
+
+The brand background is dark (~ #080C18). Pure white `#fff` reads
+crisp; gray text vanishes when projected. **All semantic body text
+(card titles, sub-headings, descriptions, large numerals, captions,
+list items) on dark slides MUST be `#fff` or `rgba(255,255,255,0.95)+`
+— not the lower-opacity gray tokens.** Specifically, **stop using
+these for body text:**
+
+- ❌ `var(--fs-text-72)` / `rgba(255,255,255,0.72)`
+- ❌ `var(--fs-text-78)` / `rgba(255,255,255,0.78)`
+- ❌ `var(--fs-text-65)` / `rgba(255,255,255,0.65)`
+- ❌ `rgba(255,255,255,0.55)` (large numerals shouldn't fade either)
+
+Use them ONLY for:
+- True chrome / metadata (page no., footnote disclaimer, axis labels — not body)
+- Decorative atmosphere (subtle outlines, dim background hints)
+- Disabled/inactive states (mute pills, secondary tabs)
+
+**Rule of thumb:** if the text is *information the audience must
+read* — title, sub-head, description, big number, caption under
+a screenshot, key data label — it goes to `#fff`. If it's *decoration
+or chrome* — fade is OK, but never apply fade to anything carrying
+meaning.
+
+This applies regardless of font size and is independent of the
+typography floor above. (A 22 px gray description is still
+unreadable on a projector. The fix is white, not bigger.)
+
+#### No nested frames — max ONE visible card boundary per content unit (mandatory)
+
+When authoring per-page CSS, **do not stack three layers of bordered
+boxes inside each other**. A "frame" is any element with both
+`border` (or `box-shadow` ring) AND a fill color/`background`.
+Triple-nesting reads as "boxes in boxes" and is the #1 reason
+single-page polish slides feel cluttered.
+
+**Counted as 1 frame each:**
+
+- An outer `canvas` / `panel` wrapper card (border + fill).
+- A `step-card` / `feat-card` / `dir-card` (border + fill).
+- A `mini-ui` mock or a `chart-frame` (border + fill).
+- A `factor-chip` / `tag` (border + fill counts as a frame too,
+  but small chips are usually OK if their parent is a flat row,
+  not another card).
+
+**The cap is 2 visible frame layers max** for any vertical pixel of
+the slide. Three or more is forbidden:
+
+```
+✗ stage → canvas-frame → step-card → mini-ui     (3 frames — fail)
+✗ outer-card → inner-item → icon-bg-tile          (3 frames — fail)
+```
+
+**How to fix when you find yourself nesting:**
+
+- **Drop the outer wrapper.** If `canvas-frame` only exists to draw a
+  border around step-cards, delete it and put the step-cards directly
+  on the slide background.
+- **Replace the inner with a hairline.** If you need to subdivide a
+  card, use a 1px section divider or a section colored bar (e.g.
+  `border-top: 2px solid var(--fs-violet)`) instead of a fully
+  bordered sub-card.
+- **Section-color the parent, kill the child border.** E.g. the parent
+  card's left edge is a 4px violet bar, and the inner content sits
+  flat with just text + spacing — no inner card.
+- **Use background tone, not borders.** A slightly-lighter rectangular
+  block inside a card (no border) signals grouping without adding a
+  frame.
+
+Chips, pills, and tag rows that themselves have borders are allowed
+inside a card (1 card + N chips = still counted as 2 frame layers
+total, since the chips don't nest into a third level).
+
+#### Sibling frames — merge into one card when they're a single content unit (mandatory)
+
+The "no nested frames" rule above covers VERTICAL nesting. This rule
+covers a different failure mode: **two stacked sibling frames that
+together represent one content unit**. Common case:
+
+```
+┌─────────────────────────┐   ← floating pill (frame 1)
+│  传统模式: 业务提需求     │
+└─────────────────────────┘
+┌─────────────────────────┐   ← bullet card (frame 2)
+│  · IT 团队: ...          │
+│  · 业务团队: ...         │
+└─────────────────────────┘
+```
+
+Even though they're not nested, the "mode card" is conceptually ONE
+unit (header label + supporting body), and rendering it as **two
+independent bordered boxes stacked vertically** reads as visually
+fragmented. Default to merging into a single frame:
+
+```
+┌─────────────────────────┐   ← single frame
+│ 传统模式: 业务提需求       │   ← header section (color-block top)
+├─────────────────────────┤
+│ · IT 团队: ...           │   ← body section
+│ · 业务团队: ...          │
+└─────────────────────────┘
+```
+
+**Decision rule** — before splitting into 2 sibling frames, ask:
+
+> "Does this header label make sense WITHOUT its supporting body?"
+
+If the answer is "no" (e.g., "传统模式" is meaningless without the
+bullets explaining what it means), merge them. Use a `1px solid` divider
+or a `border-bottom` on the header section instead of two separate
+borders. The header gets a stronger fill (gradient / accent) to
+visually differentiate it within the merged card.
+
+**Common merge patterns:**
+
+```css
+/* parent: single frame */
+.mode-card {
+  border: 1.5px solid <accent>;
+  border-radius: 18px;
+  overflow: hidden;     /* clip header gradient at radius */
+  background: <body-bg>;
+}
+/* header section: differentiated bg, NO independent border */
+.mode-card .head {
+  padding: 16px 26px;
+  background: <accent-fill>;
+  border-bottom: 1px solid <hairline>;
+  text-align: center;
+}
+/* body section: shares parent border, just padding */
+.mode-card .body {
+  padding: 22px 28px;
+}
+```
+
+**When 2 sibling frames ARE OK** — when the two are independent
+content units (e.g., a "metric card" and a "trend card" stacked, where
+each can stand alone), they SHOULD have their own frames. The rule is
+about merging frames for ONE conceptual unit, not about banning
+vertical card stacks in general.
+
+**Postmortem**: P35 v2 had a floating mode-head pill + a separately
+bordered mode-list card per side. Header pill made no sense without
+the bullets it labeled — they were one unit. Merging into a single
+mode-card with header-section + body-section eliminated 2 of the
+4 visible frames on the page (one per side) and the page felt
+visibly more substantial / less cluttered, with no information loss.
+
+#### Reserved class names — do NOT redefine in per-page `<style>` (mandatory)
+
+`feishu-deck.css` ships several **global utility classes** scoped at
+`.slide .<name>`. Authoring a per-page `<style>` block that defines a
+selector with the same class name causes hard-to-debug visual
+collisions — the global rule wins on specificity for properties you
+didn't override, so your custom container gets force-shrunk /
+force-positioned in ways that look broken without an obvious cause.
+
+**Reserved class names (search `feishu-deck.css` before reusing any
+short common name; this list grows over time):**
+
+| Class | Built-in behaviour |
+|---|---|
+| `.tile` | **64×64 icon tile** with `display: grid; place-items: center` (background tinted by `--fs-accent`). If you author `.tile { display: grid; grid-template-columns: 160px 1fr; padding: 12px 18px; ... }`, the 64×64 width/height wins, your padding is clipped, and inner CJK text wraps to one char per line. |
+| `.pill` | Generic pill chrome with padding + border-radius. |
+| `.eyebrow` | Uppercase Latin tracked label. |
+| `.keyline` | 96×3 keyline accent bar. |
+| `.title-zh` / `.title-en` / `.title` | Bilingual title typography. |
+| `.wordmark` | Top-right 飞书 logo container. |
+| `.stage` / `.header` / `.footer` | Slide structural shells. |
+| `.deck` / `.slide` / `.slide-frame` | Top-level deck shell. |
+| `.deck-progress` / `.deck-controls` | Present-mode chrome. |
+
+**Convention for custom containers**: prefix per-page classes with a
+2–4 char scope tag matching the slide topic, e.g. `.kpi-tile` (not
+`.tile`), `.case-card` (not `.card`), `.qa-pill` (not `.pill`),
+`.report-toc` (already scoped under `.report-mock`).
+
+**Symptom catalog** to recognize collisions early:
+- Custom container collapses to 64×64 → you used `.tile`.
+- Padding ignored / borders missing → check `.pill` / `.eyebrow`
+  collision.
+- Text wraps to one CJK character per line inside what should be a
+  wide row → almost always `.tile` collision (the 64px width forces
+  the column to be 1-CJK-glyph wide).
+
+**Postmortem**: P29 量化成效 KPI strip broke this rule three iterations
+in a row — the local `.tile { display:grid; grid-template-columns:160px 1fr; }`
+got overruled by the global `.slide .tile { width:64px; height:64px; }`,
+producing 3 empty 64×64 boxes with vertically-stacked CJK labels
+spilling out to the right. Renaming to `.kpi-tile` fixed it
+immediately. If you see a layout that "looks like the rule didn't
+apply", grep `feishu-deck.css` for your class name FIRST.
+
+#### Bar chart · X-axis alignment & in-chart brand logos (mandatory)
+
+When a slide has a bar chart with brand logos under each bar (e.g. P07
+万店时代 timeline, P29 quality-check store list), three rules apply:
+
+**1. X-axis baseline must touch bar bottoms · zero gap**
+
+The chart's X-axis line (`::after` pseudo) and the bar `<div class="fill">`
+bottom must sit at the *same Y pixel*. The standard pattern:
+
+```css
+.store-chart {
+  position: relative;
+  display: flex; flex-direction: column;          /* MANDATORY · see note below */
+  padding: 24px 60px <LABEL_AREA_HEIGHT>px 80px;  /* leave bottom space for logo+brand+date */
+  min-height: 540px;
+}
+/* X-axis line — sits exactly at the top of the label area = bar bottoms */
+.store-chart::after {
+  content: ''; position: absolute;
+  left: 60px; right: 32px;
+  bottom: <LABEL_AREA_HEIGHT>px;       /* MUST equal padding-bottom */
+  height: 1px;
+  background: linear-gradient(90deg, rgba(60,127,255,0.55), rgba(60,127,255,0.10));
+}
+.store-bars {
+  display: grid; grid-template-columns: repeat(N, 1fr);
+  align-items: end;                     /* bars sit on container bottom */
+  padding: 0 24px 0 16px;               /* padding-bottom: 0 — bars touch baseline */
+  flex: 1;                              /* MANDATORY · fills chart content area top-to-bottom */
+  min-height: 0;                        /* allow flex to override default content sizing */
+}
+.store-bar .fill {
+  /* heights via .h-XXXX classes; no margin-bottom — flush to bars-container bottom */
+}
+```
+
+**The `flex: column` + `flex: 1` pair is mandatory, not decorative.**
+Without it, `.store-bars`'s natural height = max bar height (e.g. 260 px).
+The chart `min-height: 540px` minus `padding-top + padding-bottom`
+(174 px) leaves **366 px content area** — but `.store-bars` only fills
+260 px of that, so it floats 106 px above the chart's content-area
+bottom. Meanwhile `::after { bottom: <LABEL_AREA> }` is anchored to
+the chart's content-area bottom. Result: **X-axis line sits 100+ px
+below the bars** and the chart looks broken. Forcing `.store-bars`
+to `flex: 1` makes it span the full chart content area so its
+`align-items: end` baseline lines up exactly with `::after`.
+
+**Forbidden**: any `padding-bottom > 0` on `.store-bars`, or any
+`bottom != LABEL_AREA_HEIGHT` on `.store-chart::after`, or omitting
+the chart `flex: column` / bars `flex: 1` pair. All of these produce
+a visible gap between the X-axis line and the bars and instantly look
+amateur.
+
+**2. Brand logo placement: BELOW the X-axis line, not on top of bars**
+
+Logos go in `.label-wrap` absolutely positioned `top: calc(100% + 14px)`
+relative to `.store-bar`. Since `.store-bar`'s bottom = bars-container
+bottom = X-axis line, this puts the logo card 14 px below the X-axis.
+
+The label area should contain (in vertical order): **logo · brand name
+· optional `hq-tag` · date**. Bar count `<span class="count">` goes
+ABOVE the bar (not in the label-wrap).
+
+**3. Brand logos MUST preserve aspect ratio · NO circular frames for
+non-square logos**
+
+The frequent failure mode: developers default to a 56×56 round avatar
+frame with `background-size: 80% 80%` or `cover`, which **stretches**
+horizontal logos (`美宜佳`, `沪上阿姨`) into a vertical box. Don't.
+
+**Standard pattern**:
+
+```css
+.store-bar .logo {
+  width: 96px; height: 44px;            /* rectangular card, ~2.2:1 ratio */
+  border-radius: 6px;
+  background-color: #fff;
+  background-position: center;
+  background-size: contain;             /* mandatory — preserves aspect ratio */
+  background-repeat: no-repeat;
+  padding: 4px;
+  border: 1px solid rgba(255,255,255,0.20);
+}
+.store-bar.is-hero .logo { border: 2px solid var(--fs-blue); }
+```
+
+`background-size: contain` is **mandatory** for any logo container with
+mixed-aspect-ratio logos (any chart with both wide and square brands).
+Use circles ONLY when every logo in the set is verifiably square (logo
+files in `clientlogo/` cropped 1:1) — otherwise rectangles.
+
+**Hero callout**: don't use a glow `box-shadow: 0 0 16px ...` on hero
+logo — that's a R12 real drop shadow. Use a colored `border` or a
+`0 0 0 2px ring` shadow.
 
 ### Step 4 · End page (`data-layout="end"`) — MUST follow master spec
 
@@ -1829,29 +2773,70 @@ inside their titles. The validator (R13) skips `<br>` checking on these three.
 Master pixel grid (1920×1080 design canvas):
 - Logo top-left: `120, 113` size `235×74` (color logo with petals + 飞书 wordmark — `lark-logo.png`)
 - Title: `124, 285`, max-width `884`, font 100/700
-- Author block: `124, 803`, font 30/600 — two stacked spans, name on top, date below. Do NOT use `.role` muted prefix on the cover (the date alone is enough chrome).
+- Author block: `124, 720` (2026-05-06 · was 803), font 30/600 — two stacked spans, name on top, date below. Do NOT use `.role` muted prefix on the cover (the date alone is enough chrome).
 - Right half: reserved for the flower image — DO NOT place text there.
 
-### 2. Agenda (`data-layout="agenda"`)
+### 2. Agenda (`data-layout="agenda"`) — vertical pill stack (v2, 2026-05-06)
+
+The agenda layout was rebuilt 2026-05-06 from the v1 TOC-grid into a
+**vertical pill stack** matching the 飞书 master 议程页 spec. Three
+(or up to ~6) pills stack centered on the canvas. NO header by default —
+the pills ARE the content. Each pill carries an italic blue numeral
+(01/02/03 …) + a single white title line.
 
 ```html
 <div class="slide" data-layout="agenda" data-accent="blue" data-screen-label="02 Agenda">
-  <div class="wordmark">Lark</div>
-  <div class="header">
-    <div class="eyebrow">AGENDA · 议程</div>
-    <h2 class="title-zh" style="margin-top:18px">本次汇报<br>共六个部分</h2>
-    <p class="en">Six chapters · approximately 35 minutes</p>
-  </div>
+  <div class="wordmark"></div>
   <div class="toc">
-    <div class="item"><div class="n">01</div><div><div class="title-zh">背景与挑战</div><div class="title-en">Context and challenges</div></div></div>
-    <div class="item"><div class="n">02</div><div><div class="title-zh">先进团队的工作方式</div><div class="title-en">How advanced teams work</div></div></div>
-    <div class="item"><div class="n">03</div><div><div class="title-zh">飞书平台能力</div><div class="title-en">Lark platform capabilities</div></div></div>
-    <div class="item"><div class="n">04</div><div><div class="title-zh">客户实证</div><div class="title-en">Customer evidence</div></div></div>
-    <div class="item"><div class="n">05</div><div><div class="title-zh">部署与服务</div><div class="title-en">Rollout and service</div></div></div>
-    <div class="item"><div class="n">06</div><div><div class="title-zh">下一步</div><div class="title-en">Next steps</div></div></div>
+    <div class="item"><div class="n">01</div><div class="title-zh" data-text-id="slide-02.item-01">飞书的定位和商业化进展</div></div>
+    <div class="item"><div class="n">02</div><div class="title-zh" data-text-id="slide-02.item-02">飞书对博裕及星巴克价值</div></div>
+    <div class="item"><div class="n">03</div><div class="title-zh" data-text-id="slide-02.item-03">飞书差异化优势</div></div>
   </div>
 </div>
 ```
+
+#### Recap variant — highlight one item (entering chapter)
+
+When the deck has multiple chapters and you re-show the agenda before
+each chapter (a recap page), dim the inactive items and highlight the
+active one with `class="is-active"`. The active pill border becomes
+teal and the numeral picks up the teal accent.
+
+```html
+<div class="item is-dim"><div class="n">01</div><div class="title-zh">飞书的定位和商业化进展</div></div>
+<div class="item is-active"><div class="n">02</div><div class="title-zh">飞书对博裕及星巴克价值</div></div>
+<div class="item is-dim"><div class="n">03</div><div class="title-zh">飞书差异化优势</div></div>
+```
+
+#### Header variant — opt-in `data-variant="with-header"`
+
+If the deck genuinely needs a top header (rare — the pills usually
+speak for themselves), opt in with `data-variant="with-header"` on
+the `.slide` element. The header reappears at top:96 and the pill
+stack shifts down to make room. Default = header hidden.
+
+```html
+<div class="slide" data-layout="agenda" data-variant="with-header" data-screen-label="02 Agenda">
+  <div class="wordmark"></div>
+  <div class="header"><h2 class="title-zh">本次汇报共三个部分</h2></div>
+  <div class="toc"><!-- pills --></div>
+</div>
+```
+
+#### Bilingual opt-in
+
+For ZH+EN bilingual decks, add `<div class="title-en">` next to the
+ZH line per item — the CSS renders it as a small EN sub-line below
+each pill title. ZH-only is the default per LANGUAGE POLICY.
+
+#### Why the rebuild
+
+The v1 TOC-grid (2-column rows with hairline borders) read as a list,
+not a focal divider. The 飞书 master 议程页 uses a single-frame pill
+stack centered on a section gradient — visually closer to "here's what
+this deck covers, in 3 acts" than "here's a long content list." User
+feedback 2026-05-06 ("目录这个布局不好看,改成竖排,参考 PDF 第二页布局")
+confirmed the pill style as the new default.
 
 ### 3. Section (`data-layout="section"`) — matches 飞书 母版 slideLayout3 一级章节页
 
@@ -3818,9 +4803,9 @@ Fullscreen scale & chrome
 [ ] 34. After fullscreen transition the scale is correct on the FIRST frame
         (no flash of wrong size). Runtime double-rAFs + 120ms timeout for
         viewport settle.
-[ ] 35. Chrome (top progress bar, mode toggle, bottom controls) auto-fades
+[ ] 35. Chrome (top progress bar, bottom controls) auto-fades
         after 2.5s of no input in present mode and restores on any input.
-        Hovering chrome cancels the fade.
+        Hovering chrome cancels the fade. (Mode toggle removed 2026-05-06.)
 [ ] 36. Slide centering uses absolute + negative margin pattern, NOT grid
         place-items, so transform/overflow clipping is deterministic.
 
