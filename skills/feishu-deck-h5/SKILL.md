@@ -4113,135 +4113,39 @@ column widths AND fills the parent uniformly. If you genuinely need a
 narrow content-sized table (e.g. a left-aligned key-value box), override
 inline with `style="width: max-content"` on the .ui-grid.
 
-### BF7 — `content-2col` with hero image: align top AND bottom
+### BF7 — `content-2col` hero image: align top AND bottom (defended in framework CSS)
 
-**Symptom**: A `content-2col` slide pairs a fixed-height image (e.g. a
-16:9 reference scene at `min-height: 600px`) with a stack of text/data
-sections in the other column. CSS Grid's `align-items: stretch` makes
-both columns the same row height (driven by the image's `min-height`),
-but the text column packs content at the top with default
-`justify-content: flex-start`, leaving conspicuous empty space at the
-bottom. **Top edges align, bottom edges don't** — the slide reads as
-"two columns of unequal weight" even though both are technically the
-same height. Reported on the 国航 P02 改签场景 deck (2026-05-08).
+When `.col-visual` carries an inline `min-height` (e.g. a 16:9 reference
+scene anchored to 600px) and `.col-text` holds a stack of 3-5 short
+sections, the text column packs at the top with empty space below.
 
-**Defense (authoring rule, not framework CSS)**: When the image is the
-fixed-height anchor and the text column is a stack of 3-5 short
-sections, set the text column to distribute vertically:
+**The framework now auto-applies `justify-content: space-between`** on
+`.col-text` whenever `.col-visual` has an inline `min-height` style
+(see feishu-deck.css). First text child aligns with image top, last
+aligns with image bottom. Just set the image's `min-height` inline —
+no other CSS needed.
 
-```css
-.slide[data-page="NN"] .col-visual {
-  min-height: 600px;                        /* hero image height */
-  background-image: url('...');
-  background-size: cover;
-  background-position: center;
-  border-radius: 18px;
-}
-.slide[data-page="NN"] .col-text {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;           /* ← key rule */
-  min-height: 600px;                        /* match image height */
-  gap: 16px;                                 /* minimum gap between sections */
-  min-width: 0;
-}
-```
+When NOT to use this — use the story-case v2 pattern instead (see
+ONE-PAGER CASE POLICY image-sizing rules) when the layout is
+`.story-case`, OR when the text column has dense paragraphs that
+naturally exceed image height. For those cases, image shrinks to text,
+not the reverse.
 
-`justify-content: space-between` puts the first child at the top, the
-last child at the bottom, and distributes remaining vertical space
-between the middle children. Result: image top ↔ text-section-1 top
-align; image bottom ↔ text-section-N bottom align. The middle gaps
-breathe naturally.
+### BF8 — flex-stage shrinks chart, grid bars don't follow (defended in framework CSS)
 
-The duplicate `min-height: 600px` on `.col-text` is intentional: it
-guarantees the text column stretches even when the row would otherwise
-shrink (e.g., on small viewports). Without it, browsers can collapse
-the column when content is shorter than the grid row.
+When a chart with positioned X-axis line (`::after { bottom: <pad> }`)
+sits in a flex-column `.stage` alongside other body blocks, flex shrinks
+the chart but the inner Grid `.bars` stays content-sized → bars
+overflow downward, dropping below the X-axis line.
 
-**Authoring rule** — apply BF7 when ALL of these are true:
-1. Layout is `content-2col`.
-2. One column is a hero image with a fixed `min-height` (typical: 16:9
-   reference scene, customer-environment photo, product mockup).
-3. The other column has 3–5 stacked short sections (tag + KPI strip +
-   feature card + pullquote, etc.) — short enough that the natural
-   content height is < image height.
+**The framework already defends `.arr-chart` / `.store-chart` /
+`.bar-chart` with `flex-shrink: 0`** (see feishu-deck.css). When you
+invent a new chart class, follow the same pattern — either name it one
+of those, or add `flex-shrink: 0` in your per-page `<style>`.
 
-**When NOT to apply BF7** — use story-case v2 instead (see "ONE-PAGER
-CASE POLICY · Image sizing — magazine-spread top-aligned"):
-- Layout is `.story-case` (one-pager case study) — that pattern
-  shrinks the image to text height instead of stretching the text.
-- The text column is text-rich enough to naturally exceed image
-  height (e.g. dense 4-beat arc + value paragraph) — `space-between`
-  on a tall content column makes section gaps too large.
-- One column is a free-flowing paragraph (not section-stacked) —
-  `space-between` only distributes the OUTER gaps; it doesn't help
-  paragraph reflow.
-
-**Why two rules** — BF7 (text expands to image height) and the
-story-case v2 (image shrinks to text height) are sibling solutions
-to the same problem (top + bottom alignment of asymmetric columns).
-The choice depends on which column you trust as the height anchor:
-the image (BF7) or the text (story-case v2).
-
-**Self-check before shipping** — open the slide, mentally draw a
-horizontal line at the image's top edge and another at the image's
-bottom edge. Both lines should "touch" or visibly align with the
-text column's first and last visible elements. If the bottom line
-sits ~80–150 px below the text column's last element, BF7 is missing.
-
-### BF8 — flex-stage shrinks chart container, but inner grid bars don't
-
-**Symptom**: A bar chart with a positioned X-axis line
-(`::after { bottom: 80px }`) sits inside a flex-column `.stage`
-alongside another body block. When stage content (chart + gap + other
-block) exceeds stage height, flex shrinks the chart proportionally.
-The chart shrinks fine, but the grid `.bars` inside doesn't (Grid
-items are intrinsically sized to content). Result: **bars overflow
-the chart's content area; bar bottoms drop below the X-axis line**.
-Year labels end up between the bars and the X-axis, making the axis
-look detached. Reported on P06 ARR chart.
-
-This is the mirror of the failure documented in "Bar chart · X-axis
-alignment & in-chart brand logos" (search the file). That section's
-failure: bars TOO SHORT for chart's content area → bars float ABOVE
-X-axis. Fix: grow bars (`flex: column` on chart + `flex: 1` on bars).
-BF8's failure: bars TOO TALL because chart was SHRUNK → bars push
-BELOW X-axis. Fix: stop the chart from shrinking.
-
-**Defense** (authoring rule, not framework CSS):
-
-```css
-.slide[data-page="NN"] .arr-chart,
-.slide[data-page="NN"] .<your-chart-class> {
-  /* ... existing padding/border/min-height ... */
-  flex-shrink: 0;             /* ← key rule */
-}
-```
-
-With `flex-shrink: 0` the chart keeps its natural height. The cost:
-the OTHER stage block shrinks instead, or the stage slightly
-overflows. Usually fine — most non-chart blocks (tables, lists, KPI
-strips) tolerate shrinking. If they don't, trim chart's internal
-padding or the other block's content.
-
-**Authoring rule** — apply when ALL of these are true:
-1. Chart container holds an X-axis line positioned at `bottom: <padding>`.
-2. Inside the chart, a Grid lays out bars with content-sized rows
-   (`grid-auto-rows`, `align-items: end`).
-3. Chart sits in a flex-column `.stage` alongside ≥1 other body block
-   with appreciable natural height.
-
-**Self-check** — if the chart "looks fine alone but breaks when a
-second body block sits below it", BF8 is the cause. In DevTools,
-`.bars` rect bottom should equal X-axis line bottom; if `.bars` is
-lower, the chart was shrunk.
-
-**Why this is a separate failure from the X-axis-alignment rule
-above**: that rule prevents bars from being too SHORT for the chart.
-BF8 prevents the CHART from being too short for the bars. Same
-"axis line drifts away from bar bottoms" symptom, opposite causes,
-opposite fixes. Apply both rules together when authoring a new chart
-layout — they don't conflict.
+Mirror failure (bars too SHORT, floating ABOVE X-axis): see "Bar chart
+· X-axis alignment & in-chart brand logos" earlier in this file. Same
+symptom, opposite cause; both rules apply together.
 
 ### R57 — quote / 金句 pages: no trailing periods
 

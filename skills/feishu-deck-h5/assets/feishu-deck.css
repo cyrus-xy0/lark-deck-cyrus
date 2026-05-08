@@ -2824,6 +2824,33 @@ body {
   display: none;
 }
 
+/* BF7 — content-2col with hero image: align top AND bottom.
+   When .col-visual carries an inline min-height directive (the typical
+   "16:9 reference scene at 600px" hero pattern), CSS Grid's
+   align-items: stretch makes both columns the same row height, but
+   .col-text packs content at the top with default flex-start, leaving
+   empty space below. Distribute children with space-between so the
+   first child aligns with image top, the last with image bottom. */
+.slide[data-layout="content-2col"] .grid:has(> .col-visual[style*="min-height"]) > .col-text {
+  justify-content: space-between;
+}
+
+/* BF8 — chart container shrinks under flex-column .stage pressure, but
+   inner Grid `.bars` doesn't (Grid items are intrinsically sized). The
+   bars overflow downward, dropping below the X-axis line drawn at chart's
+   `bottom: <padding>`. Reported on P06 ARR chart (2026-05-08).
+
+   Defense: lock common chart classes from shrinking. Authors writing a
+   new chart class should follow this pattern (or use one of these
+   class names). The cost — when chart + other stage block exceed stage
+   height, the OTHER block shrinks instead, which is fine for
+   tables/lists/KPI strips. */
+.slide .stage > .arr-chart,
+.slide .stage > .store-chart,
+.slide .stage > .bar-chart {
+  flex-shrink: 0;
+}
+
 /* BF6 — .ui-grid (Lark Base / spreadsheet mock) defaulting to fixed-px
    columns sits at intrinsic width and clusters at the left of its parent.
    Reported as "内容都在一头" (content stuck on one side) on a sales-table

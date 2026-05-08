@@ -31,13 +31,17 @@ RX_SKILL = re.compile(
 RX_INPUT = re.compile(
     r'((?:\.\./)+)input/([^\'")\s]+)'
 )
-# AFTER first rewrite, HTMLs use ../assets/<file> (no skills/feishu-deck-h5 prefix).
-# These already-local refs must be tracked so prune doesn't delete them.
+# AFTER first rewrite, HTMLs use assets/<file> or ../assets/<file>
+# (no skills/feishu-deck-h5 prefix). Both bare and ../-prefixed refs must
+# be tracked so prune doesn't delete them.
+# `*` (zero-or-more `../`) covers BOTH the deck root case (index.html in
+# output/, refs like `assets/feishu-deck.css`) AND the sub-folder case
+# (output/single-pages/p-NN.html, refs like `../assets/foo.png`).
 RX_LOCAL_ASSET = re.compile(
-    r'((?:\.\./)+)assets/([^\'")\s]+)'
+    r'((?:\.\./)*)assets/([^\'")\s]+)'
 )
 RX_LOCAL_INPUT = re.compile(
-    r'((?:\.\./)+)input/([^\'")\s]+)'
+    r'((?:\.\./)*)input/([^\'")\s]+)'
 )
 
 def find_skill_root() -> Path:
