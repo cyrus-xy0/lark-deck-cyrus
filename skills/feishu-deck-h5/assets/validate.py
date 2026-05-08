@@ -649,6 +649,76 @@ def audit_no_cyan_accent(slides: list[str], iss: Issues):
                 'accent. Use blue / teal / purple / violet / orange instead.')
 
 
+def audit_slide_keys(slides: list[str], iss: Issues):
+    """R-KEY: every <div class="slide"> carries a unique semantic data-slide-key.
+
+    Consumed by the companion `feishu-slide-library` skill — its locator
+    (canonical_source.slide_key) points back to [data-slide-key="..."] in
+    the deck source. Missing or duplicate keys → unindexable slides.
+
+    Rules:
+      • Every .slide MUST have data-slide-key set.
+      • Slug must match ^[a-z0-9][a-z0-9-]*$ (kebab-case, starts with
+        alphanumeric, no underscores or uppercase).
+      • Slugs MUST be unique within the deck (no two slides share a key).
+      • Positional slugs are allowed but flagged as warning — the rule
+        wants semantic slugs that survive reorder (`slide-NN` /
+        `page-N` / `section-N` are positional).
+    """
+    slug_re = re.compile(r'data-slide-key="([^"]*)"')
+    valid_slug_re = re.compile(r'^[a-z0-9][a-z0-9-]*$')
+    positional_re = re.compile(r'^(slide|page|section|frame)-?\d+$')
+
+    seen: dict[str, int] = {}  # slug -> first slide index it appeared in
+    missing: list[int] = []
+
+    for i, fr in enumerate(slides, 1):
+        m = slug_re.search(fr)
+        if not m:
+            missing.append(i)
+            continue
+        slug = m.group(1)
+
+        if not slug:
+            iss.err('R-KEY',
+                f'slide {i}: data-slide-key is empty. '
+                'Set a semantic kebab-case slug (e.g. "arr-history", "cover", '
+                '"case-meiyijia"). Required by feishu-slide-library locator.')
+            continue
+
+        if not valid_slug_re.match(slug):
+            iss.err('R-KEY',
+                f'slide {i}: data-slide-key="{slug}" is not valid kebab-case. '
+                'Use lowercase letters, digits, and `-` only; must start with '
+                'an alphanumeric. Example: "arr-history" not "ARR_History".')
+            continue
+
+        if positional_re.match(slug):
+            iss.warn('R-KEY',
+                f'slide {i}: data-slide-key="{slug}" is positional — it '
+                'breaks when slides reorder. Use a semantic slug naming '
+                'what the slide is ABOUT (e.g. "arr-history" instead of '
+                '"slide-06").')
+
+        if slug in seen:
+            iss.err('R-KEY',
+                f'slide {i}: data-slide-key="{slug}" already used by '
+                f'slide {seen[slug]}. Slugs must be deck-internal unique. '
+                'Pick a different semantic slug or add a suffix '
+                f'(e.g. "{slug}-v2").')
+        else:
+            seen[slug] = i
+
+    if missing:
+        iss.err('R-KEY',
+            f'{len(missing)} slide(s) missing data-slide-key '
+            f'(slide indices: {", ".join(map(str, missing[:5]))}'
+            f'{", …" if len(missing) > 5 else ""}). '
+            'Every .slide must carry a semantic kebab-case slug so the '
+            'feishu-slide-library skill can index it. Add '
+            '`data-slide-key="<slug>"` next to data-screen-label.')
+
+
 def audit_language_policy(html: str, slides: list[str], iss: Issues, strict: bool):
     """R-LANG: enforce the SKILL's ZH-only-by-default language policy.
 
@@ -988,6 +1058,7 @@ def main():
     audit_ui_mocks_are_html(slides, iss)
     audit_no_cyan_accent(slides, iss)
     audit_header_minimal(slides, iss)
+    audit_slide_keys(slides, iss)
     audit_language_policy(html, slides, iss, args.strict)
     audit_perf(html, iss, args.strict)
     audit_text_ids(html, path, iss)

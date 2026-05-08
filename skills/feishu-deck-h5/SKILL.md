@@ -4808,6 +4808,7 @@ The validator covers programmable rules:
 | Centering pattern | R36 | `margin: -540px 0 0 -960px`, NOT grid `place-items` |
 | UI mocks | UI1 | system UI is HTML primitives, not raster `<img>` |
 | Language | R-LANG | `.title-en`/`.subtitle-en`/`.label-en` only when `<meta name="fs-language" content="zh-en">` |
+| Slide keys | R-KEY | every `.slide` has unique semantic `data-slide-key` (kebab-case); positional slugs warned |
 | Text-id sidecar | T01 / T02 / T03 | unique ids, valid `slide-NN.field` shape, paired `texts.md` |
 | Performance | P50-P55 | base64 budget, blur cap, single ResizeObserver, AbortController, GPU layers |
 | Preflight | PREFLIGHT | local mount writable; not ephemeral |
