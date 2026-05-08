@@ -4775,212 +4775,52 @@ title patterns.
 
 ---
 
-## Self-check (run all 59 items before delivering)
+## Self-check — the validator IS the self-check
 
-Before saving the deck, walk this list. **Failing any item is a hard reject.**
+Run before every delivery:
 
-```
-Brand & content
-[ ]  1. Each slide is wrapped in <div class="slide-frame"><div class="slide" ...>.
-[ ]  2. Every .slide has data-layout AND data-screen-label set.
-[ ]  3. Every .slide has exactly ONE accent (cyan = inline highlight only).
-[ ]  4. ZH copy is bigger than EN copy and sits ABOVE it.
-[ ]  5. No emoji. No '!', '…', '???'.
-[ ]  6. Body text ≥ 22 px on canvas; chrome ≥ 14 px. **Every per-page
-        `font-size` is on the ladder `{14, 18, 22, 28, 38, 44, 52, 56, 64, 88, 100, 132, 160}`**
-        (R20). No 16 / 17 / 19 / 20 / 24 / 26 / 30 / 32 / 36 / 40 / 48 / 72 / 96.
-[ ]  7. Wordmark present on EVERY slide (cover/end top-left, others top-right) —
-        always the COLORED logo unless class="is-mono" is explicitly set.
-[ ]  8. (Retired 2026-05 — per-slide footer/pageno is gone; pager UI shows page no.)
-[ ]  9. All icons are inline SVG with stroke:currentColor.
-[ ] 10. All hex values come from --fs-* tokens.
-[ ] 11. CJK punctuation full-width, EN punctuation ASCII, never mixed.
-[ ] 12. No drop shadows on slide content (only on .slide-frame in scroll mode).
-
-Title & header alignment
-[ ] 13. Page-header H2 has NO explicit `<br>` in .header h2 / .header .title-zh
-        on content layouts. If the title is too long to fit on one line, let
-        it WRAP NATURALLY (the browser handles word-break; CJK glyph break
-        is automatic). NEVER truncate, NEVER add ellipsis (`…` / `...`),
-        NEVER shorten a user-given title — the title is content, preserve
-        it verbatim. Hero 2-line titles via explicit `<br>` are allowed only
-        on cover / image-text / end layouts. (The validator R13 only rejects
-        explicit `<br>` on content layouts; natural multi-line wrap is fine.)
-[ ] 14. Page-header H2 vertically aligned with the top-right logo (top: 61).
-        Eyebrow (when used) goes BELOW the title.
-[ ] 15. Title-only pages (cover, agenda, big-stat) have NO eyebrow above the
-        title, so the title sits exactly on the logo line.
-
-Layout-specific sizes
-[ ] 16. Agenda numbers and item titles share the SAME font size (both 44 px).
-[ ] 17. Stats .trend ≥ 20 px CJK 600 (NOT 14 px Latin uppercase).
-[ ] 18. Stats .label ≥ 24 px CJK.
-[ ] 19. Table <th> ≥ 24 px CJK 600 white (NOT 16 px Latin uppercase).
-[ ] 20. Card titles fit on ≤ 14 CJK chars at default font size (no clash with
-        right-corner numerals / verdict badges).
-
-Copy & narrative
-[ ] 21. (Retired 2026-05 — .source-footer is gone; cite numbers inline
-        in the body or via `.caption`. Item kept as a numbering anchor.)
-[ ] 22. Eyebrow numbering uses 01 / 02 / 03 / 04-A / 04-B / … sub-letters when
-        a focus area expands across multiple pages.
-[ ] 23. CN-EN separator inside titles/eyebrows is space + · + space.
-[ ] 24. At most ONE accent4 (teal) emphasis per page — even on plain content.
-
-Layout overflow & runtime
-[ ] 25. No flex item lacks min-height: 0 inside .stage / .grid / .flow.
-        No grid uses 1fr without minmax(0, 1fr) on its rows.
-[ ] 26. Pill/CTA rows default to nowrap. Wrapping pill rows must declare it
-        explicitly (and risk vertical overflow).
-[ ] 27. iframe-embedded prototypes live in outputs/ with relative paths; every
-        decorative overlay above an iframe has pointer-events: none.
-[ ] 28. The deck opens correctly at viewport widths 1920, 1280, and 380.
-        Page indicator + mode toggle + fullscreen button visible. Keyboard
-        ←→ navigates; F toggles fullscreen.
-
-Present-mode chrome (rendered automatically by feishu-deck.js — verify it shows)
-[ ] 29. Top progress bar (3 px, --fs-grad-keyline) visible across the top of
-        the viewport in present mode. Width = (cur+1)/total × 100%. Animated.
-[ ] 30. Bottom-center pill bar shows: [prev] [01 / 12] [next] | [fullscreen].
-        Glassmorphic background. Prev/next disabled at endpoints.
-[ ] 31. Clicking 演示模式 ALSO requests browser fullscreen (one gesture).
-        Clicking 退出演示 exits both. Esc exits fullscreen but stays in
-        present mode (deliberate).
-[ ] 32. Top progress bar + bottom control pill are HIDDEN in scroll mode.
-        Esc, F-key, and ←/→ keyboard navigation work whether fullscreen or not.
-
-Fullscreen scale & chrome
-[ ] 33. Entering fullscreen does NOT clip slide content. Slide letterboxes
-        (preserves 16:9) on non-16:9 displays. On true 16:9 displays, slide
-        fills viewport exactly with scale = 1.
-[ ] 34. After fullscreen transition the scale is correct on the FIRST frame
-        (no flash of wrong size). Runtime double-rAFs + 120ms timeout for
-        viewport settle.
-[ ] 35. Chrome (top progress bar, bottom controls) auto-fades
-        after 2.5s of no input in present mode and restores on any input.
-        Hovering chrome cancels the fade. (Mode toggle removed 2026-05-06.)
-[ ] 36. Slide centering uses absolute + negative margin pattern, NOT grid
-        place-items, so transform/overflow clipping is deterministic.
-
-Atmospheric / decorative preservation
-[ ] 37. When re-rendering an existing slide into a standard layout, the source
-        slide's distinctive atmospheric content (radial glows, full-bleed
-        photos, brand gradients, aurora, film grain, illustrative motifs) is
-        preserved via a data-decor attribute. NEVER silently dropped.
-[ ] 38. data-decor tokens come from the ship list (violet-glow / blue-glow /
-        mix-glow / teal-glow / orange-spark / aurora / grain / topo /
-        flower-bg / section-bg / photo-bg). Multiple tokens stack via space
-        separation. If the source decor doesn't match any token exactly, use
-        the closest one and note the approximation.
-[ ] 39. Decor never disturbs layout or hit-testing — it's a ::before/::after
-        pseudo-element at z-index: 0 with pointer-events: none. Slide
-        content stays at z-index: 1.
-
-Hard gate · run programmatically
-[ ] 40. `python3 assets/validate.py path/to/your-deck.html` exits 0.
-        This script EXECUTES checks 02 / 05 / 06 / 07 / 10 / 12 / 13 /
-        29-32 / 36 / 38 statically. Don't ship a deck where the validator
-        is red — fix the underlying issue.
-[ ] 41. `python3 assets/validate.py path/to/your-deck.html --strict`
-        also exits 0 before final delivery (warnings → errors).
-
-Layout integrity (L1-L4 — LKK exchange deck failure modes)
-[ ] 42. L1 — .slide .wordmark default references var(--fs-asset-logo) (color).
-        Mono opt-in via class="is-mono" only on chapter dividers / over-imagery
-        edge cases. Validator: check_logo_default().
-[ ] 43. L2 — every body-content stage on content-2col / content-3up / process /
-        timeline / pipeline either has align-content: center OR flex: 1 declared.
-        Never ship a top-stacked slide. Validator: check_balance().
-[ ] 44. L3 — cards inside grids are content-tall, not stretched to canvas.
-        margin-top: auto on inner pills must NOT create an empty middle.
-        Validator: indirectly via L2 (centering eliminates the bug).
-[ ] 45. L4 — .slide[data-layout="process"] .output .attrs is grid-template-columns:
-        1fr (single column). Validator: check_attrs_density().
-
-UI mocks
-[ ] 46. UI1 — every system UI element (app windows, sidebars, chat threads,
-        spreadsheets, dashboards, modal dialogs) is recreated in HTML using
-        the .ui-* primitives, NOT embedded as a raster screenshot.
-        Validator: audit_ui_mocks_are_html — warns on any <img> in slide
-        content that isn't a known brand asset or data: URI. Real photographs
-        go through data-decor="photo-bg" with style="--photo: url(...)".
-
-Variant discipline
-[ ] 47. R47 — every CSS rule whose selector contains [data-variant=...] AND
-        declares any structural property (display, flex-direction, flex-wrap,
-        grid-template-*) MUST also redeclare both align-items (or place-items)
-        AND justify-content (or place-content). Cosmetic-only variants
-        (color/padding/font/gap) are exempt. Validator: audit_variant_discipline.
-
-Default centering for fixed-shape layouts
-[ ] 48. R48 — every container layout that holds a fixed number of content
-        blocks (content-3up, content-2col, agenda, stats, big-stat, quote)
-        default-centers vertically via justify-content / align-content /
-        align-items / place-content : center on its inner container
-        (.stage / .grid / .toc / .flow / .nodes / .stack). pipeline /
-        timeline / process are documented exceptions that fill instead.
-        Validator: audit_default_centering / check_default_centering.
-
-Cyan-as-slide-accent forbidden
-[ ] 49. R49 — cyan (#24C3FF) is INLINE-WORD-HIGHLIGHT only via .accent-text
-        / .hl. Slides with data-accent="cyan" are rejected. The CSS no
-        longer ships a `[data-accent="cyan"]` rule; if a slide tries to
-        opt in, the variable doesn't resolve. Validator:
-        audit_no_cyan_accent.
-
-Performance budget
-[ ] 50. P50 — base64 in <style> ≤ 100 KB on the default linked deck
-        (≤ 250 KB hard cap). Inlined-mode decks must declare
-        `<meta name="fs-deck-mode" content="inline">` to skip this check.
-        Validator: audit_perf.
-[ ] 51. P51 — backdrop-filter blur radius ≤ 10 px (GPU cost scales with
-        radius; opaque rgba is preferable in most cases).
-[ ] 52. P52 — at most ONE `new ResizeObserver(...)` instance in the runtime.
-        One document-level RO with rAF batching is the规范.
-[ ] 53. P53 — runtime uses `AbortController` (or `removeEventListener`) for
-        every `addEventListener` so SPA hosts can `destroy()` cleanly.
-[ ] 54. P54 — `.slide-frame { contain: layout paint size }` is set so slide
-        changes are local repaints, not full-document.
-[ ] 55. P55 — `.slide-frame .slide { will-change: transform }` (with a
-        `translateZ(0)` in the transform value) gives the slide a GPU
-        layer, avoiding CPU rasterization on every transition.
-
-Content-page header minimalism
-[ ] 56. R56 — content-page `.header` contains ONLY a single `<h2>` title.
-        No `.eyebrow`, no inline page-no, no inner wrapper div. (Page
-        numbers no longer live anywhere in slide DOM since 2026-05 —
-        the present-mode pager UI handles them.) CSS defends this
-        with `.slide .header .eyebrow { display: none }` — but the
-        markup should be clean too. Validator: audit_header_minimal.
-
-Conversion compliance (when re-rendering external material)
-[ ] 57. C1 — when converting external material (PDF / HTML / PPT export),
-        every source page is mapped to ONE of the 13 layouts using the
-        identification table in the "Converting existing material" section.
-        Cover pages use `data-layout="cover"` (NOT a content layout).
-        End pages use `data-layout="end"` (NOT a content layout with a
-        manually-built thank-you grid). No 14th invented layout.
-[ ] 58. C2 — during conversion, source-only artifacts are STRIPPED before
-        rendering: source page numbers (drop them — the pager UI shows
-        the deck's own page no.),
-        watermarks, decorative breadcrumbs, kicker text above titles,
-        emoji / `!` / `…` / `???`, and `<br>` inside content-page titles.
-        Atmospheric content (radial glows, photographic backgrounds, brand
-        gradients) is PRESERVED via `data-decor` (see "Preserve
-        atmospheric / decorative backgrounds"). System UI screenshots
-        are RECREATED in HTML via `.ui-*` primitives, not embedded as
-        raster (UI1).
-
-Local-mount preflight
-[ ] 59. PREFLIGHT — `bash assets/preflight.sh` exits 0. The skill is NOT
-        running from `/sessions/*/mnt/outputs/` (ephemeral). The skill
-        root is writable. All required asset files are present. If
-        any of these fails, refuse to generate any HTML and tell the
-        user to mount a local folder.
+```bash
+bash assets/finalize.sh runs/<ts>/output local            # in-progress
+bash assets/finalize.sh runs/<ts>/output local --strict   # final delivery
 ```
 
-If any item fails, fix the slide. Don't ship a deck that fails item 5 — emoji on a
-飞书 sales slide is the single fastest way to break trust with the audience.
+`finalize.sh` orchestrates `copy-assets` → `extract-texts` → `validate.py`
+in order. Every validator error prints **what's wrong + how to fix** —
+read it, fix it. Don't suppress.
+
+The validator covers programmable rules:
+
+| Family | Rules | What it enforces |
+|---|---|---|
+| Structure | R02 / R07 | every `.slide` has `data-layout`, `data-screen-label`, `.wordmark` |
+| Copy | R05 / R13 | no emoji / `!` / `…`; no `<br>` in content-page titles |
+| Hex palette | R10 | hex values come from `--fs-*` tokens |
+| Drop shadows | R12 | no real `box-shadow` offsets (rings + insets only) |
+| Typography | R06 / R20 | body ≥ 22 px; chrome ≥ 14 px; per-page `font-size` on the ladder `{10,11,12,13,14,18,22,28,38,44,52,56,64,88,100,132,160}` |
+| Logo | L1 | `.wordmark` defaults to color; mono is `class="is-mono"` opt-in |
+| Layout integrity | L2 / L3 / L4 | balanced stage, content-tall cards, single-col `.process .attrs` |
+| Variants | R47 | structural-changing variants redeclare alignment |
+| Centering | R48 | fixed-shape layouts default-center vertically |
+| Cyan | R49 | cyan is inline-highlight only, not slide accent |
+| Header | R56 | content-page `.header` has only `<h2>` (no eyebrow) |
+| Decor | R38 | `data-decor` tokens are from ship list |
+| Runtime chrome | R29-R32 | present-mode bar/buttons + `requestFullscreen` wired |
+| Centering pattern | R36 | `margin: -540px 0 0 -960px`, NOT grid `place-items` |
+| UI mocks | UI1 | system UI is HTML primitives, not raster `<img>` |
+| Language | R-LANG | `.title-en`/`.subtitle-en`/`.label-en` only when `<meta name="fs-language" content="zh-en">` |
+| Text-id sidecar | T01 / T02 / T03 | unique ids, valid `slide-NN.field` shape, paired `texts.md` |
+| Performance | P50-P55 | base64 budget, blur cap, single ResizeObserver, AbortController, GPU layers |
+| Preflight | PREFLIGHT | local mount writable; not ephemeral |
+
+What the validator can't catch — needs human eyes before delivery:
+
+- **Visual alignment** — title baseline ↔ logo center, agenda numerals ↔ titles
+- **Atmospheric feel** — gloom/glow density vs content density (open at 1920×1080 and squint)
+- **ZH-EN sizing balance** on bilingual decks (ZH must read bigger / sit above)
+- **Narrative landing** — does each slide deliver its one point in 3 seconds?
+
+Open at 1920×1080 (PC), 1280×720 (laptop), 380×680 (phone). If any breaks
+visually, fix the slide; the validator only catches programmable rules.
 
 ---
 

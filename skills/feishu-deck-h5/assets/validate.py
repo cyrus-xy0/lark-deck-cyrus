@@ -353,37 +353,63 @@ def audit_hex_palette(html: str, iss: Issues, strict: bool):
             iss.warn('R10', f'hex values outside palette in slide markup: {msg}')
 
 
-def audit_runtime_chrome(html: str, iss: Issues):
+def audit_runtime_chrome(html: str, iss: Issues, html_path: 'Path'):
     """R29-R32: present-mode chrome is shipped.
 
     DOM needles can live either in static markup OR be injected by JS at
-    runtime (the runtime builds .deck-controls via innerHTML). So we check
-    the full document for those. JS-API needles (requestFullscreen /
-    fullscreenchange) must appear inside a <script> block.
-    """
-    script_blocks = ' '.join(re.findall(r'<script[^>]*>(.*?)</script>', html, re.S))
+    runtime (the runtime builds .deck-controls via innerHTML). JS-API
+    needles (requestFullscreen / fullscreenchange) must appear inside a
+    <script> block.
 
-    # DOM/CSS — JS-injected innerHTML strings count
+    Linked JS via `<script src="…">` is loaded from disk (relative to
+    the HTML file) and concatenated into the searchable text — without
+    this, decks that link feishu-deck.js externally would always fail
+    the audit even though they work fine in browser.
+    """
+    # Inline <script> bodies
+    inline_scripts = re.findall(r'<script[^>]*>(.+?)</script>', html, re.S)
+    script_blocks = ' '.join(inline_scripts)
+
+    # External <script src="..."> — load file content if it resolves
+    base_dir = html_path.parent
+    for src in re.findall(r'<script[^>]*\bsrc=["\']([^"\']+)["\']', html):
+        if src.startswith(('http:', 'https:', '//', 'data:')):
+            continue
+        js_path = (base_dir / src).resolve()
+        if js_path.is_file():
+            try:
+                script_blocks += ' ' + js_path.read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                pass
+
+    # All searchable text (HTML markup + inline JS + linked JS bodies)
+    full_text = html + ' ' + script_blocks
+
     dom_needles = [
-        ('deck-progress',     'top progress bar element / class'),
-        ('deck-controls',     'bottom control pill element / class'),
-        ('class="ctl prev"',  'prev button'),
-        ('class="ctl next"',  'next button'),
-        ('class="ctl fs"',    'fullscreen button'),
-        ('--fs-grad-keyline', 'progress bar uses brand gradient'),
-        ('is-idle',           'auto-idle fade'),
+        ('deck-progress',     'top progress bar element / class',
+         'feishu-deck.js builds this — make sure <script src="assets/feishu-deck.js"> is loading.'),
+        ('deck-controls',     'bottom control pill element / class',
+         'feishu-deck.js builds this — verify the JS is loading from a reachable path.'),
+        ('class="ctl prev"',  'prev button',  'should appear in feishu-deck.js innerHTML.'),
+        ('class="ctl next"',  'next button',  'should appear in feishu-deck.js innerHTML.'),
+        ('class="ctl fs"',    'fullscreen button', 'should appear in feishu-deck.js innerHTML.'),
+        ('--fs-grad-keyline', 'progress bar uses brand gradient',
+         'this token must be defined in feishu-deck.css and used by .deck-progress.'),
+        ('is-idle',           'auto-idle fade',
+         'feishu-deck.js toggles this class after 2.5s of no input.'),
     ]
-    # API needles — must be invoked from script
     js_needles = [
-        ('requestFullscreen', 'fullscreen API call'),
-        ('fullscreenchange',  'fullscreenchange listener'),
+        ('requestFullscreen', 'fullscreen API call',
+         'feishu-deck.js calls element.requestFullscreen() on the deck root.'),
+        ('fullscreenchange',  'fullscreenchange listener',
+         'feishu-deck.js listens to detect Esc-to-exit-fullscreen.'),
     ]
-    for needle, desc in dom_needles:
-        if needle not in html:
-            iss.err('R29-32', f'present-mode chrome missing: {desc} ({needle!r})')
-    for needle, desc in js_needles:
+    for needle, desc, hint in dom_needles:
+        if needle not in full_text:
+            iss.err('R29-32', f'present-mode chrome missing: {desc} ({needle!r}). {hint}')
+    for needle, desc, hint in js_needles:
         if needle not in script_blocks:
-            iss.err('R29-32', f'present-mode chrome missing in JS: {desc} ({needle!r})')
+            iss.err('R29-32', f'present-mode chrome missing in JS: {desc} ({needle!r}). {hint}')
 
 
 def audit_centering_pattern(html: str, iss: Issues):
@@ -954,7 +980,7 @@ def main():
     audit_no_drop_shadows(html, iss)
     audit_data_decor(slides, iss)
     audit_hex_palette(html, iss, args.strict)
-    audit_runtime_chrome(html, iss)
+    audit_runtime_chrome(html, iss, path)
     audit_centering_pattern(html, iss)
     audit_layout_integrity(html, iss)
     audit_default_centering(html, iss)
