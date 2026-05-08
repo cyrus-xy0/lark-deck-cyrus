@@ -184,6 +184,12 @@ def audit_font_sizes(html: str, iss: Issues):
                and '.cell' not in selector and 'thead' not in selector \
                and 'tbody' not in selector:
                 continue
+            # Same opt-out as R20 — rung 8 mockup-internal text (10–13 px) is
+            # legitimate per SKILL.md when the parent is a UI mockup. Authors
+            # mark such rules with /* allow:typescale */ so both R06 and R20
+            # ignore them.
+            if 'allow:typescale' in block:
+                continue
             for m in re.finditer(r'font-size:\s*(\d+)px', block):
                 size = int(m.group(1))
                 if size < FLOOR_CHROME_PX:
@@ -207,6 +213,72 @@ def audit_font_sizes(html: str, iss: Issues):
             if size < FLOOR_CHROME_PX:
                 iss.err('R06',
                     f'inline font-size {size}px below {FLOOR_CHROME_PX}px floor')
+
+
+TYPE_LADDER_PX = {
+    10, 11, 12, 13,        # rung 8 — mockup-internal text only
+    14,                    # rung 7 — chrome (footnote, pageno, eyebrow caps)
+    18,                    # rung 6 — pill / sub-meta
+    22,                    # rung 5 — body floor
+    28,                    # rung 4 — col-title / lede
+    38,                    # rung 3 — content sub-heading
+    44,                    # rung 2 — slide title (per SKILL ladder)
+    52,                    # master-spec — unified `.header .title-zh`
+    56,                    # master-spec — content-3up `.num`
+    64,                    # master-spec — `.slide .title-zh` global baseline
+    88,                    # master-spec — section h2, hero KPI
+    100,                   # rung 1 — cover hero
+    132,                   # master-spec — `.bigstat-num`
+    160,                   # master-spec — chapter-num
+}
+
+
+def audit_type_ladder(html: str, iss: Issues):
+    """R20: every per-page font-size MUST be on the modular type-scale.
+
+    Scope: only rules whose selector contains `[data-page="NN"]`. The global
+    framework stylesheet (feishu-deck.css) is the authoritative master spec
+    for cover / section / big-stat etc. and has its own review process; this
+    rule targets the per-page `<style>` blocks where agents improvise card
+    typography and go off-ladder (16/17/19/20/24/26/32/36/40/48/64*/72/96 etc.).
+
+    Genuine master-spec exceptions opt out by adding `/* allow:typescale */`
+    in the same rule block. Use sparingly and document why.
+    """
+    seen = set()
+    for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
+        css = style_m.group(1)
+        # Strip CSS comments first so they can't pollute selector capture
+        css_clean = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+        for rule_m in re.finditer(r'([^{}]+)\{([^}]+)\}', css_clean):
+            selector = rule_m.group(1).strip()
+            block    = rule_m.group(2)
+            # Only audit per-page rules (where agents author improvised CSS)
+            if '[data-page=' not in selector:
+                continue
+            if '@' in selector:
+                continue
+            if 'allow:typescale' in block:
+                continue
+            sizes = []
+            for m in re.finditer(r'font-size:\s*(\d+)px', block):
+                sizes.append(int(m.group(1)))
+            for m in re.finditer(r'\bfont:\s*[^;{}]*?(\d+)px', block):
+                sizes.append(int(m.group(1)))
+            for size in sizes:
+                if size in TYPE_LADDER_PX:
+                    continue
+                key = (size, selector[:80])
+                if key in seen:
+                    continue
+                seen.add(key)
+                nearest = min(TYPE_LADDER_PX, key=lambda r: abs(r - size))
+                iss.err('R20',
+                    f'font-size {size}px on `{selector[:80]}` is off-ladder; '
+                    f'nearest rung = {nearest}px '
+                    f'(allowed: 14 chrome / 18 pill / 22 body / 28 sub-title / '
+                    f'38 / 44 / 52 / 56 / 64 / 88 / 100 / 132 / 160). '
+                    f'Add /* allow:typescale */ in the rule to override.')
 
 
 def audit_no_drop_shadows(html: str, iss: Issues):
@@ -834,6 +906,7 @@ def main():
     audit_brand_chrome(slides, iss, args.strict)
     audit_copy_rules(html, iss)
     audit_font_sizes(html, iss)
+    audit_type_ladder(html, iss)
     audit_no_drop_shadows(html, iss)
     audit_data_decor(slides, iss)
     audit_hex_palette(html, iss, args.strict)

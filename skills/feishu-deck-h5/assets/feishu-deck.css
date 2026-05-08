@@ -42,7 +42,14 @@
                      #000;
 
   /* — Type — */
-  --fs-font-cjk:   "方正兰亭黑Pro_GB18030","FZLanTingHeiPro_GB18030 Light","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  /* 2026-05-06 · 中文字体 · 飞书母版指定 方正兰亭黑Pro GB18030 (Founder
+     Type 授权字体)。下面 stack 同时包含 spaced / underscored / EN 三种安装
+     名称写法,以及完整 Light / Regular fallback,任一形式被系统识别即生效。
+     系统未安装时回落到 Noto Sans SC / PingFang SC / 微软雅黑。 */
+  --fs-font-cjk:   "方正兰亭黑 Pro GB18030", "方正兰亭黑Pro_GB18030",
+                   "FZLanTingHeiPro_GB18030 Light", "FZLanTingHeiPro-Light",
+                   "FZLanTingHei", "Noto Sans SC", "PingFang SC",
+                   "Microsoft YaHei", system-ui, sans-serif;
   --fs-font-latin: "Inter","Helvetica Neue","Arial",sans-serif;
   --fs-font-mono:  "JetBrains Mono","SF Mono","Menlo",monospace;
 
@@ -117,18 +124,57 @@ body {
 .deck[data-mode="present"] {
   position: fixed; inset: 0;
   width: 100vw; height: 100vh; height: 100dvh;
-  background: #000; overflow: hidden;
+  /* 2026-05-06 · letterbox 边带改用与 slide gradient 同调的深色径向渐变.
+     16:9 内容显示在 16:10/16:10+ 屏时上下不可避免有 letterbox 物理边距,
+     之前 #000 实色边带视觉上像"加边框",现在用与 slide 深底色一致的
+     dark radial 让边带自然融入 slide bg。content / section / cover 三
+     大母版的边缘色都接近 #000–#06091a,这个渐变对它们都协调。 */
+  background: radial-gradient(120% 100% at 50% 50%, #0A1126 0%, #04081B 45%, #000 90%);
+  overflow: hidden;
 }
 .deck[data-mode="present"] .slide-frame {
   position: absolute; inset: 0;
   aspect-ratio: auto; opacity: 0; pointer-events: none;
   transition: opacity .25s ease;
-  background: #000;
+  /* background omitted — deck-level radial fills the letterbox area, then
+     per-layout :has() rules below paint each frame with its slide's own bg
+     so the 16:9 slide letterboxed in a 16:10 viewport blends seamlessly. */
   /* Off-screen frames don't render until they become current — saves
      ~600 ms of initial paint on a 22-slide deck (was rendering all 22
      radial-gradient decor layers up front). */
   content-visibility: auto;
   contain-intrinsic-size: 100vw 100vh;
+}
+
+/* 2026-05-06 · per-layout slide-frame background blends letterbox bars
+   with the slide's actual content background. 16:9 design canvas in a
+   16:10 viewport leaves ~60–130px top/bottom letterbox area; without
+   this, those bars are pure black against a textured slide bg → visible
+   border. With this rule, the bars carry the same gradient/image as
+   the slide content edge → seamless fullscreen.
+
+   Uses :has() selector (Chrome 105+ / Safari 15.4+ / Firefox 121+).
+   On older browsers, falls through to the deck-level radial gradient. */
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="cover"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="end"]) {
+  background: #000 var(--fs-asset-cover-bg) center/cover no-repeat;
+}
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="section"]) {
+  background: #000 var(--fs-asset-section-bg) center/cover no-repeat;
+}
+/* 2026-05-08 · agenda's slide bg is overridden to content-bg image (line ~1003);
+   frame must match or a visible seam appears at slide boundary in present mode. */
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="agenda"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="content-2col"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="content-3up"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="big-stat"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="stats"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="quote"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="table"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="timeline"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="process"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="image-text"]) {
+  background: #000 var(--fs-asset-content-bg) center/cover no-repeat;
 }
 .deck[data-mode="present"] .slide-frame.is-current {
   opacity: 1; pointer-events: auto;
@@ -181,16 +227,10 @@ body {
   transition: width 320ms cubic-bezier(.2,.7,.2,1);
 }
 
-/* Top-right mode toggle */
-.deck-ui .mode-toggle {
-  position: fixed; right: 24px; top: 20px; pointer-events: auto;
-  background: rgba(8,12,24,0.78); border: 1px solid var(--fs-hairline);
-  color: var(--fs-text-72); padding: 8px 16px; border-radius: 999px;
-  font: 500 14px/1 var(--fs-font-latin); letter-spacing: 0.06em; cursor: pointer;
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  transition: color .15s ease, border-color .15s ease, opacity .35s ease;
-}
-.deck-ui .mode-toggle:hover { color: #fff; border-color: var(--fs-divider); }
+/* Top-right mode toggle — REMOVED 2026-05-06.
+   Was redundant with bottom .ctl.fs (fullscreen toggle) and noisy where the
+   brand wordmark sits. Mobile scroll mode is auto-detected via viewport,
+   no explicit toggle needed. */
 
 /* Bottom-center control bar — prev / page-no / next | fullscreen */
 .deck-ui .deck-controls {
@@ -248,22 +288,18 @@ body {
    Note: pointer-events stays AUTO when faded so that hovering/moving onto
    the chrome wakes it. The JS mousemove listener also wakes it; this is
    belt-and-suspenders. Backdrop-filter is dropped to free GPU during fade. */
-.deck-ui .mode-toggle,
 .deck-ui .deck-controls,
 .deck-ui .nav-hint { transition: opacity .35s ease; }
-.deck-ui.is-idle .mode-toggle,
 .deck-ui.is-idle .deck-controls,
 .deck-ui.is-idle .nav-hint {
   opacity: 0;
   /* pointer-events stays auto so hover wakes chrome */
 }
-.deck-ui.is-idle .mode-toggle,
 .deck-ui.is-idle .deck-controls {
   backdrop-filter: none; -webkit-backdrop-filter: none;  /* free GPU */
 }
 .deck-ui.is-idle .deck-progress { opacity: .35; }
 /* Hovering chrome cancels idle fade visually (the JS mousemove also fires) */
-.deck-ui .mode-toggle:hover,
 .deck-ui .deck-controls:hover { opacity: 1 !important; }
 
 /* Mobile: shrink controls, remove hint */
@@ -272,7 +308,6 @@ body {
   .deck-ui .deck-controls .ctl { width: 32px; height: 32px; }
   .deck-ui .deck-controls .indicator { min-width: 56px; font-size: 13px; }
   .deck-ui .nav-hint { display: none !important; }
-  .deck-ui .mode-toggle { right: 16px; top: 14px; padding: 6px 12px; font-size: 12px; }
 }
 
 /* ============================================================================
@@ -444,7 +479,10 @@ body {
   margin-bottom: 0;
 }
 .slide[data-layout="cover"] .author {
-  position: absolute; left: 124px; top: 803px;
+  /* 2026-05-06 · top: 803 → 720 — author block sits closer to a 2-line title.
+     Master spec said 803 (bottom-left); user feedback elevated this since the
+     huge gap reads as "two unrelated stacks" rather than "title + signature". */
+  position: absolute; left: 124px; top: 720px;
   font: 600 30px/1.45 var(--fs-font-cjk);
   color: rgba(255,255,255,0.85);
   letter-spacing: 0.02em;
@@ -805,33 +843,81 @@ body {
 }
 
 /* ============================================================================
-   LAYOUT 11 — Agenda (TOC)
+   LAYOUT 11 — Agenda (TOC) — vertical pill stack (v2, 2026-05-06)
+   - Background: section gradient (cool blue glow ribbons L+R)
+   - Pills centered on canvas; no top header by default (.header is hidden)
+   - Each pill: italic blue numeral + white title text
+   - Matches the 飞书 master 议程页 spec (single-frame agenda, content centered)
+   - Replaces v1 (TOC 2-col grid). User feedback 2026-05-06: "目录这个修改,
+     更新到标准技能上" — vertical pill design promoted to default.
    ============================================================================ */
 .slide[data-layout="agenda"] { background: var(--fs-grad-section); }
-.slide[data-layout="agenda"] .header {
+
+/* Hide header by default — agenda is a single-focus page, the 3 pills ARE
+   the content. If a deck explicitly NEEDS a header (e.g. a recap variant),
+   wrap it as an opt-in: data-variant="with-header". */
+.slide[data-layout="agenda"]:not([data-variant="with-header"]) .header { display: none; }
+.slide[data-layout="agenda"][data-variant="with-header"] .header {
   position: absolute; top: 96px; left: 96px; right: 96px;
 }
-.slide[data-layout="agenda"] .header h2 {
-  font: 700 96px/1.05 var(--fs-font-cjk); letter-spacing: -0.005em;
+.slide[data-layout="agenda"][data-variant="with-header"] .header h2 {
+  font: 700 72px/1.05 var(--fs-font-cjk); letter-spacing: -0.005em;
 }
-.slide[data-layout="agenda"] .header .en {
-  font: 500 26px/1.4 var(--fs-font-latin); color: var(--fs-text-48); margin-top: 16px;
-}
+
+/* TOC = vertical pill stack, centered on canvas */
 .slide[data-layout="agenda"] .toc {
-  position: absolute; top: 380px; left: 96px; right: 96px; bottom: 120px;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 0 80px;
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  /* 2026-05-06 v2.1 · gap 36 → 56 (more breathing room between pills) */
+  gap: 56px;
+  padding: 120px 96px;
 }
+.slide[data-layout="agenda"][data-variant="with-header"] .toc { padding-top: 280px; }
+
+/* Each .item = a pill card */
 .slide[data-layout="agenda"] .toc .item {
-  display: grid; grid-template-columns: 100px 1fr;
-  align-items: baseline; gap: 24px;
-  padding: 24px 0; border-bottom: 1px solid var(--fs-hairline);
+  display: grid; grid-template-columns: 140px 1fr;
+  align-items: center; gap: 40px;
+  width: 1180px; max-width: 100%;
+  /* 2026-05-06 v2.1 · padding 34/52 → 44/96 (numbers no longer crowd left edge) */
+  padding: 44px 96px;
+  background: rgba(8,14,40,0.45);
+  border: 1.5px solid rgba(60,127,255,0.55);
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(60,127,255,0.18) inset;
+  transition: border-color 200ms;
+  /* Override v1 grid-row defaults (paddings / borders) */
+  border-bottom: 1.5px solid rgba(60,127,255,0.55);
 }
+.slide[data-layout="agenda"] .toc .item:hover { border-color: rgba(60,127,255,0.85); }
+.slide[data-layout="agenda"] .toc .item.is-dim { opacity: 0.42; }
+.slide[data-layout="agenda"] .toc .item.is-active { border-color: var(--fs-teal); }
+.slide[data-layout="agenda"] .toc .item.is-active .n { color: var(--fs-teal); }
+
+/* Numeral — italic, large, brand blue */
 .slide[data-layout="agenda"] .toc .item .n {
-  font: 700 36px/1 var(--fs-font-latin); color: var(--fs-accent);
-  letter-spacing: 0.02em;
+  font: italic 700 38px/1 var(--fs-font-latin);
+  color: var(--fs-blue);
+  letter-spacing: 0.04em;
 }
-.slide[data-layout="agenda"] .toc .item .title-zh { font-size: 36px; line-height: 1.25; }
-.slide[data-layout="agenda"] .toc .item .title-en { font-size: 16px; margin-top: 6px; }
+
+/* Title text — white, bold, generous size */
+.slide[data-layout="agenda"] .toc .item .title-zh {
+  font: 600 32px/1.2 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.92);
+  letter-spacing: 0.005em;
+}
+/* Bilingual EN suffix retained for opt-in bilingual decks */
+.slide[data-layout="agenda"] .toc .item .title-en {
+  display: block; margin-top: 6px;
+  font: 500 16px/1.3 var(--fs-font-latin);
+  color: var(--fs-text-48);
+}
+/* If the agenda item DOM is just <div class="n">.. </div><div class="title-zh">..</div>
+   (no inner wrapper), it should still render correctly because grid handles the 2-col
+   layout. The recipe in SKILL.md uses <div><div class="title-zh">..</div></div> wrapper
+   form for compat with bilingual; both forms work with these rules. */
 
 /* ============================================================================
    LAYOUT 12 — Big stat (single hero number)
@@ -1077,50 +1163,9 @@ body {
    the auto-margin made sense when card sat alone, but in a grid row the
    grid does the vertical placement. */
 
-/* Agenda — same small-title pattern as every other content page (规范).
-   The title sits on the logo line, not as a hero heading. The body energy
-   comes from the TOC items below, where number and title share a font size. */
-.slide[data-layout="agenda"] .header h2 {
-  /* unset the old big h2 override — agenda h2 follows the standard 52/600 */
-  font: 600 52px/1.1 var(--fs-font-cjk) !important;
-  letter-spacing: -0.005em; color: #fff;
-  white-space: nowrap !important; margin: 0 !important;
-}
-.slide[data-layout="agenda"] .header .en {
-  display: block; margin-top: 14px;
-  font: 500 16px/1.4 var(--fs-font-latin);
-  color: var(--fs-text-48); letter-spacing: 0.04em;
-}
-/* Agenda TOC — default-centered when items are short, lets list grow when long */
-.slide[data-layout="agenda"] .toc {
-  top: 220px; bottom: 110px;
-  gap: 0 96px;
-  align-content: center;        /* 规范: fixed-shape layout default-centers */
-  justify-content: stretch;
-}
-.slide[data-layout="agenda"] .toc .item {
-  grid-template-columns: 110px 1fr;
-  align-items: baseline; gap: 28px;
-  padding: 26px 0;
-  border-bottom: 1px solid var(--fs-hairline);  /* very subtle, not form-like */
-}
-/* 规范: TOC number and title share the SAME font size (visual rhythm) */
-.slide[data-layout="agenda"] .toc .item .n {
-  font: 700 44px/1.1 var(--fs-font-latin);
-  color: var(--fs-accent);
-  letter-spacing: 0.01em;
-}
-.slide[data-layout="agenda"] .toc .item .title-zh {
-  font: 600 44px/1.15 var(--fs-font-cjk);
-  color: #fff;
-  letter-spacing: -0.005em;
-  white-space: nowrap;
-}
-.slide[data-layout="agenda"] .toc .item .title-en {
-  font: 500 16px/1.4 var(--fs-font-latin);
-  color: var(--fs-text-48); margin-top: 8px;
-  letter-spacing: 0.04em;
-}
+/* (Agenda v1 TOC-grid rules removed 2026-05-06 — superseded by v2.1
+   pill-stack rules at line 854+. Removing v1 here is critical because
+   it appeared LATER in the cascade and was overriding v2.1 styles.) */
 
 /* Big-stat keeps its dramatic numeral but moves under the small-title header.
    规范: fixed-shape layout default-centers vertically. */

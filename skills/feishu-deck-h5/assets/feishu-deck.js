@@ -182,21 +182,11 @@
     document.addEventListener('click',      nudgeIdle,      { signal, passive: true });
     nudgeIdle();   // start the timer
 
-    // ---- UI button wires (mode toggle + prev/next + fullscreen) ----
-    ui.querySelector('.mode-toggle').addEventListener('click', () => {
-      const isPresent = deck.dataset.mode === 'present';
-      if (isPresent) {
-        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-        setMode(deck, 'scroll');
-        try { localStorage.setItem(MODE_KEY, 'scroll'); } catch (e) {}
-      } else {
-        setMode(deck, 'present');
-        try { localStorage.setItem(MODE_KEY, 'present'); } catch (e) {}
-        requestFullscreen();
-      }
-      frames.forEach(scaleFrame);
-      updateUI(deck, frames);
-    }, { signal });
+    // ---- UI button wires (prev/next + fullscreen) ----
+    // 2026-05-06 · removed top-right .mode-toggle button. Bottom-pill .fs button
+    // already handles present-mode entry via fullscreen request, and mobile
+    // scroll mode is auto-detected via viewport. Toggle button became redundant
+    // and added noise to top-right corner where the brand logo sits.
     ui.querySelector('.ctl.prev').addEventListener('click', () => {
       goTo(deck, frames, Math.max(0, currentIdx(frames) - 1));
     }, { signal });
@@ -257,6 +247,18 @@
     if (!slide) return;
     const w = frame.clientWidth, h = frame.clientHeight;
     if (!w || !h) return;
+    // 2026-05-06 · always use contain (Math.min) to preserve all slide content.
+    // History:
+    //   v1 (current) · contain. On 16:10 viewports there are small letterbox
+    //                  bars top/bottom, but every pixel of the 1920×1080 slide
+    //                  is visible — including wordmark in the top-right corner
+    //                  and page-no UI at the bottom-center.
+    //   v2 (rejected) · cover (Math.max) on fullscreen. Eliminated bars, but on
+    //                   16:10 monitors clipped ~106px from each side, eating
+    //                   into the master 96px content padding and clipping
+    //                   wordmark / corner content. User reported "显示不全".
+    // Conclusion: bars are the correct visual behavior; 16:9-content-on-16:10-
+    // viewport can't be both "no bars" AND "no clipping". Keep contain.
     const scale = Math.min(w / DESIGN_W, h / DESIGN_H);
     slide.style.setProperty('--fs-scale', String(scale));
   }
@@ -297,9 +299,10 @@
   function buildUI() {
     const ui = document.createElement('div');
     ui.className = 'deck-ui';
+    // 2026-05-06 · top-right .mode-toggle button removed (redundant with bottom
+    // .ctl.fs and auto mobile scroll detection). Don't re-add — see updateUI().
     ui.innerHTML =
       '<div class="deck-progress" aria-hidden="true"><div class="bar"></div></div>' +
-      '<button class="mode-toggle" type="button">演示模式</button>' +
       '<div class="deck-controls" role="group" aria-label="Slide controls">' +
         '<button class="ctl prev" type="button" title="上一页 (←)" aria-label="Previous slide">' +
           '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15 18l-6-6 6-6"/></svg>' +
@@ -330,7 +333,6 @@
     ui.querySelector('.total').textContent = pad(total);
     const pct = total > 0 ? ((cur + 1) / total) * 100 : 0;
     ui.querySelector('.deck-progress .bar').style.width = pct + '%';
-    ui.querySelector('.mode-toggle').textContent = isPresent ? '退出演示' : '演示模式';
     ui.querySelector('.ctl.fs .i-enter').style.display = isFullscreen ? 'none'  : 'block';
     ui.querySelector('.ctl.fs .i-exit').style.display  = isFullscreen ? 'block' : 'none';
     ui.querySelector('.deck-progress').style.display = isPresent ? 'block' : 'none';
