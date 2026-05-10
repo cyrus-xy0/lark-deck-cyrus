@@ -196,20 +196,45 @@ skill folder.)
 
 ### Required steps (run IN ORDER, after PREFLIGHT)
 
-**Step W-1.** Create the run folder:
+**Step W-1.** Ask the user for the **topic / customer name** before creating
+the run folder. The slug will be embedded in the folder name so the user
+can find this run a week later by `ls runs/ | grep luckin` instead of
+guessing the timestamp. Pass it as the second argument to `new-run.sh`:
 
 ```bash
-bash assets/new-run.sh
+bash assets/new-run.sh <slug>
+# produces: runs/<YYYYMMDD-HHMMSS>-<slug>/
 ```
+
+**Slug derivation rules** (the agent derives this from the user's natural
+answer — don't make them type kebab-case themselves):
+
+- **Customer / portfolio company** → pinyin or English short name in
+  kebab-case: `luckin` / `boyu-starbucks` / `mixue` / `meiyijia`
+- **Internal theme / weekly review / keynote** → short English/pinyin tag:
+  `q2-okr-review` / `digital-employee-guide` / `sales-enablement`
+- **Multiple customers in one deck** → chain longest-first by recognition:
+  `boyu-starbucks` not `starbucks-boyu`
+- **Length cap** ~25 chars; truncate if longer
+- **NEVER use Chinese characters** in the slug (URLs, scp, IM previews,
+  some `git log` viewers all break on CJK in paths)
+- **NEVER skip the slug** — if the user genuinely refuses to name the
+  deck (rare), fall back to a content-shape slug (`one-pager`,
+  `quarterly-review`, `customer-pitch`) rather than the bare timestamp
 
 The script prints the absolute path of the new run folder and exits 0.
 Capture the printed path; it is the working folder for everything below.
+
+**Slug-only re-invocation** is fine — if the user comes back tomorrow and
+says "继续做瑞幸那个 deck", grep `ls runs/ | grep luckin` to find it
+rather than creating a new one (see "When NOT to create a new run folder"
+below).
 
 **Step W-2.** Announce the path to the user **in the same response**.
 Use roughly this phrasing (translate to the user's language):
 
 > "已为本次任务创建工作目录：
-> `runs/<timestamp>/`
+> `runs/<timestamp>-<slug>/`
 > · 请把素材（图片、PDF、参考稿、文案等）放到 `input/`
 > · 我会把生成的 HTML deck 和验证报告写到 `output/`
 > 准备好后告诉我即可继续。"
@@ -219,7 +244,7 @@ confirm there are no source files — text-only briefs are fine, the
 folder still exists for the deck to land in `output/`).
 
 **Step W-4.** All subsequent file writes for this invocation MUST go
-under `runs/<timestamp>/output/`. Never write the deck to
+under `runs/<timestamp>-<slug>/output/`. Never write the deck to
 `examples/`, the repo root, or any other location. `examples/` is
 reserved for the maintainers' reference sample.
 
