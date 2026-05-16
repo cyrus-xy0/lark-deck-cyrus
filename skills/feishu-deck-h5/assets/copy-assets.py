@@ -16,16 +16,24 @@ deck runs standalone when copied/zipped/uploaded anywhere.
 USAGE:
     python3 assets/copy-assets.py runs/<timestamp>/output/ [--shared=MODE]
 
-    --shared=copy    (default) copy assets/shared/* into output/assets/shared/
-                     and rewrite HTML to local paths. Output is a self-contained
-                     zip-shippable bundle.
-    --shared=skip    don't copy assets/shared/*. Leave HTML refs to shared/*
+    --shared=link    (default) create a single symlink at output/assets/shared
+                     pointing at skill's assets/shared/ (absolute path) instead
+                     of copying files. Output uses local-looking refs
+                     (assets/shared/foo.png) that resolve through the symlink.
+                     zip / Finder-compress / IM-upload follow the symlink and
+                     embed real files for the recipient — output is still
+                     "send-the-folder" friendly. Saves ~5–30 MB per run vs copy.
+    --shared=copy    full self-contained copy of every referenced shared file
+                     into output/assets/shared/. Use as a final hardening step
+                     when the destination tool doesn't follow symlinks (rsync
+                     without -L, archival snapshots, etc.).
+    --shared=skip    don't copy or symlink. Leave HTML refs to shared/*
                      pointing skill-relative (../...skills/feishu-deck-h5/
                      assets/shared/...) — output runs only while next to skill,
                      but downstream tools like the slide library resolve those
-                     refs against their own shared pool. Saves ~50–500 KB
-                     per deck. The manifest still lists every shared file
-                     referenced, so consumers know what to dedupe against.
+                     refs against their own shared pool. The manifest still
+                     lists every shared file referenced, so consumers know
+                     what to dedupe against.
 
 Exits 0 on success. Idempotent: running twice is fine. Prints a summary
 of bytes copied and HTML files patched.
@@ -118,15 +126,37 @@ def find_run_root(out_dir: Path) -> Path:
             return parent.parent  # runs/<ts>/
     raise SystemExit(f"Cannot find run root from {out_dir}; expected runs/<ts>/output/.")
 
+def ensure_shared_symlink(local_assets: Path, skill_root: Path) -> Path:
+    """Ensure output/assets/shared is a symlink to the canonical assets/shared/.
+
+    Idempotent. Auto-migrates a real directory (left over from a prior
+    --shared=copy run) by removing it and replacing with a symlink. Uses an
+    absolute path so moving the output/ folder elsewhere on the same machine
+    doesn't break the link. Returns the symlink path."""
+    target = local_assets / "shared"
+    canonical = (skill_root / "assets" / "shared").resolve()
+    local_assets.mkdir(parents=True, exist_ok=True)
+    if target.is_symlink():
+        if Path(os.readlink(target)) == canonical:
+            return target
+        target.unlink()
+    elif target.exists():
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    target.symlink_to(canonical)
+    return target
+
 def main():
     args = sys.argv[1:]
-    shared_mode = "copy"
+    shared_mode = "link"
     positional = []
     for a in args:
         if a.startswith("--shared="):
             shared_mode = a.split("=", 1)[1]
-            if shared_mode not in ("copy", "skip"):
-                sys.exit(f"Invalid --shared value: {shared_mode!r} (expected 'copy' or 'skip')")
+            if shared_mode not in ("copy", "link", "skip"):
+                sys.exit(f"Invalid --shared value: {shared_mode!r} (expected 'copy', 'link', or 'skip')")
         elif a in ("-h", "--help"):
             print(__doc__)
             sys.exit(0)
@@ -184,6 +214,12 @@ def main():
                     # to be — it resolves shared/* against its own pool.
                     shared_skipped += 1
                     return m.group(0)
+                if shared_mode == "link":
+                    # Lazy-create the single shared symlink; rewrite ref to
+                    # local-looking path. The symlink resolves files at request
+                    # time — no per-file copy, no disk growth.
+                    ensure_shared_symlink(local_assets, skill_root)
+                    return f'{prefix}assets/{rest}'
 
             target = local_assets / rest if sub == "assets" else local_assets / sub / rest
             referenced.add(str(target.relative_to(out_dir)))
@@ -267,6 +303,20 @@ def main():
                             if len(matches) == 1:
                                 new_rest = str(matches[0].relative_to(skill_root / "assets"))
 
+            # Shared refs are handled before the resolve+escape check below,
+            # because in link mode `output/assets/shared` is a symlink whose
+            # .resolve() escapes out_dir, which would otherwise short-circuit
+            # the rewrite path. In link/skip mode no file motion is needed
+            # (canonical file lives under the symlink target / under the skill).
+            if new_rest.startswith(SHARED_PREFIX):
+                shared_refs.add(f"assets/{new_rest}")
+                if shared_mode == "skip":
+                    return f"{prefix}assets/{new_rest}"
+                if shared_mode == "link":
+                    ensure_shared_symlink(local_assets, skill_root)
+                    return f"{prefix}assets/{new_rest}"
+                # copy mode falls through
+
             old_target = (out_dir / "assets" / rest).resolve()
             new_target = (out_dir / "assets" / new_rest).resolve()
             if not new_target.is_relative_to(out_dir):
@@ -276,15 +326,6 @@ def main():
             if new_rest != rest and old_target.exists() and not new_target.exists():
                 new_target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(old_target), str(new_target))
-
-            # In --shared=skip, leftover already-rewritten shared/* refs from a
-            # prior copy-mode run shouldn't be re-tracked or self-healed —
-            # they'll get pruned. Still record them in shared_refs so the
-            # manifest is accurate.
-            if new_rest.startswith(SHARED_PREFIX):
-                shared_refs.add(f"assets/{new_rest}")
-                if shared_mode == "skip":
-                    return f"{prefix}assets/{new_rest}"
 
             referenced.add(str(new_target.relative_to(out_dir)))
             if not new_target.exists():
@@ -323,7 +364,12 @@ def main():
     # We resolve each ref relative to the CSS file's location; if it isn't
     # already in output, copy from skill_root/assets/ (or skill_root sibling).
     rx_css_url = re.compile(r'url\(["\']?([^"\')\s]+)["\']?\)')
-    for css_path in local_assets.rglob("*.css"):
+    css_files = []
+    for dirpath, _dirnames, filenames in os.walk(local_assets, followlinks=False):
+        for name in filenames:
+            if name.endswith(".css"):
+                css_files.append(Path(dirpath) / name)
+    for css_path in css_files:
         css_dir = css_path.parent
         css_src = css_path.read_text(encoding="utf-8")
         for m in rx_css_url.finditer(css_src):
@@ -357,23 +403,29 @@ def main():
                     print(f"  [WARN] CSS-referenced asset not found in skill: {origin}")
 
     # Prune: remove files in output/assets/ and output/input/ that are no
-    # longer referenced (e.g. left over from previous runs).
+    # longer referenced (e.g. left over from previous runs). Uses os.walk
+    # with followlinks=False so we never descend into the output/assets/shared
+    # symlink (link mode) — those files belong to the canonical pool and
+    # must not be deleted by per-run housekeeping.
     pruned = 0
     pruned_bytes = 0
     for root_dir in [local_assets, local_input]:
         if not root_dir.exists():
             continue
-        for f in root_dir.rglob("*"):
-            if not f.is_file():
+        for dirpath, _dirnames, filenames in os.walk(root_dir, followlinks=False):
+            for name in filenames:
+                f = Path(dirpath) / name
+                rel = str(f.relative_to(out_dir))
+                if rel not in referenced:
+                    pruned += 1
+                    pruned_bytes += f.stat().st_size
+                    f.unlink()
+        # remove empty subdirs left over after prune (skip symlinked dirs)
+        for dirpath, _dirnames, _filenames in os.walk(root_dir, topdown=False, followlinks=False):
+            d = Path(dirpath)
+            if d == root_dir or d.is_symlink():
                 continue
-            rel = str(f.relative_to(out_dir))
-            if rel not in referenced:
-                pruned += 1
-                pruned_bytes += f.stat().st_size
-                f.unlink()
-        # remove empty subdirs left over after prune
-        for d in sorted(root_dir.rglob("*"), key=lambda p: -len(p.parts)):
-            if d.is_dir() and not any(d.iterdir()):
+            if not any(d.iterdir()):
                 d.rmdir()
 
     # Emit assets-manifest.yaml — classifies every referenced file as
@@ -424,6 +476,13 @@ def main():
     print(f"      manifest: {len(shared_files)} shared / {len(framework_files)} framework / {len(deck_local_files)} deck-local → {manifest_path.relative_to(out_dir.parent)}")
     if shared_mode == "copy":
         print(f"Output is now self-contained — you can move {out_dir} anywhere and the deck still runs.")
+    elif shared_mode == "link":
+        shared_link = local_assets / "shared"
+        if shared_link.is_symlink():
+            print(f"Output uses a symlink for shared/ ({shared_link} → {os.readlink(shared_link)}).")
+            print(f"zip / Finder-compress / IM-upload follow symlinks and embed real files for the recipient.")
+        else:
+            print(f"Output had no shared/* references — no symlink created.")
     else:
         print(f"Output runs only while next to the skill folder (shared/* refs are skill-relative). Use --shared=copy before zipping/sending.")
 

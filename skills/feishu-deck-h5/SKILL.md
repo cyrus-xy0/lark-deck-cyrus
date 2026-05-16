@@ -564,10 +564,14 @@ CSS / video link breaks.
 **Rule**: before handing the artifact back to the user, run
 
 ```bash
-# Default — full self-contained output (zip-shippable)
+# Default — link mode: shared/ is a symlink, framework files are real copies.
+# zip / Finder-compress / IM-upload follow the symlink → recipient gets real files.
 python3 skills/feishu-deck-h5/assets/copy-assets.py runs/<ts>/output/
 
-# Library-ingest mode — skip shared/* copies (manifest still lists them)
+# Full self-contained copy — use for archival or non-symlink-following destinations
+python3 skills/feishu-deck-h5/assets/copy-assets.py runs/<ts>/output/ --shared=copy
+
+# Library-ingest mode — skip shared/* (manifest still lists them)
 python3 skills/feishu-deck-h5/assets/copy-assets.py runs/<ts>/output/ --shared=skip
 ```
 
@@ -595,17 +599,37 @@ The script:
 
 **`--shared` mode (when to use which)**:
 
-- `--shared=copy` *(default)* — copy everything, including shared/*, into
-  `output/assets/`. Output is fully self-contained and portable. Use this
-  for delivery, hand-off, customer-facing zip, "请给我看看" attachments.
+- `--shared=link` *(default)* — replace `output/assets/shared/` with a single
+  symlink (absolute path) to the skill's canonical `assets/shared/`. HTML refs
+  are rewritten to local-looking `assets/shared/foo.png` and resolve through
+  the symlink. `zip -r`, Finder "Compress", and IM-upload tools all follow the
+  symlink and embed the real files into the zip — so "send the folder" workflows
+  still produce a self-contained deliverable for the recipient. Saves ~5–30 MB
+  per run vs. copy mode. Auto-migrates a real `shared/` directory from a prior
+  copy-mode run into a symlink on first re-run.
+- `--shared=copy` — full self-contained copy: every referenced shared file is
+  duplicated into `output/assets/shared/`. Use only when the destination tool
+  doesn't follow symlinks (rsync without `-L`, archival snapshots, etc.) or
+  when you explicitly need an on-disk copy independent of the skill.
 - `--shared=skip` — leave `assets/shared/*` references skill-relative;
-  don't copy those files. Saves ~50–500 KB per deck. Output runs only
+  don't copy or link those files. Saves ~50–500 KB per deck. Output runs only
   while next to the skill folder OR when a downstream tool (like the
   slide library ingest) rewrites the shared/* paths against its own
   pool. Use this when piping the run straight into the library.
 
-After running with copy mode, `runs/<ts>/output/` is **portable**: cut/copy
-the folder anywhere on disk (or zip and send), every link still resolves.
+After running with link or copy mode, `runs/<ts>/output/` is **send-friendly**:
+cut/copy the folder anywhere on disk (link mode keeps symlinks intact on the
+same machine) or zip and send (both modes produce a self-contained zip).
+
+**Migrating existing runs to link mode**:
+
+```bash
+# Convert every runs/*/output/assets/shared/ from a real dir into a symlink
+bash skills/feishu-deck-h5/assets/migrate-shared-to-symlink.sh
+
+# Dry-run first if unsure
+bash skills/feishu-deck-h5/assets/migrate-shared-to-symlink.sh --dry-run
+```
 
 When NOT to run it:
 - Mid-iteration, when you know the user will keep editing in-place.
