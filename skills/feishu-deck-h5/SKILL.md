@@ -2912,6 +2912,149 @@ logo, R13 br-in-title, R56 eyebrow-in-header, P50 base64 budget),
 
 ---
 
+## EDITING DISCIPLINE (mandatory) — high-cost bugs to avoid
+
+These four failure modes recurred in the 2026-05-14 CTG run and burned
+30+ minutes of debug time each. Read this section BEFORE doing any
+delete-slide / insert-slide / reorder-slide / custom-layout work.
+
+### E1. Triple-identifier sync — `data-page` + `data-screen-label` + `data-text-id` all renumber together
+
+A slide carries THREE numeric identifiers, each at a different DOM level:
+
+| Identifier | Lives on | Used for |
+|---|---|---|
+| `data-page="NN"` | `.slide-frame` wrapper | per-page scoped CSS like `[data-page="07"] .card { ... }` |
+| `data-screen-label="NN Title"` | `.slide` element | present-mode pager UI label; matched by validator |
+| `data-text-id="slide-NN.field"` | every text leaf | links HTML → texts.md sidecar |
+
+When you **delete** or **insert** a slide in the middle of the deck, ALL
+THREE families need to renumber atomically. Skipping any one silently
+breaks the deck. The CTG run hit this twice:
+
+- Deleted slide-03; renumbered `data-screen-label` and `data-text-id`
+  but missed `data-page` on `.slide-frame`. Result: page 4's custom
+  `[data-page="04"]` 3-card CSS rules stopped matching (still attached
+  to the OLD frame, which was now showing different content). User
+  reported "第三页样式不对", took 10 minutes to root-cause.
+
+**The ritual** for every delete/insert/reorder:
+
+1. Decide the new ordinal map (e.g. inserting at position 7 → all
+   positions ≥ 7 shift +1).
+2. Update `data-page="NN"` on every affected `.slide-frame`.
+3. Update `data-screen-label="NN Title"` on every affected `.slide`.
+4. Update `data-text-id="slide-NN.field"` on every affected text leaf
+   (use Edit's `replace_all` carefully — scope the search to the
+   affected slide's markup, not the whole file).
+5. Update the matching `## slide-NN` headers in `texts.md`.
+6. Run `python3 assets/validate.py runs/<ts>/output/index.html` —
+   R-DOM catches missing `</div>`, T03 catches texts.md drift, R20
+   catches CSS rules that target a no-longer-existing `[data-page]`.
+
+If you find this ritual error-prone, prefer rewriting the slide list
+end-to-end (regenerate with fresh ordinals 01..NN) rather than splicing
+in place. The validator's R-DOM rule catches the most catastrophic case
+(slide-frame nesting from regex-eaten `</div>`), but the three-identifier
+sync is editorial — only you can do it right.
+
+### E2. Don't use sed / regex / text substitution to edit slide-frames
+
+Three separate bugs in the CTG run came from using Python regex to splice
+HTML for slide insertion / deletion / column-content rotation:
+
+- `(<div class="slide-frame"...)` matched mid-frame instead of frame-start
+  because the regex didn't anchor to the `<div ` token boundary. Result:
+  insertion landed inside an existing slide-frame, nesting 7 subsequent
+  frames inside it. Present mode hid them all (they never became "current").
+- `</[a-zA-Z]+>` was the close-tag pattern used in a column-content
+  rotation. It correctly closes `</span>` and `</p>` but does NOT match
+  `</h3>` (HTML allows digits in tag names; `[a-zA-Z]+` excludes them).
+  Result: regex consumed past the h3 and ate the entire next column's
+  markup until it found a `</span>` further down.
+- Plain text replacement of "第一段" → "新内容" stripped a closing `</div>`
+  that lived inside the matched span.
+
+**Rule**: do not use regex / sed / plain text replacement to manipulate
+slide DOM structure. For editorial text changes use `apply-texts.py`
+(parses by `data-text-id`, position-safe). For structural changes
+(insert / delete / move slide), do it by reading the file, identifying
+the slide blocks manually, and writing back the full sequence — or use
+the planned `dom-ops.py` API when it ships.
+
+If you MUST hand-edit, after every change run validator R-DOM —
+it catches the catastrophic nesting case automatically.
+
+### E3. Custom-layout selectors have lower specificity than framework defaults
+
+Every framework `.slide[data-layout="..."] .grid { ... }` rule has
+specificity `(0,2,0)` — one class + one attribute = 2 classes equivalent.
+A naively-written custom layout `.slide-vs-wecom .grid { ... }` has
+specificity `(0,2,0)` too — same level — but loses the cascade to the
+framework because the framework rule was DECLARED LATER.
+
+**Failure mode**: author writes `<div class="slide slide-vs-wecom"
+data-layout="content-3up">` and defines `.slide-vs-wecom .grid {
+display: flex; gap: 64px }`. Framework rule
+`.slide[data-layout="content-3up"] .grid { display: grid;
+grid-template-columns: 1fr 1fr 1fr; ... }` wins. The flex layout
+silently doesn't apply. Content overflows 1080.
+
+**Three ways to authoring around it**, in order of preference:
+
+1. **Bump specificity by combining classes**: write
+   `.slide.slide-vs-wecom .grid { ... }` (specificity `(0,3,0)`) — wins
+   over the framework's `(0,2,0)` cleanly.
+2. **Use `!important` on the directional / structural properties** —
+   `display: flex !important; flex-direction: row !important;` — works
+   but pollutes; reserve for layout direction, NOT for cosmetic values.
+3. **Use absolute positioning** for the children of your custom layout
+   instead of flex/grid. Specificity matters less when each child has
+   its own `position: absolute; top: ...; left: ...`.
+
+Watch out for the related trap: don't name your custom class with a
+reserved framework class name (`.tile`, `.pill`, `.card`, `.eyebrow`,
+`.keyline`, `.title-zh`, `.wordmark`, `.stage`, `.header`, `.footer`,
+`.deck`, `.slide`, `.slide-frame`). See "Reserved class names" section
+for the full list — collisions cause force-shrink and other surprise
+behavior beyond just specificity.
+
+### E4. Pre-delivery R06 / R20 enforcement is NOT optional
+
+The validator already enforces:
+- **R06** — body text ≥ 22 px on slide content; chrome ≥ 14 px.
+- **R20** — every `font-size` in per-page `<style>` blocks must come from
+  the modular type-scale ladder `{10, 11, 12, 13, 14, 18, 22, 28, 38,
+  44, 52, 56, 64, 88, 100, 132, 160}`.
+- **R-WHITE-TEXT** — content text on dark slides must be `#fff`, never
+  `rgba(255,255,255,X<1)`. Low-opacity white reads as gray when
+  projected.
+
+These rules existed before the CTG run, but they were violated **at
+least 4 times** in that run because the agent wrote inline `<style>` and
+shipped without re-validating. Users had to flag the under-floor fonts
+every single time.
+
+**Workflow rule for the agent**:
+
+After every Edit that touches CSS inside a `<style>` block of the deck —
+especially per-page `<style data-page="NN">` blocks — IMMEDIATELY run:
+
+```bash
+python3 assets/validate.py runs/<ts>/output/index.html
+```
+
+Don't wait until "final delivery". Don't trust visual eyeballing for
+font-size rules — what looks fine on a desktop preview vanishes on a
+projector. R06 / R20 / R-WHITE-TEXT exist exactly because human
+judgment fails on these consistently.
+
+Treat each violation as a delivery blocker. If you write 16 px because
+you think it fits, the rule still rejects — fix to 14 (chrome) or 18
+(pill) or 22 (body), not 16.
+
+---
+
 ## Operational notes (gotchas)
 
 - **`templates/_shell.html` uses `../assets/feishu-deck.css`.** It assumes the
@@ -4419,6 +4562,72 @@ of those, or add `flex-shrink: 0` in your per-page `<style>`.
 Mirror failure (bars too SHORT, floating ABOVE X-axis): see "Bar chart
 · X-axis alignment & in-chart brand logos" earlier in this file. Same
 symptom, opposite cause; both rules apply together.
+
+### BF9 — grid-stretched cell + `margin-top: auto` child = dead-middle empty space
+
+**Symptom**: A vertical-comparison layout puts ONE column inside a grid
+row that's stretched to the row's height (default `align-items: stretch`).
+An inner element uses `margin-top: auto` to anchor itself to the column
+bottom (e.g. "业务后果" label pushed below the comparison). Result: the
+column has its title at top, the auto-margined element at bottom, and a
+**giant empty middle** — the column is 600 px tall but content is 200 px
+top-aligned plus 80 px bottom-anchored.
+
+This is the structural sibling of BF3 (north-star-map's "stretch
+overshoot"): any grid-stretched container with one `margin-top: auto`
+child gets the same failure pattern.
+
+**Failure recipe (don't write this)**:
+
+```css
+/* Bug: column stretches to row height; auto-margin yanks pills to bottom
+   even though there's no content between, leaving a huge gap. */
+.vs-comparison {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  align-items: stretch;     /* ← column = row height */
+}
+.vs-comparison .col {
+  display: flex; flex-direction: column;
+}
+.vs-comparison .col .consequence {
+  margin-top: auto;          /* ← yanks to bottom; empty middle */
+}
+```
+
+**Three valid fixes**:
+
+1. **Replace `margin-top: auto` with `justify-content: space-between`
+   on the parent column.** This explicitly distributes children with
+   equal gaps; nothing "yanks" to the bottom, so the middle naturally
+   reads as deliberate negative space, not as an empty gap.
+   ```css
+   .vs-comparison .col {
+     display: flex; flex-direction: column;
+     justify-content: space-between;
+   }
+   ```
+   Best for 3-section columns (title / comparison body / outcome
+   footer) — the visual rhythm is clean.
+
+2. **Drop `align-items: stretch` on the grid; let columns size to
+   content.** Use `align-items: start` (or default `normal`) so columns
+   are content-tall. The `margin-top: auto` then becomes a no-op (no
+   space to push into). Use this when columns are intentionally
+   different heights and you don't want forced equalization.
+
+3. **Add a visible spacer or divider between the title and the
+   auto-margined element.** A `<hr class="vs-divider">` with margin
+   `auto 0` or a flex spacer with explicit `flex: 1` and visible
+   gradient turns the empty space into deliberate decoration.
+
+**Rule of thumb**: `margin-top: auto` should be paired with content
+that fills MOST of the column. If your column has 30% content and 70%
+empty (visible to the eye), the design is wrong — pick fix 1 or 2.
+
+This is now flagged in SKILL.md but NOT enforced by the validator —
+detecting "visible empty middle" requires layout-aware metrics
+(line counts × line-heights). The R-DOM / R20 / R-WHITE-TEXT rules
+catch DOM and typography drift; this one is editorial.
 
 ### R57 — quote / 金句 pages: no trailing periods
 

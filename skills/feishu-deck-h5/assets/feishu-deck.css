@@ -473,13 +473,18 @@ body {
   margin: 0;
 }
 .slide[data-layout="cover"] .subtitle {
+  /* allow:white-opacity — cover subtitle is master-spec hierarchy; SKILL.md
+     "Step 2 · Cover page" actually says NO subtitle at all in the default
+     authoring flow — this rule exists for the rare bilingual cover. */
   margin-top: 132px;                    /* master gap: y=367-189-156 = ~22 native = 33 → larger to breathe */
   font: 600 40px/1.4 var(--fs-font-cjk);
   color: rgba(255,255,255,0.92);
   margin-bottom: 0;
 }
 .slide[data-layout="cover"] .author {
-  /* 2026-05-06 · top: 803 → 720 — author block sits closer to a 2-line title.
+  /* allow:white-opacity — author block is master-spec; 0.85 keeps the
+     name+date a half-step quieter than the 100px title without going gray.
+     2026-05-06 · top: 803 → 720 — author block sits closer to a 2-line title.
      Master spec said 803 (bottom-left); user feedback elevated this since the
      huge gap reads as "two unrelated stacks" rather than "title + signature". */
   position: absolute; left: 124px; top: 720px;
@@ -488,6 +493,8 @@ body {
   letter-spacing: 0.02em;
 }
 .slide[data-layout="cover"] .author .role {
+  /* allow:white-opacity — `.role` is the small date prefix on cover, master
+     spec dims it to 0.55 to keep the eye on the name. */
   display: inline-block; margin-right: 32px;
   color: rgba(255,255,255,0.55); font-weight: 500;
 }
@@ -522,6 +529,8 @@ body {
   max-width: 1300px;
 }
 .slide[data-layout="section"] .lede {
+  /* allow:white-opacity — section .lede is master-spec subtitle; 0.72 keeps
+     it visually subordinate to the 88px chapter title above. */
   position: absolute; top: 597px; left: 126px;
   font: 500 36px/1.45 var(--fs-font-cjk);
   color: rgba(255,255,255,0.72);
@@ -904,6 +913,8 @@ body {
 
 /* Title text — white, bold, generous size */
 .slide[data-layout="agenda"] .toc .item .title-zh {
+  /* allow:white-opacity — agenda pill text master-spec hierarchy at 0.92
+     keeps the active item's 1.0 readable as "this is the section we're in". */
   font: 600 32px/1.2 var(--fs-font-cjk);
   color: rgba(255,255,255,0.92);
   letter-spacing: 0.005em;
@@ -966,6 +977,8 @@ body {
 }
 /* Optional contact line at bottom — kept off the master but provided as opt-in */
 .slide[data-layout="end"] .contact {
+  /* allow:white-opacity — small Latin contact line at bottom-left of end
+     page; 0.55 is the "chrome / metadata" tone, sized 18px (rung 6). */
   position: absolute; left: 124px; bottom: 80px;
   font: 500 18px/1.5 var(--fs-font-latin);
   color: rgba(255,255,255,0.55); letter-spacing: 0.06em;
@@ -1044,11 +1057,45 @@ body {
 .slide .header .title-zh,
 .slide .header h2,
 .slide .header h2.title-zh {
-  display: block; margin: 0 !important; padding: 0;
+  display: block; margin: 0; padding: 0;
+  /* 2026-05-15: dropped `!important` from margin — it silently broke every
+     author-written `.title-zh { margin-bottom: Npx }` override, forcing
+     a Devtools dig to discover that the rule wasn't honored. Now author
+     CSS in per-page <style> blocks can adjust title margin normally;
+     if you need to push a subtitle further from the title, prefer
+     `margin-top` on the subtitle (see `.page-sub` default below). */
   font: 600 52px/1.1 var(--fs-font-cjk);
   letter-spacing: -0.005em; color: #fff;
   white-space: nowrap;                      /* 规范: single line — no wrap */
   max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---- Hero-style content-page subtitle (single line under the H2) ----
+   Authoring pattern: "Title + one line of context underneath."
+   Use class `.page-sub` on a <p> directly after the H2 inside .header.
+
+       <div class="header">
+         <h2 class="title-zh">飞书与企微,已经不是同一类产品</h2>
+         <p class="page-sub">下一代协同 vs 上一代 IM</p>
+       </div>
+
+   Defaults (master-aligned 2026-05-15, elevated from CTG-run feedback):
+     · font-size: 28px (rung 4 on the type ladder)
+     · color: #fff (no opacity tricks — body floor applies)
+     · margin-top: 36px (= 0.82× the 44/52 px title — wide enough that
+       the subtitle reads as a separate line, narrow enough to stay
+       grouped with the H2)
+
+   This is opt-in: a slide with no `.page-sub` renders exactly as before.
+*/
+.slide .header .page-sub {
+  display: block;
+  margin: 36px 0 0 0;
+  padding: 0;
+  font: 500 28px/1.45 var(--fs-font-cjk);
+  letter-spacing: 0;
+  color: #fff;
+  max-width: 100%;
 }
 /* Defense: strip stray <br> from header titles (规范: titles must be one line) */
 .slide .header .title-zh br,
@@ -1122,12 +1169,27 @@ body {
 .slide[data-layout="table"]        > .stage,
 .slide[data-layout="agenda"]       > .stage,
 .slide[data-layout="stats"]        > .stage {
+  /* 2026-05-15 · symmetric vertical positioning so stage geometric center
+     equals slide geometric center (y=540). Asymmetric top/bottom (e.g.
+     220/110) shifts the stage center below the slide center, producing
+     the "content reads slightly low" complaint from the CTG run feedback.
+     Trade-off: stage is 90 px shorter than the 220/110 layout (680 vs
+     770). Decks that genuinely need the extra height add the
+     `.stage--tall` opt-in class (see below). */
   position: absolute;
-  top: 220px; left: 96px; right: 96px; bottom: 110px;
+  top: 200px; left: 96px; right: 96px; bottom: 200px;
   display: flex; flex-direction: column;
   justify-content: center;
   gap: 24px;
   z-index: 1;
+}
+
+/* Opt-in: dense content that needs the legacy stage height (220..970,
+   reaches further toward the footer area). Use sparingly — symmetric is
+   the visual default; this is for backwards compatibility with decks
+   tuned to 770 px stage. */
+.slide > .stage.stage--tall {
+  top: 220px; bottom: 110px;
 }
 
 /* Inner body containers flow naturally inside .stage — override the
@@ -1957,6 +2019,9 @@ body {
   border-color: rgba(255,255,255,0.10);
 }
 .slide .ui-btn.is-ghost {
+  /* allow:white-opacity — ghost UI button text is INTENTIONALLY subordinate
+     to its sibling primary/secondary buttons in a Lark-style mock; this is
+     the .ui-* primitive recreating an app's UI tone, not slide content. */
   background: transparent; color: var(--fs-text-72);
   border-color: rgba(255,255,255,0.16);
 }

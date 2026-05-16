@@ -971,6 +971,233 @@ def _parse_texts_md_ids(md: str) -> set[str]:
     return ids
 
 
+def audit_dom_integrity(html: str, iss: Issues):
+    """R-DOM: structural invariants on the .deck DOM tree.
+
+    Catches the "regex insertion ate a closing div" failure mode that
+    nested 7 slide-frames inside another slide-frame in the 2026-05-14
+    CTG run — present-mode then hid all 7 because they weren't the
+    current slide. 30+ minute debug, no clear symptom.
+
+    Invariants enforced (using stdlib html.parser, no external deps):
+      1. Every <div class="slide-frame"> must be a direct child of
+         <div class="deck"> (not nested inside another slide-frame).
+      2. Every <div class="slide-frame"> must contain exactly one
+         <div class="slide"> direct child.
+      3. Inside <body>, the <div> open/close tag count must balance
+         after stripping comments, scripts, and styles.
+
+    Self-closing tags (img / br / hr / input / link / meta) and the
+    void-tag set are NOT counted. Templates that legitimately use HTML
+    fragments with unbalanced divs (rare) can suppress this audit by
+    embedding `<!-- allow:dom-integrity -->` in the body.
+    """
+    from html.parser import HTMLParser
+
+    body_m = re.search(r'<body[^>]*>(.*)</body>', html, re.S)
+    if not body_m:
+        return
+    body = body_m.group(1)
+
+    # Author-opt-out (very rarely needed)
+    if 'allow:dom-integrity' in body:
+        return
+
+    # Strip comments, script, style — these can contain pseudo-tags that
+    # confuse the parser without affecting real DOM structure.
+    body = re.sub(r'<!--.*?-->',           '', body, flags=re.S)
+    body = re.sub(r'<script[^>]*>.*?</script>', '', body, flags=re.S)
+    body = re.sub(r'<style[^>]*>.*?</style>',   '', body, flags=re.S)
+
+    class DomChecker(HTMLParser):
+        """Track ONLY <div> stack — that's all the invariants need.
+
+        Avoids the void-tag noise: <br> / <img> / <hr> fire handle_starttag
+        but never handle_endtag, which would corrupt a generic tag stack.
+        Self-closing XHTML (<path d="..."/>) fires handle_startendtag, which
+        we also don't care about. Restricting to divs gives a clean signal.
+        """
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.div_stack: list[str] = []   # class_str of each open div
+            self.frames_seen = 0
+            self.frames_under_deck = 0
+            self.frames_nested_in_frame: list[int] = []
+            self.frame_inner_slide_count: list[int] = []
+            self.div_opens = 0
+            self.div_closes = 0
+
+        @staticmethod
+        def _has_class(class_str: str, name: str) -> bool:
+            return bool(class_str) and name in class_str.split()
+
+        def handle_starttag(self, tag, attrs):
+            if tag != 'div':
+                return
+            class_str = next((v or '' for k, v in attrs if k == 'class'), '')
+            self.div_opens += 1
+            if self._has_class(class_str, 'slide-frame'):
+                self.frames_seen += 1
+                # parent must be <div class="deck"> (the top of the div stack)
+                if self.div_stack and self._has_class(self.div_stack[-1], 'deck'):
+                    self.frames_under_deck += 1
+                # is any enclosing div also a slide-frame?
+                for parent_cls in self.div_stack:
+                    if self._has_class(parent_cls, 'slide-frame'):
+                        self.frames_nested_in_frame.append(self.frames_seen)
+                        break
+                self.frame_inner_slide_count.append(0)
+            elif self._has_class(class_str, 'slide'):
+                # direct child of a frame? top of stack should be slide-frame
+                if self.div_stack and self._has_class(self.div_stack[-1], 'slide-frame'):
+                    if self.frame_inner_slide_count:
+                        self.frame_inner_slide_count[-1] += 1
+            self.div_stack.append(class_str)
+
+        def handle_endtag(self, tag):
+            if tag != 'div':
+                return
+            self.div_closes += 1
+            if self.div_stack:
+                self.div_stack.pop()
+
+    checker = DomChecker()
+    try:
+        checker.feed(body)
+        checker.close()
+    except Exception as e:
+        iss.warn('R-DOM',
+            f'DOM parser failed to scan body ({e}). Structural invariants '
+            'could not be checked. Open in a browser to verify rendering.')
+        return
+
+    # Invariant 1: every slide-frame is a direct child of .deck
+    orphan_frames = checker.frames_seen - checker.frames_under_deck
+    if orphan_frames:
+        iss.err('R-DOM',
+            f'{orphan_frames} of {checker.frames_seen} <div class="slide-frame"> '
+            'are NOT a direct child of <div class="deck">. The most likely '
+            'cause is a missing </div> earlier in the document (regex-based '
+            'insertion / deletion ate a closing tag), nesting later frames '
+            'inside an unclosed frame. Present mode will hide every nested '
+            'frame because it never becomes the current slide. '
+            'Re-inspect recent edits; do not use regex to splice slide-frames.')
+    if checker.frames_nested_in_frame:
+        # specific frames flagged — list first few for debugging
+        idxs = ', '.join(str(n) for n in checker.frames_nested_in_frame[:5])
+        more = '' if len(checker.frames_nested_in_frame) <= 5 \
+                  else f' (+{len(checker.frames_nested_in_frame)-5} more)'
+        iss.err('R-DOM',
+            f'slide-frame nesting: frames at positions {idxs}{more} '
+            'are inside ANOTHER slide-frame. This breaks present mode — '
+            'only the outer frame becomes the current slide; the inner '
+            'frames are perma-hidden. Fix the unclosed div above.')
+
+    # Invariant 2: every frame holds exactly one .slide direct child
+    for i, n in enumerate(checker.frame_inner_slide_count, 1):
+        if n != 1:
+            iss.err('R-DOM',
+                f'slide-frame #{i} contains {n} direct .slide children '
+                '(expected exactly 1). Either the markup template is broken '
+                'or two slides got concatenated into one frame.')
+
+    # Invariant 3: div open/close balance
+    if checker.div_opens != checker.div_closes:
+        delta = checker.div_opens - checker.div_closes
+        sign = '+' if delta > 0 else '−'
+        iss.err('R-DOM',
+            f'div balance in <body>: {checker.div_opens} opens vs '
+            f'{checker.div_closes} closes ({sign}{abs(delta)}). The DOM '
+            'tree will close prematurely or leak across boundaries. '
+            'Locate the missing tag — every regex/sed insertion is a '
+            'prime suspect.')
+
+
+def audit_white_text(html: str, iss: Issues, strict: bool):
+    """R-WHITE-TEXT: content text must be pure white on dark slides.
+
+    Why: this skill targets 1920×1080 projector-room presentations. Any
+    `color: rgba(255,255,255,X)` with X < 1 reads as gray when projected
+    5+ meters away — author-direct readability is OK, audience-side
+    readability is not. The brand background ~#080C18 has zero contrast
+    with low-opacity whites.
+
+    Scope:
+      • CSS rules whose selector targets slide content (.slide and its
+        descendants, NOT .deck-ui / .deck-progress / .deck-controls).
+      • Inline style="" on slide markup.
+
+    Exemptions (treated as legitimate "soft" usage):
+      • Rules that explicitly bind to chrome classes (.eyebrow as a Latin
+        caps tracker, .footnote, .pageno, .source / .source-footer that's
+        already retired, .caption, .deck-pageno, .nav-hint, .mode-toggle).
+      • Rules whose own `font-size` is ≤ 14 px (chrome floor — they're
+        meta-text by definition).
+      • Rules carrying `/* allow:white-opacity */` in the same block.
+
+    Soft = warning by default, error in --strict.
+    """
+    chrome_class_re = re.compile(
+        r'\.(?:eyebrow|footnote|pageno|caption|source|source-footer|'
+        r'deck-pageno|nav-hint|mode-toggle|deck-ui|deck-controls|'
+        r'deck-progress|attrib|sc-cap|axis-cap)\b')
+    # Match only the `color:` property — NOT border-color / outline-color /
+    # text-decoration-color / column-rule-color etc. Negative lookbehind
+    # ensures `color` isn't preceded by `-` or a word character.
+    soft_white_re = re.compile(
+        r'(?<![-\w])color:\s*rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*0?\.\d+\s*\)')
+    fs_re = re.compile(r'font-size:\s*(\d+)px')
+
+    flagged: list[tuple[str, str]] = []
+    for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
+        css = re.sub(r'/\*.*?\*/', '', style_m.group(1), flags=re.S)
+        # but re-attach the marker comment if present
+        raw = style_m.group(1)
+        for rule_m in re.finditer(r'([^{}]+)\{([^}]+)\}', css):
+            selector = rule_m.group(1).strip()
+            block = rule_m.group(2)
+            if '.slide' not in selector and '.card' not in selector \
+               and '.col' not in selector:
+                continue
+            if chrome_class_re.search(selector):
+                continue
+            # find the raw block from `raw` so we can see the comment marker
+            raw_rule_m = re.search(
+                re.escape(selector) + r'\s*\{([^}]*)\}', raw, re.S)
+            raw_block = raw_rule_m.group(1) if raw_rule_m else block
+            if 'allow:white-opacity' in raw_block:
+                continue
+            # rule's own font-size hint — small fonts are chrome
+            fs_m = fs_re.search(block)
+            if fs_m and int(fs_m.group(1)) <= 14:
+                continue
+            if soft_white_re.search(block):
+                flagged.append((selector, block.strip()[:80]))
+
+    # Inline style="" on slide markup
+    body_m = re.search(r'<body[^>]*>(.*)</body>', html, re.S)
+    if body_m:
+        body = re.sub(r'<script.*?</script>', '', body_m.group(1), flags=re.S)
+        body = re.sub(r'<style.*?</style>',   '', body, flags=re.S)
+        for m in re.finditer(r'style="([^"]*)"', body):
+            decl = m.group(1)
+            if soft_white_re.search(decl):
+                fs_m = fs_re.search(decl)
+                if fs_m and int(fs_m.group(1)) <= 14:
+                    continue
+                flagged.append(('<inline>', decl[:80]))
+
+    for selector, block in flagged[:12]:
+        msg = (f'soft-white text on `{selector}` — `{block}…`. '
+               'Content text on dark slides must be `#fff` or `rgba(255,255,255,1)`. '
+               'Low-opacity white reads as gray when projected. Use other '
+               'levers for hierarchy (font-weight, font-size, background '
+               'tone, border dim). Add `/* allow:white-opacity */` in the '
+               'rule if this is a deliberate chrome exception.')
+        if strict: iss.err('R-WHITE-TEXT', msg)
+        else:      iss.warn('R-WHITE-TEXT', msg)
+
+
 def audit_layout_integrity(html: str, iss: Issues):
     """Run all four LKK-exchange-deck integrity checks (L1-L4)."""
     if not check_logo_default(html):
@@ -997,11 +1224,144 @@ def audit_layout_integrity(html: str, iss: Issues):
 #  Main
 # ---------------------------------------------------------------------------
 
+def audit_feedback_md(html_path: Path, iss: Issues):
+    """R-FEEDBACK: every run output should ship a FEEDBACK.md sidecar.
+
+    Path A (render.py) emits FEEDBACK.md inline with each deck. Path B
+    (freehand LLM authoring) has no automation and the agent forgets
+    more often than not — 8 of 17 runs through 2026-05-15 shipped
+    without one. SKILL.md "RUN-FEEDBACK CAPTURE" makes it mandatory;
+    this is the soft enforcement that catches the omission.
+
+    Scope: only flags HTML living under a `runs/<ts>/output/` directory
+    (the per-run output convention from new-run.sh). Files in
+    `examples/`, `templates/`, or arbitrary one-off locations skip
+    this audit — they're not per-run outputs.
+
+    Warning, not error: the deck still works without FEEDBACK.md.
+    `finalize.sh` auto-stubs the file these days, so this rule is
+    mostly a safety net for legacy / one-off runs that bypass finalize.
+    """
+    # Only enforce inside the runs/<ts>/output/ convention
+    parent = html_path.parent
+    grandparent = parent.parent
+    in_run_output = (parent.name == 'output' and
+                     re.match(r'^\d{8}-\d{6}', grandparent.name))
+    if not in_run_output:
+        return
+
+    feedback = parent / 'FEEDBACK.md'
+    if not feedback.is_file():
+        iss.warn('R-FEEDBACK',
+            f'no FEEDBACK.md in {parent}. Every run should '
+            'capture the agent\'s judgment calls + visual workarounds + '
+            'validator escapes for the maintainer to fold into the next '
+            'skill version. Run `bash assets/finalize.sh <output-dir>` '
+            'to auto-stub the file, then fill in agent decisions before '
+            'hand-off. (Path A render.py emits this automatically; '
+            'freehand decks need it written by hand.)')
+
+
+def audit_visual_overflow(html_path: Path, iss: Issues):
+    """R-OVERFLOW: open the deck in a headless browser at 1920×1080 and
+    report any .slide whose content extends past the canvas.
+
+    Static validators (R02 / R06 / R20 / R-DOM …) can't see pixel overflow.
+    A slide with a 2 200-px-tall stack of cards passes every static rule
+    but bleeds past the bottom of the canvas in present mode. The CTG run
+    flagged this manually multiple times.
+
+    This audit runs Playwright in headless mode. It is OPT-IN via
+    `--visual` because Playwright + Chromium are a ~150 MB install most
+    users don't have; we don't want to make the default validator depend
+    on them.
+
+    Setup (one-time, on the developer's machine):
+
+        pip install playwright
+        python -m playwright install chromium
+
+    Behaviour without Playwright: prints an install hint and returns
+    cleanly (no failure). With Playwright: renders the deck file://-URL,
+    iterates every `.slide`, captures `scrollHeight` and `scrollWidth`,
+    and flags any slide whose content extends past 1080 px tall or
+    1920 px wide.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        iss.warn('R-OVERFLOW',
+            '--visual requested but `playwright` is not installed. '
+            'Install with: `pip install playwright && '
+            'python -m playwright install chromium` (~150 MB). '
+            'Visual overflow check skipped — static rules still ran.')
+        return
+
+    url = html_path.resolve().as_uri()
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            context = browser.new_context(viewport={'width': 1920, 'height': 1080})
+            page = context.new_page()
+            page.goto(url, wait_until='networkidle', timeout=10_000)
+            # Switch the deck into present mode so each .slide gets the
+            # 1920×1080 canvas it's designed for (scroll mode uses smaller
+            # viewports and would false-positive everywhere).
+            page.evaluate("""
+                () => {
+                    const deck = document.querySelector('.deck');
+                    if (deck) deck.setAttribute('data-mode', 'present');
+                }
+            """)
+            page.wait_for_timeout(200)  # allow style recalc
+            overflows = page.evaluate("""
+                () => {
+                    const slides = document.querySelectorAll('.slide');
+                    const out = [];
+                    slides.forEach((s, i) => {
+                        const label = s.getAttribute('data-screen-label') || `slide-${i+1}`;
+                        // Use scrollHeight/scrollWidth on the slide element itself
+                        const h = s.scrollHeight;
+                        const w = s.scrollWidth;
+                        if (h > 1080 || w > 1920) {
+                            out.push({ idx: i+1, label, h, w });
+                        }
+                    });
+                    return out;
+                }
+            """)
+            browser.close()
+    except Exception as e:
+        iss.warn('R-OVERFLOW',
+            f'visual overflow check could not run ({type(e).__name__}: {e}). '
+            'Try `python -m playwright install chromium` if you have not yet, '
+            'or open the deck in a browser manually to verify.')
+        return
+
+    for entry in overflows[:20]:
+        delta_h = entry['h'] - 1080
+        delta_w = entry['w'] - 1920
+        bits = []
+        if delta_h > 0: bits.append(f'height +{delta_h} px')
+        if delta_w > 0: bits.append(f'width +{delta_w} px')
+        iss.err('R-OVERFLOW',
+            f'slide {entry["idx"]} ({entry["label"]}): content overflows '
+            f'canvas — {", ".join(bits)}. Reduce content density, drop '
+            'cards / rows, increase column count, or shorten body copy. '
+            'Body floor R06 is 22 px and is not negotiable; if content '
+            'genuinely needs more vertical room, split across two slides.')
+
+
 def main():
     p = argparse.ArgumentParser(description='feishu-deck-h5 self-check')
     p.add_argument('html', help='Path to the assembled deck HTML file')
     p.add_argument('--strict', action='store_true',
                    help='Promote warnings to errors')
+    p.add_argument('--visual', action='store_true',
+                   help='Also run the optional Playwright-based overflow '
+                        'check (renders each slide at 1920×1080 and flags '
+                        'content past canvas). Requires `pip install '
+                        'playwright && python -m playwright install chromium`.')
     args = p.parse_args()
 
     path = Path(args.html)
@@ -1041,12 +1401,14 @@ def main():
     slides = extract_slides(html)
 
     iss = Issues()
+    audit_dom_integrity(html, iss)
     audit_structure(slides, iss)
     audit_titles_one_line(slides, iss)
     audit_brand_chrome(slides, iss, args.strict)
     audit_copy_rules(html, iss)
     audit_font_sizes(html, iss)
     audit_type_ladder(html, iss)
+    audit_white_text(html, iss, args.strict)
     audit_no_drop_shadows(html, iss)
     audit_data_decor(slides, iss)
     audit_hex_palette(html, iss, args.strict)
@@ -1062,6 +1424,10 @@ def main():
     audit_language_policy(html, slides, iss, args.strict)
     audit_perf(html, iss, args.strict)
     audit_text_ids(html, path, iss)
+    audit_feedback_md(path, iss)
+
+    if args.visual:
+        audit_visual_overflow(path, iss)
 
     if args.strict:
         iss.errors.extend(iss.warnings)

@@ -268,6 +268,39 @@ def main() -> int:
         new_full  = open_tag + new_inner + close_tag
         new_html  = new_html[:s] + new_full + new_html[e:]
 
+    # Post-apply DOM sanity check — count <div> open vs close in the new
+    # body. If they diverge, a textual substitution almost certainly ate
+    # a `</div>` (e.g. a value containing literal `<` or `>` got escaped
+    # in an unexpected way). Refuse to write and surface the delta.
+    # This is the safety net for the apply-texts pipeline that complements
+    # validator R-DOM on the deck level.
+    def _div_balance(text: str) -> tuple[int, int]:
+        body_m = re.search(r'<body[^>]*>(.*)</body>', text, re.S)
+        body = body_m.group(1) if body_m else text
+        body = re.sub(r'<!--.*?-->',           '', body, flags=re.S)
+        body = re.sub(r'<script[^>]*>.*?</script>', '', body, flags=re.S)
+        body = re.sub(r'<style[^>]*>.*?</style>',   '', body, flags=re.S)
+        opens  = len(re.findall(r'<div\b', body))
+        closes = len(re.findall(r'</div>', body))
+        return opens, closes
+
+    old_opens, old_closes = _div_balance(html)
+    new_opens, new_closes = _div_balance(new_html)
+    old_delta = old_opens - old_closes
+    new_delta = new_opens - new_closes
+    if new_delta != old_delta:
+        print(
+            f'\nERROR: post-apply DOM imbalance — original div delta '
+            f'{old_delta:+d} ({old_opens} open / {old_closes} close) '
+            f'changed to {new_delta:+d} after apply. A texts.md value '
+            f'almost certainly contained literal `<` or `>` that the '
+            f'encoder mishandled, or the HTML was already corrupt. '
+            f'NOT writing the file. Inspect texts.md for values with '
+            f'unescaped angle brackets; the apply contract is that '
+            f'text replacement never touches DOM structure.',
+            file=sys.stderr)
+        return 1
+
     if not args.no_backup:
         bak = html_path.with_suffix(html_path.suffix + '.bak')
         shutil.copy2(html_path, bak)
