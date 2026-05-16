@@ -35,6 +35,19 @@ import shutil
 import sys
 from pathlib import Path
 
+# Shared symbols with extract-texts.py — moved to texts_common.py
+# (PEP-8 module name) so both scripts can import cleanly. The hyphenated
+# filenames of the public-facing scripts stay (they're documented in
+# SKILL.md and in the deliverable zip), but internal sharing goes through
+# the underscored helper.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from texts_common import (
+    TEXT_LEAF_RE,
+    encode_value_to_inner,
+    decode_inner_to_value,
+    find_leaves,
+)
+
 # --------------------------------------------------------------------------
 #  texts.md parser
 # --------------------------------------------------------------------------
@@ -91,58 +104,9 @@ def parse_texts_md(md_text: str) -> dict[str, str]:
 
 
 # --------------------------------------------------------------------------
-#  HTML scanner
+#  HTML scanner symbols moved to texts_common.py (TEXT_LEAF_RE, find_leaves,
+#  encode_value_to_inner, decode_inner_to_value). See imports at top.
 # --------------------------------------------------------------------------
-
-# Open tag carrying data-text-id, the inner content (non-greedy), and matching
-# close tag. We restrict to alphanumeric tag names to avoid matching SVG-style
-# namespaced tags by accident.
-TEXT_LEAF_RE = re.compile(
-    r'(<(?P<tag>[a-zA-Z][a-zA-Z0-9]*)\s[^<>]*?'
-    r'data-text-id="(?P<id>[^"]+)"[^<>]*?>)'
-    r'(?P<inner>(?:(?!</(?P=tag)>).)*?)'
-    r'(?P<close></(?P=tag)>)',
-    re.S,
-)
-
-
-def find_leaves(html: str) -> list[tuple[str, int, int, str, str, str, str]]:
-    """Return list of (id, start, end, open_tag, inner, close_tag, full_match)."""
-    found = []
-    for m in TEXT_LEAF_RE.finditer(html):
-        found.append((
-            m.group('id'),
-            m.start(), m.end(),
-            m.group(1),
-            m.group('inner'),
-            m.group('close'),
-            m.group(0),
-        ))
-    return found
-
-
-def encode_value_to_inner(value: str) -> str:
-    """Convert texts.md value (with literal newlines) → HTML inner content.
-
-    Rules:
-        plain text → escape & < > to entities
-        '\n' inside value → '<br>' in HTML
-    """
-    parts = value.split('\n')
-    escaped = [
-        p.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        for p in parts
-    ]
-    return '<br>'.join(escaped)
-
-
-def decode_inner_to_value(inner: str) -> str:
-    """Inverse of encode_value_to_inner — used by --check / extract."""
-    # normalise <br>, <br/>, <br /> to '\n'
-    s = re.sub(r'<br\s*/?>', '\n', inner, flags=re.I)
-    # decode entities we generate
-    s = s.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
-    return s.strip()
 
 
 # --------------------------------------------------------------------------

@@ -33,12 +33,11 @@ import sys
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 
-# Reuse helpers from apply-texts (same directory)
+# Shared helpers — see texts_common.py (extracted from apply-texts.py so
+# both scripts can `from texts_common import ...` cleanly; the hyphen in
+# apply-texts.py used to require importlib.import_module gymnastics).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from importlib import import_module
-_apply = import_module('apply-texts')
-TEXT_LEAF_RE     = _apply.TEXT_LEAF_RE
-decode_inner_to_value = _apply.decode_inner_to_value
+from texts_common import TEXT_LEAF_RE, decode_inner_to_value
 
 
 # Find each `<div class="slide" ...>` open tag. Match the whole attribute blob

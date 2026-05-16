@@ -230,6 +230,19 @@ def main():
         #    be upgraded by simply re-running this script
         #  - self-heal: if the canonical target is missing, copy from skill
         def replace_local_asset(m):
+            """Rewrite an already-local `assets/<path>` ref. If `<path>` is the
+            legacy pre-shared/ form, also `shutil.move` the file in place.
+
+            Idempotency across regex matches AND across HTMLs in the same run:
+            the substitution return value is computed from `new_rest` (derived
+            from the regex's `rest` string), NOT from filesystem state. So
+            once HTML 1 has moved the legacy file to its canonical shared/
+            location, HTML 2 still sees `assets/clientlogo/foo.png` in its
+            text and the regex still matches and rewrites to
+            `assets/shared/clientlogo/foo.png`. The move itself is skipped on
+            HTML 2's call (`old_target.exists() AND not new_target.exists()`
+            both fail) but the rewrite proceeds. Net effect: file moved once,
+            every HTML correctly rewritten."""
             nonlocal bytes_copied
             prefix = m.group(1)
             rest = m.group(2)

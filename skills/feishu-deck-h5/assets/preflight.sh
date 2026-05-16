@@ -155,16 +155,6 @@ fi
 if command -v git >/dev/null 2>&1 && [ -d "$SKILL_ROOT/.git" ]; then
   CURRENT_REMOTE=$(git -C "$SKILL_ROOT" remote get-url origin 2>/dev/null || echo "")
   if [ -n "$CURRENT_REMOTE" ]; then
-    # Search the most common dev locations on macOS / Linux. Bounded depth so
-    # this stays cheap (< 1s on a typical home dir).
-    SEARCH_ROOTS=(
-      "$HOME/Documents/Github" "$HOME/Documents/GitHub"
-      "$HOME/Documents"        "$HOME/Projects"
-      "$HOME/GitHub"           "$HOME/Github"
-      "$HOME/code"             "$HOME/Code"
-      "$HOME/dev"              "$HOME/Dev"
-      "$HOME/src"
-    )
     # Identify directories by (device, inode) instead of path string, so the
     # comparison survives macOS APFS/HFS case-insensitivity (~/Documents/Github
     # vs ~/Documents/GitHub) and symlinks. `pwd -P` doesn't normalize case on
@@ -174,26 +164,67 @@ if command -v git >/dev/null 2>&1 && [ -d "$SKILL_ROOT/.git" ]; then
         || stat -c '%d:%i' "$1" 2>/dev/null \
         || echo "$1"   # last-ditch fallback if neither stat flavor works
     }
+
+    # ---- Cache layer ----
+    # The cross-clone scan is `find -maxdepth 4` × 11 candidate roots,
+    # which costs ~2-5s on Documents-heavy home dirs (slow disks worse).
+    # Cache the result in `.feishu-deck-h5-preflight-cache` next to the
+    # skill root, keyed on skill-root inode + git origin URL. Refresh
+    # every 24h so newly-added clones eventually get noticed. Force a
+    # fresh scan by deleting the file or setting FS_DECK_NOCACHE=1.
+    PREFLIGHT_CACHE="${SKILL_ROOT}/.feishu-deck-h5-preflight-cache"
+    PREFLIGHT_CACHE_MAX_AGE=86400
     SKILL_ROOT_ID="$(fs_id "$SKILL_ROOT")"
+    CACHE_KEY="${SKILL_ROOT_ID}|${CURRENT_REMOTE}"
     OTHER_CLONES=""
-    SEEN_IDS=":"
-    for root in "${SEARCH_ROOTS[@]}"; do
-      [ -d "$root" ] || continue
-      while IFS= read -r git_dir; do
-        clone_dir="$(dirname "$git_dir")"
-        clone_id="$(fs_id "$clone_dir")"
-        # skip ourselves
-        [ "$clone_id" = "$SKILL_ROOT_ID" ] && continue
-        # dedupe — same physical dir reached via different SEARCH_ROOTS
-        case "$SEEN_IDS" in *":$clone_id:"*) continue ;; esac
-        SEEN_IDS="$SEEN_IDS$clone_id:"
-        # check it's the same remote
-        clone_remote=$(git -C "$clone_dir" remote get-url origin 2>/dev/null || echo "")
-        if [ "$clone_remote" = "$CURRENT_REMOTE" ]; then
-          OTHER_CLONES+="    - $clone_dir"$'\n'
-        fi
-      done < <(find "$root" -maxdepth 4 -type d -name '.git' 2>/dev/null)
-    done
+    USED_CACHE=0
+    if [ -z "${FS_DECK_NOCACHE:-}" ] && [ -f "$PREFLIGHT_CACHE" ]; then
+      cache_first_line="$(head -1 "$PREFLIGHT_CACHE" 2>/dev/null || echo "")"
+      cache_mtime=$(stat -f %m "$PREFLIGHT_CACHE" 2>/dev/null \
+                    || stat -c %Y "$PREFLIGHT_CACHE" 2>/dev/null || echo 0)
+      cache_age=$(( $(date +%s) - cache_mtime ))
+      if [ "$cache_first_line" = "$CACHE_KEY" ] \
+         && [ "$cache_age" -lt "$PREFLIGHT_CACHE_MAX_AGE" ]; then
+        USED_CACHE=1
+        OTHER_CLONES="$(tail -n +2 "$PREFLIGHT_CACHE")"
+      fi
+    fi
+
+    if [ "$USED_CACHE" = "0" ]; then
+      # Search the most common dev locations on macOS / Linux. Bounded
+      # depth keeps it from exploring the whole tree.
+      SEARCH_ROOTS=(
+        "$HOME/Documents/Github" "$HOME/Documents/GitHub"
+        "$HOME/Documents"        "$HOME/Projects"
+        "$HOME/GitHub"           "$HOME/Github"
+        "$HOME/code"             "$HOME/Code"
+        "$HOME/dev"              "$HOME/Dev"
+        "$HOME/src"
+      )
+      SEEN_IDS=":"
+      for root in "${SEARCH_ROOTS[@]}"; do
+        [ -d "$root" ] || continue
+        while IFS= read -r git_dir; do
+          clone_dir="$(dirname "$git_dir")"
+          clone_id="$(fs_id "$clone_dir")"
+          # skip ourselves
+          [ "$clone_id" = "$SKILL_ROOT_ID" ] && continue
+          # dedupe — same physical dir reached via different SEARCH_ROOTS
+          case "$SEEN_IDS" in *":$clone_id:"*) continue ;; esac
+          SEEN_IDS="$SEEN_IDS$clone_id:"
+          # check it's the same remote
+          clone_remote=$(git -C "$clone_dir" remote get-url origin 2>/dev/null || echo "")
+          if [ "$clone_remote" = "$CURRENT_REMOTE" ]; then
+            OTHER_CLONES+="    - $clone_dir"$'\n'
+          fi
+        done < <(find "$root" -maxdepth 4 -type d -name '.git' 2>/dev/null)
+      done
+      # Write cache for next time (even if no other clones found —
+      # cache the "no clones" answer too, so subsequent invocations
+      # don't re-scan a clean home dir).
+      printf '%s\n%s' "$CACHE_KEY" "$OTHER_CLONES" > "$PREFLIGHT_CACHE" 2>/dev/null || true
+    fi
+
     if [ -n "$OTHER_CLONES" ]; then
       echo
       echo "WARNING · another clone of this repo lives on disk:"
@@ -207,6 +238,9 @@ if command -v git >/dev/null 2>&1 && [ -d "$SKILL_ROOT/.git" ]; then
       echo "  filesystem — they're independent working directories."
       echo
       echo "  Agent: surface this to the user before creating the run folder."
+      if [ "$USED_CACHE" = "1" ]; then
+        echo "  (cached result, refreshes every 24h; set FS_DECK_NOCACHE=1 to force)"
+      fi
     fi
   fi
 fi

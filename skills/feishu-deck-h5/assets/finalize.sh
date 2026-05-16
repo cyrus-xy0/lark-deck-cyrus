@@ -7,7 +7,7 @@
 #
 # Usage:
 #     bash assets/finalize.sh <output-dir> [mode] [--strict] [--name <slug>]
-#         mode:           local (default) | remote | inline
+#         mode:           local (default) | remote
 #         --strict        promote validator warnings to errors (final delivery)
 #         --name <slug>   emit a delivery-named copy alongside index.html
 #                         convention: lark-<customer>-<presentation-date>
@@ -15,7 +15,10 @@
 #
 #     local   = copy-assets + extract-texts + validate (+ named copy if --name)
 #     remote  = local steps + package-deliverable.sh (zip kit, zip name from --name)
-#     inline  = local steps + base64-inline assets into single .html
+#
+# For single-file inline delivery (base64-inlined CSS/JS/images into one
+# .html file for email/IM attachment), run `bash build.sh --inline` from
+# the skill root — that's a separate pipeline, not orchestrated here.
 #
 # Exit codes:
 #     0  all green
@@ -35,7 +38,13 @@ NAME=""
 shift || true
 while [ $# -gt 0 ]; do
     case "$1" in
-        local|remote|inline) MODE="$1"; shift ;;
+        local|remote) MODE="$1"; shift ;;
+        inline)
+            echo "✗ 'inline' mode is no longer a finalize.sh subcommand." >&2
+            echo "  For single-file inline delivery, run from the skill root:" >&2
+            echo "    bash build.sh --inline" >&2
+            exit 1
+            ;;
         --strict) STRICT="--strict"; shift ;;
         --name) NAME="$2"; shift 2 ;;
         *) echo "unknown arg: $1" >&2; exit 1 ;;
@@ -52,7 +61,7 @@ if [ -n "$NAME" ]; then
 fi
 
 if [ -z "$OUT_DIR" ] || [ ! -d "$OUT_DIR" ]; then
-    echo "usage: bash $(basename "$0") <output-dir> [local|remote|inline] [--strict] [--name <slug>]" >&2
+    echo "usage: bash $(basename "$0") <output-dir> [local|remote] [--strict] [--name <slug>]" >&2
     echo "       output-dir must exist (typically runs/<ts>/output/)" >&2
     echo "       --name convention: lark-<customer>-<YYYY-MM-DD>" >&2
     exit 1
@@ -68,11 +77,26 @@ fi
 
 echo "==> finalize  ·  $OUT_DIR  ($MODE)"
 
+# Helper: run a sub-command, capture its stderr; on failure print the
+# captured output so the user sees the real error instead of a useless
+# "run manually for diagnosis" prompt.
+run_step() {
+    local desc="$1"; shift
+    local log
+    log=$(mktemp -t feishu-finalize-step.XXXXXX)
+    if "$@" >"$log" 2>&1; then
+        rm -f "$log"
+        return 0
+    fi
+    echo "✗ $desc failed (exit $?):" >&2
+    sed 's/^/    /' "$log" >&2
+    rm -f "$log"
+    return 1
+}
+
 # ---------- 1 · copy-assets (make output portable) ----------
 echo "  · copy-assets …"
-if ! python3 "$SCRIPT_DIR/copy-assets.py" "$OUT_DIR" >/dev/null 2>&1; then
-    echo "✗ copy-assets failed — run manually for diagnosis:" >&2
-    echo "    python3 $SCRIPT_DIR/copy-assets.py $OUT_DIR" >&2
+if ! run_step "copy-assets" python3 "$SCRIPT_DIR/copy-assets.py" "$OUT_DIR"; then
     exit 2
 fi
 
@@ -80,7 +104,7 @@ fi
 TEXTS="$OUT_DIR/texts.md"
 if [ ! -f "$TEXTS" ]; then
     echo "  · extract-texts (no sidecar found, generating) …"
-    if ! python3 "$SCRIPT_DIR/extract-texts.py" "$HTML" --out "$TEXTS" >/dev/null 2>&1; then
+    if ! run_step "extract-texts" python3 "$SCRIPT_DIR/extract-texts.py" "$HTML" --out "$TEXTS"; then
         echo "  ! extract-texts skipped (deck has no data-text-id leaves — fine for Replica decks)"
     fi
 else
@@ -102,8 +126,16 @@ fi
 FEEDBACK="$OUT_DIR/FEEDBACK.md"
 if [ ! -f "$FEEDBACK" ]; then
     RUN_LABEL="$(basename "$(dirname "$OUT_DIR")")"
+    # AUTO-STUB-SENTINEL · keep verbatim — validator R-FEEDBACK greps for
+    # this exact string to detect that the file exists but is empty of
+    # real content, so the warning still fires until an agent fills it.
     cat > "$FEEDBACK" <<EOF
 # Run feedback · ${RUN_LABEL}
+
+<!-- FEEDBACK.md.auto-stub · agent: replace this comment and the
+     placeholder sections below with real decisions from this run.
+     R-FEEDBACK in validate.py greps for this sentinel and keeps
+     warning until it's gone. -->
 
 > ⚠️ This file was auto-stubbed by \`finalize.sh\` because the agent
 > didn't write one. The Path A pipeline (render.py for one-pager /
@@ -190,8 +222,7 @@ case "$MODE" in
         if [ -n "$NAME" ]; then
             ZIP_ARGS+=("--name" "$NAME")
         fi
-        if ! bash "$SCRIPT_DIR/package-deliverable.sh" "${ZIP_ARGS[@]}" >/dev/null 2>&1; then
-            echo "✗ packaging failed" >&2
+        if ! run_step "package-deliverable" bash "$SCRIPT_DIR/package-deliverable.sh" "${ZIP_ARGS[@]}"; then
             exit 5
         fi
         ZIP_NAME="${NAME:-deck-editable}"
@@ -204,11 +235,5 @@ case "$MODE" in
             echo "  TIP: pass --name lark-<customer>-<YYYY-MM-DD> for a named zip"
             echo "       instead of the generic deck-editable.zip."
         fi
-        ;;
-    inline)
-        echo "  · inline mode not yet wired — run manually:"
-        echo "    bash skills/feishu-deck-h5/build.sh --inline"
-        echo ""
-        echo "✓ ready (local outputs in $OUT_DIR — inline single-file is build.sh's job)"
         ;;
 esac

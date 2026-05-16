@@ -2918,45 +2918,54 @@ These four failure modes recurred in the 2026-05-14 CTG run and burned
 30+ minutes of debug time each. Read this section BEFORE doing any
 delete-slide / insert-slide / reorder-slide / custom-layout work.
 
-### E1. Triple-identifier sync — `data-page` + `data-screen-label` + `data-text-id` all renumber together
+### E1. Identifier sync on delete/insert — what's mandatory vs conditional
 
-A slide carries THREE numeric identifiers, each at a different DOM level:
+A slide can carry up to three numeric identifiers, at different DOM levels:
 
-| Identifier | Lives on | Used for |
-|---|---|---|
-| `data-page="NN"` | `.slide-frame` wrapper | per-page scoped CSS like `[data-page="07"] .card { ... }` |
-| `data-screen-label="NN Title"` | `.slide` element | present-mode pager UI label; matched by validator |
-| `data-text-id="slide-NN.field"` | every text leaf | links HTML → texts.md sidecar |
+| Identifier | Lives on | Status | Used for |
+|---|---|---|---|
+| `data-screen-label="NN Title"` | `.slide` element | **mandatory** | present-mode pager UI label; validator R02 requires it |
+| `data-text-id="slide-NN.field"` | every text leaf | **mandatory if texts.md sidecar exists** | links HTML → texts.md (T01–T03) |
+| `data-page="NN"` | `.slide-frame` wrapper | **conditional — only when the slide has per-page scoped CSS** | per-page `[data-page="07"] .card { ... }` overrides authored in the deck's inline `<style>` |
 
-When you **delete** or **insert** a slide in the middle of the deck, ALL
-THREE families need to renumber atomically. Skipping any one silently
-breaks the deck. The CTG run hit this twice:
+The first two are always required (validator enforces). `data-page`
+is **purely a CSS-scoping handle** the author opts into when they need
+per-page overrides — most Path A (template-rendered) slides don't have
+it at all (Opple deck: 0/51 frames carry `data-page`; CTG deck: 36/53
+have it because that deck has heavy per-page custom CSS).
 
-- Deleted slide-03; renumbered `data-screen-label` and `data-text-id`
-  but missed `data-page` on `.slide-frame`. Result: page 4's custom
-  `[data-page="04"]` 3-card CSS rules stopped matching (still attached
-  to the OLD frame, which was now showing different content). User
-  reported "第三页样式不对", took 10 minutes to root-cause.
-
-**The ritual** for every delete/insert/reorder:
+**Renumber ritual on delete / insert / reorder** — only update the
+identifiers that EXIST on the affected slides:
 
 1. Decide the new ordinal map (e.g. inserting at position 7 → all
    positions ≥ 7 shift +1).
-2. Update `data-page="NN"` on every affected `.slide-frame`.
-3. Update `data-screen-label="NN Title"` on every affected `.slide`.
-4. Update `data-text-id="slide-NN.field"` on every affected text leaf
-   (use Edit's `replace_all` carefully — scope the search to the
-   affected slide's markup, not the whole file).
-5. Update the matching `## slide-NN` headers in `texts.md`.
-6. Run `python3 assets/validate.py runs/<ts>/output/index.html` —
+2. **Always** — update `data-screen-label="NN Title"` on every affected
+   `.slide`.
+3. **Always (if texts.md exists)** — update `data-text-id="slide-NN.field"`
+   on every affected text leaf, and the matching `## slide-NN` headers
+   in `texts.md`. Use Edit's `replace_all` carefully — scope to the
+   affected slide's markup, not the whole file.
+4. **Only if `data-page="NN"` is on the affected `.slide-frame`** —
+   renumber it too, AND grep for `[data-page="OLDNN"]` selectors in the
+   deck's `<style>` blocks and renumber those to match. Skipping this
+   leaves per-page CSS attached to the wrong frame (this is the bug
+   that gave "第三页样式不对" in the 2026-05-14 CTG run; the slide had
+   `data-page="03"` plus a `[data-page="03"] .card { … }` rule, and the
+   renumber missed the frame attribute, so the rule fired on the wrong
+   page after the delete).
+5. Run `python3 assets/validate.py runs/<ts>/output/index.html` —
    R-DOM catches missing `</div>`, T03 catches texts.md drift, R20
-   catches CSS rules that target a no-longer-existing `[data-page]`.
+   catches per-page CSS that's off the type-scale ladder.
+
+**The deck on disk is your source of truth** for which identifiers
+each slide carries — there is no "every slide MUST have data-page"
+rule; it's purely conditional on whether per-page CSS exists.
 
 If you find this ritual error-prone, prefer rewriting the slide list
 end-to-end (regenerate with fresh ordinals 01..NN) rather than splicing
 in place. The validator's R-DOM rule catches the most catastrophic case
-(slide-frame nesting from regex-eaten `</div>`), but the three-identifier
-sync is editorial — only you can do it right.
+(slide-frame nesting from regex-eaten `</div>`); the identifier sync
+is editorial — only you can do it right.
 
 ### E2. Don't use sed / regex / text substitution to edit slide-frames
 
@@ -2979,11 +2988,15 @@ HTML for slide insertion / deletion / column-content rotation:
 slide DOM structure. For editorial text changes use `apply-texts.py`
 (parses by `data-text-id`, position-safe). For structural changes
 (insert / delete / move slide), do it by reading the file, identifying
-the slide blocks manually, and writing back the full sequence — or use
-the planned `dom-ops.py` API when it ships.
+the slide blocks manually, and writing back the full sequence.
 
-If you MUST hand-edit, after every change run validator R-DOM —
-it catches the catastrophic nesting case automatically.
+**Safety net**: after every structural change, run validator R-DOM
+(`audit_dom_integrity` in `validate.py`). It catches the catastrophic
+nesting case automatically — every `.slide-frame` must be a direct
+child of `.deck`, every frame must hold exactly one `.slide`, and
+`<div>` opens must balance closes inside `<body>`. A structural API
+helper (`assets/dom-ops.py`) may be added later if the rule proves
+insufficient on its own; until then, R-DOM IS the structural defense.
 
 ### E3. Custom-layout selectors have lower specificity than framework defaults
 
@@ -4167,7 +4180,7 @@ agent skipped Rules L1–L4. Re-run before you reply.
 
 ## Self-check must be EXECUTED, not just listed
 
-The 39-item self-check at the bottom of this file is a hard gate, not a
+The validator audits at the bottom of this file are a hard gate, not a
 checklist for your reading pleasure. Before declaring a deck "done":
 
 1. **Run a font-size audit programmatically.** Don't trust visual feel.

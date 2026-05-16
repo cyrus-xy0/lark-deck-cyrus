@@ -203,6 +203,10 @@ body {
   padding: 12px; max-width: 1280px; margin: 0 auto;
 }
 .deck[data-mode="scroll"] .slide-frame {
+  /* allow:drop-shadow — scroll-mode preview cards float on a dark page;
+     a soft drop shadow gives them physical separation from the page bg.
+     Not slide content — the frame itself is the chrome that holds the
+     slide; R12 ban is about shadows on .slide-internal cards. */
   border: 1px solid var(--fs-hairline);
   border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.45);
@@ -1682,6 +1686,8 @@ body {
 
 /* iframe / phone-frame helpers (Section 五) */
 .slide .phone-frame {
+  /* allow:drop-shadow — phone-frame is a UI mock simulating a real
+     phone device; depth shadow is part of the simulation. */
   width: 280px; aspect-ratio: 9/19.5;
   background: #000; padding: 7px; border-radius: 32px;
   position: relative;
@@ -1708,6 +1714,8 @@ body {
 }
 
 .slide .desktop-frame {
+  /* allow:drop-shadow — desktop-frame is a UI mock simulating a real
+     monitor / app window; depth shadow is part of the simulation. */
   width: 100%; aspect-ratio: 16/10;
   border-radius: 16px; overflow: hidden;
   background: #000;
@@ -1803,13 +1811,15 @@ body {
 /* ---- Window / frame chrome ---- */
 
 .slide .ui-window {
+  /* allow:drop-shadow — UI-mock app windows simulate real desktop apps;
+     depth shadow is part of the simulation. */
   position: relative;
   background: linear-gradient(180deg, #131723 0%, #0B0E18 100%);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
   overflow: hidden;
   display: flex; flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.45);  /* allowed: real product UI panel */
+  box-shadow: 0 24px 64px rgba(0,0,0,0.45);
 }
 .slide .ui-titlebar {
   display: flex; align-items: center; gap: 14px;

@@ -45,7 +45,13 @@ ALLOWED_DECOR = {
     'aurora', 'grain', 'topo', 'flower-bg', 'section-bg', 'photo-bg',
 }
 
-# Layouts where 2-line hero titles are explicitly allowed
+# Layouts where 2-line hero titles (with `<br>`) are explicitly allowed.
+# `image-text` is included because the recipe + sample-deck both author
+# `<h2>现场决策,<br>从未离线</h2>` over a full-bleed photo, which reads
+# as a hero composition (title at bottom-left over the image), not a
+# normal content-page header. Master spec may revisit this — if so,
+# update both the recipe in templates/slide-recipes.html and SKILL.md
+# §"Available layouts" together with this set.
 HERO_TITLE_LAYOUTS = {'cover', 'image-text', 'end'}
 
 # Layouts that suppress the eyebrow (规范: title-only pages)
@@ -117,7 +123,7 @@ def audit_titles_one_line(slides: list[str], iss: Issues):
     for i, fr in enumerate(slides, 1):
         layout = slide_attr(fr, 'layout') or '?'
         if layout in HERO_TITLE_LAYOUTS:
-            continue   # cover / image-text / end are allowed multi-line
+            continue   # cover / image-text / end allow multi-line hero titles
         # Match h2 / h1 with class containing "title" or "title-zh"
         title_re = re.compile(
             r'<h[12][^>]*class="[^"]*\btitle(?:-zh)?\b[^"]*"[^>]*>(.*?)</h[12]>',
@@ -143,6 +149,11 @@ def audit_copy_rules(html: str, iss: Issues):
     if not body_m: return
     body = re.sub(r'<script.*?</script>', '', body_m.group(1), flags=re.S)
     body = re.sub(r'<style.*?</style>', '', body, flags=re.S)
+    # Strip SVG content too — inline SVG can carry <title>foo</title> /
+    # <desc> for a11y and those texts are NOT slide copy. Without this,
+    # any SVG with a `!` in its accessible title falsely triggers R05.
+    # (audit_hex_palette already strips SVG for the same family of reasons.)
+    body = re.sub(r'<svg.*?</svg>', '', body, flags=re.S | re.I)
     text = re.sub(r'<[^>]+>', ' ', body)
 
     # Emoji
@@ -159,6 +170,64 @@ def audit_copy_rules(html: str, iss: Issues):
         iss.err('R05', "'???' detected in slide text")
 
 
+def _iter_style_blocks(html: str, *, include_framework: bool = True):
+    """Iterate `<style>` block contents in `html`.
+
+    Yields `(css_text, is_framework)` tuples. The is_framework flag is
+    True for `<style data-source="framework">` blocks (CSS files inlined
+    by inline_linked() in main()).
+
+    Audits that police AUTHOR CSS (R-WHITE-TEXT, R47, …) should call
+    with `include_framework=False` — framework master-spec rules have
+    their own review process and are exempt from the per-deck audit.
+
+    Audits that need ALL CSS (R29-R32 chrome, R36 centering pattern,
+    R20 per-page ladder) call with the default `include_framework=True`.
+    """
+    pat = re.compile(r'<style(?P<attrs>[^>]*)>(?P<body>.*?)</style>', re.S)
+    for m in pat.finditer(html):
+        attrs = m.group('attrs') or ''
+        is_framework = 'data-source="framework"' in attrs
+        if is_framework and not include_framework:
+            continue
+        yield m.group('body'), is_framework
+
+
+def _strip_nested_at_rules(css: str) -> str:
+    """Remove `@media`, `@keyframes`, `@supports`, `@font-face` blocks
+    (and any other `@thing { ... }`) from CSS before flat-rule scanning.
+
+    The audits use `([^{}]+)\\{([^}]+)\\}` to extract `selector { block }`
+    pairs. That regex assumes no nested braces — but real CSS has `@media`
+    / `@keyframes` blocks that wrap inner rules with their own braces.
+    Without stripping, the regex either:
+        a) captures the @media wrapper as a "selector" with the FIRST
+           inner brace pair as its "block", missing every other rule
+           inside that @block, OR
+        b) captures inner rules but with the @-rule still semantically
+           wrapping them, so e.g. R20's `[data-page]` scope check
+           accidentally matches `@media` query expressions.
+
+    Stripping nested @-rules before the scan gives every audit a clean
+    flat CSS to walk. We do this destructively (no preservation) because
+    the audits only need to evaluate top-level rule blocks; nested rules
+    inside @media etc. are responsive variants that aren't subject to
+    the body-floor / type-ladder /drop-shadow rules anyway.
+    """
+    # Strip simple block-style at-rules. A bracket-balanced regex would
+    # be ideal but Python re lacks recursion; iterate until no change.
+    pattern = re.compile(r'@[a-zA-Z-]+[^{]*\{(?:[^{}]|\{[^{}]*\})*\}', re.S)
+    prev = None
+    out = css
+    # Cap iterations to avoid pathological inputs
+    for _ in range(10):
+        prev = out
+        out = pattern.sub('', out)
+        if out == prev:
+            break
+    return out
+
+
 def audit_font_sizes(html: str, iss: Issues):
     """R06 / R17 / R18 / R19: font-size minimums on SLIDE CONTENT only.
 
@@ -169,7 +238,7 @@ def audit_font_sizes(html: str, iss: Issues):
     """
     violations = []
     for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
-        css = style_m.group(1)
+        css = _strip_nested_at_rules(style_m.group(1))
         for rule_m in re.finditer(r'([^{}]+)\{([^}]+)\}', css):
             selector = rule_m.group(1).strip()
             block    = rule_m.group(2)
@@ -250,6 +319,9 @@ def audit_type_ladder(html: str, iss: Issues):
         css = style_m.group(1)
         # Strip CSS comments first so they can't pollute selector capture
         css_clean = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+        # Strip nested @-blocks (media/keyframes/supports) — the rule
+        # regex below can't handle nested braces.
+        css_clean = _strip_nested_at_rules(css_clean)
         for rule_m in re.finditer(r'([^{}]+)\{([^}]+)\}', css_clean):
             selector = rule_m.group(1).strip()
             block    = rule_m.group(2)
@@ -290,21 +362,27 @@ def audit_no_drop_shadows(html: str, iss: Issues):
     A glow ring uses zero offset and blur, just spread:
         box-shadow: 0 0 0 6px rgba(...)           ← glow ring (allowed)
     Inset shadows are also allowed (decorative inner highlight).
+
+    Exemption: real drop shadows on UI-mock window chrome (`.ui-window`
+    / `.phone-frame` / `.desktop-frame` etc.) are legitimate — those
+    primitives recreate macOS app windows where a soft depth shadow is
+    part of the simulation. Mark such rules with `/* allow:drop-shadow */`
+    in the same block to opt out (same convention as R20's
+    /* allow:typescale */ and R-WHITE-TEXT's /* allow:white-opacity */).
     """
     glow_ring_re = re.compile(r'^\s*0\s+0\s+0(?:\s+\d+\w+)?\s')   # "0 0 0 [Npx ...]"
     inset_re     = re.compile(r'\binset\b')
 
     style_m = re.findall(r'<style[^>]*>(.*?)</style>', html, re.S)
-    for css in style_m:
+    for raw_css in style_m:
+        css = _strip_nested_at_rules(raw_css)
+        # Walk rule blocks but preserve raw text per-rule so we can detect
+        # the /* allow:drop-shadow */ marker (it survives comment-stripping
+        # because we never strip comments in audit_no_drop_shadows).
         for m in re.finditer(r'(\.slide[^{,]*)\s*\{([^}]*)\}', css):
             selector = m.group(1)
             block = m.group(2)
-            # Skip allowed wrappers (UI mock window chrome is the documented
-            # exception per "no drop shadows" rule — they're product UI mocks,
-            # not slide content cards)
-            if any(s in selector for s in ('frame', 'phone-frame',
-                                            'desktop-frame', 'controls',
-                                            'ui-window', 'ui-browser')):
+            if 'allow:drop-shadow' in block:
                 continue
             for sm in re.finditer(r'box-shadow:\s*([^;}]+)', block):
                 value = sm.group(1).strip()
@@ -315,7 +393,9 @@ def audit_no_drop_shadows(html: str, iss: Issues):
                 # Anything else with non-zero offset → real drop shadow
                 iss.warn('R12',
                     f'real drop shadow on `{selector.strip()}` — `box-shadow: {value}` '
-                    '(use hairline + contrast instead)')
+                    '(use hairline + contrast instead, OR add '
+                    '/* allow:drop-shadow */ in the rule if this is a UI-mock '
+                    'window chrome that legitimately needs depth shadow)')
 
 
 def audit_data_decor(slides: list[str], iss: Issues):
@@ -370,17 +450,36 @@ def audit_runtime_chrome(html: str, iss: Issues, html_path: 'Path'):
     inline_scripts = re.findall(r'<script[^>]*>(.+?)</script>', html, re.S)
     script_blocks = ' '.join(inline_scripts)
 
-    # External <script src="..."> — load file content if it resolves
+    # External <script src="..."> — load file content if it resolves.
+    # If the src is a relative path but the file is missing OR unreadable,
+    # report the SPECIFIC failure (not "deck-progress missing"). Otherwise
+    # the user sees 7 generic chrome-missing errors and has to guess that
+    # the real cause is a broken JS link.
     base_dir = html_path.parent
+    js_link_failures: list[str] = []
     for src in re.findall(r'<script[^>]*\bsrc=["\']([^"\']+)["\']', html):
         if src.startswith(('http:', 'https:', '//', 'data:')):
             continue
         js_path = (base_dir / src).resolve()
-        if js_path.is_file():
-            try:
-                script_blocks += ' ' + js_path.read_text(encoding='utf-8', errors='replace')
-            except OSError:
-                pass
+        if not js_path.is_file():
+            js_link_failures.append(
+                f'JS file not found: {src} (resolved to {js_path}). '
+                'Did the deck folder move without `copy-assets.py`? '
+                'Subsequent R29-R32 needle errors are downstream of this.')
+            continue
+        try:
+            script_blocks += ' ' + js_path.read_text(encoding='utf-8', errors='replace')
+        except OSError as e:
+            js_link_failures.append(
+                f'JS file unreadable: {src} ({type(e).__name__}: {e}). '
+                'Subsequent R29-R32 needle errors are downstream of this.')
+
+    if js_link_failures:
+        for msg in js_link_failures:
+            iss.err('R29-32', msg)
+        # If linked JS is broken, skip needle checks — they'll all fail
+        # with downstream noise that hides the real cause.
+        return
 
     # All searchable text (HTML markup + inline JS + linked JS bodies)
     full_text = html + ' ' + script_blocks
@@ -767,6 +866,7 @@ def audit_default_centering(html: str, iss: Issues):
     """R48: every fixed-shape container layout vertically centers by default."""
     for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
         css = re.sub(r'/\*.*?\*/', '', style_m.group(1), flags=re.S)
+        css = _strip_nested_at_rules(css)
         for missing in check_default_centering(css):
             iss.err('R48',
                 f'data-layout="{missing}" container has no vertical-centering '
@@ -807,10 +907,11 @@ def audit_variant_discipline(html: str, iss: Issues):
     align_props = ('align-items:', 'place-items:')
     justify_props = ('justify-content:', 'place-content:')
 
-    for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
-        css = style_m.group(1)
-        # Strip CSS comments so they don't contaminate selector reports
-        css = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+    # Variants are an author-CSS concern; framework declares its variants
+    # under master-spec review and doesn't need this rule.
+    for raw, _is_fw in _iter_style_blocks(html, include_framework=False):
+        css = re.sub(r'/\*.*?\*/', '', raw, flags=re.S)
+        css = _strip_nested_at_rules(css)
         for rule_m in re.finditer(r'([^{}]+)\{([^}]+)\}', css):
             selector = rule_m.group(1).strip()
             block    = rule_m.group(2)
@@ -1149,10 +1250,12 @@ def audit_white_text(html: str, iss: Issues, strict: bool):
     fs_re = re.compile(r'font-size:\s*(\d+)px')
 
     flagged: list[tuple[str, str]] = []
-    for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
-        css = re.sub(r'/\*.*?\*/', '', style_m.group(1), flags=re.S)
-        # but re-attach the marker comment if present
-        raw = style_m.group(1)
+    # Skip framework CSS — its master-spec rules carry their own
+    # allow:white-opacity tags where appropriate. R-WHITE-TEXT polices
+    # author CSS, where the gray-text-on-projector trap actually hurts.
+    for raw, _is_fw in _iter_style_blocks(html, include_framework=False):
+        css = re.sub(r'/\*.*?\*/', '', raw, flags=re.S)
+        css = _strip_nested_at_rules(css)
         for rule_m in re.finditer(r'([^{}]+)\{([^}]+)\}', css):
             selector = rule_m.group(1).strip()
             block = rule_m.group(2)
@@ -1260,6 +1363,25 @@ def audit_feedback_md(html_path: Path, iss: Issues):
             'to auto-stub the file, then fill in agent decisions before '
             'hand-off. (Path A render.py emits this automatically; '
             'freehand decks need it written by hand.)')
+        return
+
+    # Detect the finalize.sh auto-stub. If found, the file exists but is
+    # empty of agent-authored content — finalize.sh just created a
+    # placeholder. Keep warning until the agent fills it in.
+    try:
+        content = feedback.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return
+    if 'FEEDBACK.md.auto-stub' in content:
+        iss.warn('R-FEEDBACK',
+            f'{feedback.name} exists but is an unfilled auto-stub from '
+            '`finalize.sh`. The agent must replace the placeholder '
+            'sections with real decisions from this run BEFORE hand-off. '
+            'Look for `## 关键决策(本 run 实际发生的判断)` — every entry '
+            'should describe one concrete choice the agent made (layout '
+            'pick, sizing tweak, validator workaround, copy shortening) '
+            'with `**为什么**:` + checkbox. Drop the auto-stub HTML '
+            'comment once you\'ve filled it in to silence this warning.')
 
 
 def audit_visual_overflow(html_path: Path, iss: Issues):
@@ -1374,6 +1496,12 @@ def main():
     # Resolve linked stylesheets and scripts so audits can see their content
     # (the linked-mode deck doesn't inline CSS/JS — without this, runtime-chrome
     # and centering-pattern audits would false-fail).
+    #
+    # Inlined `<style>` and `<script>` blocks carry `data-source="framework"`
+    # so author-CSS audits (R-WHITE-TEXT, R47, future rules) can scope
+    # themselves to author markup and skip framework rules they shouldn't
+    # police. Audits that DO want to see framework (R29-R32 runtime chrome,
+    # R36 centering pattern, R10 hex palette) can ignore the attribute.
     def inline_linked(html_text, base_dir):
         # <link rel="stylesheet" href="...css">
         def repl_link(m):
@@ -1381,7 +1509,9 @@ def main():
             if href.startswith(('http:', 'https:', 'data:')): return m.group(0)
             target = (base_dir / href).resolve()
             if not target.is_file(): return m.group(0)
-            return '<style>' + target.read_text(encoding='utf-8') + '</style>'
+            return ('<style data-source="framework">'
+                    + target.read_text(encoding='utf-8')
+                    + '</style>')
         html_text = re.sub(
             r'<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>',
             repl_link, html_text)
@@ -1391,7 +1521,9 @@ def main():
             if src.startswith(('http:', 'https:', 'data:')): return m.group(0)
             target = (base_dir / src).resolve()
             if not target.is_file(): return m.group(0)
-            return '<script>' + target.read_text(encoding='utf-8') + '</script>'
+            return ('<script data-source="framework">'
+                    + target.read_text(encoding='utf-8')
+                    + '</script>')
         html_text = re.sub(
             r'<script[^>]*src="([^"]+)"[^>]*>\s*</script>',
             repl_script, html_text)

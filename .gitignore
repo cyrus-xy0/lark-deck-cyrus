@@ -43,3 +43,6 @@ package-lock.json
 *.bak
 *.orig
 *~
+
+# Preflight cache (per-machine cross-clone search results)
+.feishu-deck-h5-preflight-cache

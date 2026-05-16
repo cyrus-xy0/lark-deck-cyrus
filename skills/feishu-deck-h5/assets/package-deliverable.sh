@@ -85,6 +85,7 @@ trap 'rm -rf "$STAGE"' EXIT
 cp "$HTML_FILE"  "$STAGE/index.html"
 cp "$TEXTS_FILE" "$STAGE/texts.md"
 cp "$SKILL_DIR/assets/apply-texts.py"        "$STAGE/apply-texts.py"
+cp "$SKILL_DIR/assets/texts_common.py"       "$STAGE/texts_common.py"
 cp "$SKILL_DIR/templates/apply.command"      "$STAGE/apply.command"
 cp "$SKILL_DIR/templates/apply.bat"          "$STAGE/apply.bat"
 cp "$SKILL_DIR/templates/README-deliverable.txt" "$STAGE/README.txt"
@@ -98,7 +99,7 @@ rm -f "$ZIP_PATH"
 # -X strips extra timestamps; -j flattens (no parent dir) so users see
 # files at the top of the zip when they unpack
 ( cd "$STAGE" && zip -q -X "$ZIP_PATH" \
-    index.html texts.md apply-texts.py \
+    index.html texts.md apply-texts.py texts_common.py \
     apply.command apply.bat README.txt )
 
 if [ ! -f "$ZIP_PATH" ]; then
