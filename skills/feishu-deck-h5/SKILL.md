@@ -2426,137 +2426,117 @@ What you MUST preserve:
   NOT as raster images (UI1)
 - Photographic backgrounds → use `data-decor="photo-bg"` with `style="--photo: url(...)"`
 
-#### Typography floor — content body & captions (mandatory, ≥ 22 px)
+#### Typography — 4-tier strict for content pages (mandatory, 2026-05-16)
 
-Two enforced floors. **Validator R06 enforces both** as of 2026-05-16
-(prior to that, only the chrome floor was checked, and the body floor
-was a documented-but-unenforced norm — which is why "字还是小" kept
-showing up in delivered decks):
+**The math**: PPT 16:9 canvas is 13.33" × 7.5". 1pt = 1/72". Web canvas
+1920×1080 ⇒ 1920 ÷ 13.33 ≈ 144 dpi ⇒ **1pt ≈ 2px**. Standard
+consulting-deck PPT sizes map cleanly:
 
-- **Chrome floor: ≥ 14 px** (current behaviour) — applies to selectors
-  matching chrome-class names: `.eyebrow`, `.footnote`, `.pageno`,
-  `.attrib`, `.source`, `.pill`, `.chip`, `.tag`, `.badge`, `.meta`,
-  `.trend`, `.cfoot`, `.stnum`, `.chapter-num`, `.unit`, `.kpi-unit`,
-  `.stat-unit`, `.iframe-hint`, `.deck-pageno` and any `.ui-*` mockup
-  primitive (`.ui-window`, `.ui-list`, `.ui-msg`, `.ui-btn`, etc.).
-  Sizes < 14 are errors; chrome can sit at 14, 18 (rung 6 pill), or
-  any rung above.
-
-- **Body floor: ≥ 22 px** (newly enforced 2026-05-16) — applies to
-  selectors matching body-class names: `.cbody`, `.body`, `.desc`,
-  `.sub`, `.lede`, `.paragraph`, `.para`, `.caption`, `.cap`, `.note`,
-  `.feat-body`, `.brand-desc`, `.dir-desc`, `.dir-sub`, `.sc-obj`,
-  `.sc-lever`, `.arch-item`, `.arch-base`, `.arch-hand-title`,
-  `.story-hook`, `.story-arc`, `.principle`, `.voice-card`, `.voice-q`,
-  `.cta-box`, `.who`, `.hook`, `.takeaway`, `.callout-body`,
-  `.col-text`, `.page-sub`, `.subtitle`, `.lead`, `.timeline-desc`,
-  `.ts-tasks`, `.ts-time`. Sizes < 22 on these selectors are errors.
-  Bump to 22 (rung 5).
-
-| Role | Minimum | Notes |
-|---|---|---|
-| Card body description (e.g. `.dir-desc`, `.brand-desc`, `.feat-body`, `.cbody`) | **22 px** | Often paired with 1.45–1.55 line-height |
-| Image caption under a `pic-frame` / `pic-cell` (e.g. `.pic-cap`, `.caption`) | **22 px** | Use body, not chrome — captions are content |
-| Sub-heading under a card name (e.g. `.dir-sub`) | **22 px** | Bump to 700 weight for hierarchy if needed |
-| Timeline / table cell content (e.g. `.ts-tasks`, `.tr td`, `.node .desc`) | **22 px** | Each cell IS body content; don't drop to 16-18 px to fit more rows |
-| Time-slot label / row header (e.g. `.ts-time`) | **22 px** | Even a 4-character header is body |
-| Process step body (e.g. `.step p`) | **22 px** | Same family as `.desc` |
-| Two-hand-arch items + base (`.arch-item`, `.arch-base`, `.arch-hand .sub`, `.arch-hand-title .em`) | **22 px** | Architecture-pattern body lines |
-| Voice-card attribution (`.voice-card .who`) | **22 px** | Customer name MUST be legible — `.attrib` (chrome) is for anonymous citations |
-| CTA box body + button (`.cta-box .l p`, `.cta-btn`) | **22 px** | The CTA is the slide's emphasis — never make it small |
-| Scene-grid descriptors (`.sc-obj`, `.sc-lever`) | **22 px** | The lever line is the rhetorical hook of the layout |
-| Content chips that carry meaning (e.g. `.lib-chip` listing knowledge sources) | **18 px min** | Borderline — for chrome-feeling chips use `.tag` / `.pill` instead |
-| Large numerals as visual markers (e.g. `01` / `02` / `03` / `04`) | **38 px** | Rung 3 of the type ladder; 36 was the OLD recommendation but is off-ladder. Use 38. |
-| Tag pills (filter / category toggles, only meta) | 14–18 px allowed | True chrome |
-| Footnote / "排名不分先后" disclaimer | 14 px allowed | True chrome |
-| Mockup-internal text (Lark Doc body, dashboard label inside `.ui-window`) | 10–13 px allowed | Tag with `/* allow:typescale */`; rung 8 |
-
-**Opt-outs**:
-- `/* allow:typescale */` — full exemption from R06 + R20 (use for
-  rung-8 mockup-internal text; e.g. simulated Lark Doc body inside
-  `.ui-window`).
-- `/* allow:body-floor */` — exempt this specific rule from R06's
-  body floor (use sparingly for genuine cases where a body-class
-  selector legitimately needs < 22 px; rare).
-
-If a card layout can't fit 22 px body without overflow, the fix is to
-**reduce content / shorten copy / reduce columns** — never shrink the
-body below 22 px. Changing `font-size` to escape an overflow is a
-content-density problem masquerading as a typography problem.
-
-**Why this matters**: master 母版 content pages put body at 22–28 pt,
-projected on 1920×1080 from 5+ meters back. 16 px body works in a
-desktop preview but vanishes on a meeting-room screen. Pre-2026-05-16
-the validator only enforced 14 px (chrome floor); body classes
-authored at 16-20 px slipped through silently and the user kept
-flagging "字还是小" delivery after delivery. R06's body floor (22 px)
-now closes that gap.
-
-#### Modular type scale — pick from the ladder, do NOT free-style (mandatory)
-
-Body floor (22 px) is a *minimum*, not a target. To keep cross-page
-visual rhythm consistent, **every `font-size` declaration in per-page
-`<style>` MUST be picked from this 8-rung ladder**, not invented:
-
-| Rung | Px | Role | Example |
+| Tier | PPT (pt) | Web (px) | Role |
 |---|---|---|---|
-| 1 | **100** | cover hero title | `data-layout="cover"` H1 |
-| 2 | **44** | page H2 (slide title) | `.title-zh` |
-| 3 | **38** | content title (sub-heading inside body) | `.ctitle` |
-| 4 | **28** | column-title / section heading inside a card | `.col-title`, `.persona-meta h3`, `.lede` |
-| 5 | **22** | body copy (= R06 floor) | `.dir-desc`, list items, `.sec ul` |
-| 6 | **18** | pill / inline tag / sub-meta inside a card | `.persona-meta dl`, `.skill-pill` |
-| 7 | **14** | chrome (footnote, disclaimer, present-mode pager) | `.deck-pageno`, `.eyebrow` Latin caps |
-| 8 | **10–13** | mockup-internal text (simulated Lark Doc body, doc-card titles) | `.report-toc .l1`, `.doc-card .doc-h` |
+| Title | 18–24 | **48** | Action Title — the headline conclusion on a content slide |
+| Sub | 14 | **28** | Subtitle / column-title / lede (optional tier) |
+| Body | 10–12 | **24** | Paragraphs, list items, table cells, captions |
+| Foot | 8 | **16** | Footnote, eyebrow, pill, tag, attrib, source, page metadata |
 
-Decreasing ratio between rungs is ~1.3–1.5× — the standard modular
-scale. Ascending ratios are: 13→14 (1.08, chrome jitter), 14→18 (1.29),
-18→22 (1.22), 22→28 (1.27), 28→38 (1.36), 38→44 (1.16), 44→100 (2.27).
+**Hard rule**: every CONTENT slide uses **only these four sizes**. The
+hierarchy ratio (48 / 24 = 2.0×, 24 / 16 = 1.5×) is what makes the
+deck read crisply from 5 m back.
 
-**Forbidden between-rung values**: 16, 17, 19, 20, 24, 26, 32, 36, 40,
-48, 60, 72, 80, 96 px. If you find yourself wanting one of these, you've
-mis-classified the role — pick the correct rung instead. (Earlier
-versions of this doc said "36 px is OK for `.dir-num` numerals" — that
-was a contradiction with R20; numeral markers should be **38** (rung 3),
-which is on-ladder and visually identical.)
+##### What's a "content page" vs a "hero exception"
 
-**Mockup-internal exception (rung 8)**: text *inside* a simulated UI
-(Lark Doc preview, dashboard mock, chart label) sits at 10–13 px to
-look "small inside a real-size doc". Use this ONLY when the parent is
-visually a UI mockup, never for actual slide copy.
+| Type | Tier system | Examples |
+|---|---|---|
+| **Content** (80% of slides) | 4-tier strict | content-3up · content-2col · stats · table · timeline · process · agenda body · scene-grid · north-star-map · the body of EVERY content slide |
+| **Hero exception** (≤20%) | Master-spec values, OUT of 4-tier | cover hero title (100) · section chapter-num (160) · section H2 (88) · big-stat number (132+) · quote blockquote (88) · end slogan PNG |
 
-##### Enforced by validator R20 — per-page CSS only
+Hero exceptions appear ONLY in their respective layouts and ONLY for
+the explicit hero element. Everything ELSE on those slides (cover
+author, section lede, big-stat caption, etc.) still uses the 4-tier.
 
-`assets/validate.py` rule R20 audits **every** `font-size` declaration in
-selectors scoped to `[data-page="NN"]` (i.e. per-page `<style>` blocks
-where agents improvise card typography). The allowed set is:
+##### CSS variables for 4-tier (framework provides them)
 
-```
-{10, 11, 12, 13, 14, 18, 22, 28, 38, 44, 52, 56, 64, 88, 100, 132, 160}
+```css
+:root {
+  --fs-title: 48px;   /* Action Title */
+  --fs-sub:   28px;   /* Subtitle (optional) */
+  --fs-body:  24px;   /* Body copy */
+  --fs-foot:  16px;   /* Footnote / chrome */
+}
 ```
 
-Anything else (16, 17, 19, 20, 24, 26, 30, 32, 36, 40, 48, 60, 72, 80, 96, …)
-fails as `R20 off-ladder`. **Before writing any `font-size: Npx` in a
-per-page `<style>`, recite the allowed list and pick the nearest rung.**
-Don't free-style.
+Author CSS in per-page `<style>` blocks should prefer the variables
+over hardcoded px:
 
-Genuine master-spec exceptions (e.g. master says exactly 92 px for a quote)
-opt out by adding `/* allow:typescale */` in the same CSS rule. Use sparingly
-and document why in an inline comment — it's an audit escape, not a default.
+```css
+[data-page="03"] .slide .card-title { font: 700 var(--fs-title) / 1.2 var(--fs-font-cjk); }
+[data-page="03"] .slide .card-body  { font: 500 var(--fs-body)  / 1.5 var(--fs-font-cjk); }
+```
 
-The global framework stylesheet (`feishu-deck.css`) is exempt from R20 — it
-has its own master-spec review process. R20 only fires on per-page rules,
-which is exactly where the off-ladder drift happens.
+Plain `font-size: 48px` is fine too — the validator accepts both forms.
 
-**Postmortem 1 — P32**: 5+ iterations because elements were sized 16 / 22 / 24
-ad-hoc. The eye reads 22 / 24 / 28 as "three slightly different sub-titles"
-rather than one consistent rhythm. Snap to ladder (22→28 / 16→18) and the
-page locks in.
+##### Enforced by validator R06 + R20
 
-**Postmortem 2 — Bytedance run 20260505 P03/P06**: timeline events at 17 / 18 / 15
-(below 22 body floor *and* off-ladder), market-card text at 24 / 16 / 16
-(off-ladder + below floor). Rule R20 was added after this run to make the
-ladder a hard gate rather than a documented norm.
+- **R06 chrome floor**: any content-page selector that doesn't match a
+  body class (chrome / pill / tag / foot / eyebrow / attrib / source /
+  pageno / `.ui-*` mockup / etc.) must be ≥ 16 px. Below 16 → error.
+- **R06 body floor**: any selector matching body classes (`.cbody` /
+  `.body` / `.desc` / `.sub` / `.lede` / `.paragraph` / `.caption` /
+  `.feat-body` / `.dir-desc` / `.sc-obj` / `.sc-lever` / `.arch-item` /
+  `.arch-base` / `.principle` / `.voice-card` / `.cta-box` / `.who` /
+  `.col-text` / `.page-sub` / `.subtitle` / `.ts-tasks` / etc.) must be
+  ≥ 24 px. Below 24 → error.
+- **R20 type-tier ladder**: every `font-size` in a `[data-page="NN"]`
+  scoped CSS rule must be exactly one of `{16, 24, 28, 48}`. Anything
+  else fails as `R20 off-tier`. Framework CSS (feishu-deck.css) is
+  exempt — its hero rules (88/100/132/160) come from master spec.
+
+##### Opt-outs (sparingly, document why)
+
+- `/* allow:typescale */` — full exemption from R06 + R20. Use for:
+  1. Hero exceptions in per-page CSS (cover 100, section 88/160,
+     big-stat 132+, quote 88+ when authored per-page).
+  2. Mockup-internal text inside `.ui-window` / `.ui-doc` simulations
+     (10–13 px to look "small inside a real-size app").
+- `/* allow:body-floor */` — exempt this specific rule from R06's
+  body floor only. Extremely rare.
+- `/* allow:white-opacity */` — exempt from R-WHITE-TEXT (unrelated
+  but lives in the same opt-out family).
+
+##### Common drift to recognize and fix
+
+The 4-tier is so simple that drift is obvious. If you find yourself
+typing any of these px values in per-page CSS, you're off-tier:
+
+```
+DRIFT          → SNAP TO
+  14, 18, 20   → 16 (chrome / pill / tag) or 24 (body)
+  22           → 24 (body floor, was OLD value, bumped 2026-05-16)
+  26, 30, 32   → 28 (sub)
+  36, 38, 40   → 48 (title)
+  44, 52, 56   → 48 (title)
+```
+
+**Why this strict regime**:
+- Hierarchy reads instantly when there are 4 size values, not 8 or 12.
+  48 / 24 / 28 / 16 gives 2× / 1.16× / 1.5× ratios — the eye picks
+  up "this is a title, that is a body" pre-attentively. Sub-tier
+  drift (5 sizes between 28 and 18) blurs the boundaries.
+- Pre-2026-05-16 the skill ran an 8-rung ladder (10/14/18/22/28/38/44/
+  52/56/64/88/100/132/160). Every deck had 8–12 distinct sizes. Users
+  consistently flagged "层次不够突出" and "字还是小". The 4-tier collapses
+  that range into the 4 spec values.
+
+##### Postmortems (kept for context — pre-2026-05-16 sizing)
+
+- **P32**: 5+ iterations because elements were sized 16 / 22 / 24
+  ad-hoc. The eye read 22 / 24 / 28 as "three slightly different
+  sub-titles" rather than one consistent rhythm. Under 4-tier
+  this can't happen — only 24 exists in the body range.
+- **20260505 P03/P06**: timeline events at 17 / 18 / 15 (below body
+  floor AND off-ladder); market-card text at 24 / 16 / 16. The 4-tier
+  ladder makes the "snap" choice trivial: 24 for body content, 16
+  for chrome.
 
 #### Nested grids must replicate the parent's column ratio (mandatory)
 

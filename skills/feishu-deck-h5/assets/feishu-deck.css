@@ -53,6 +53,18 @@
   --fs-font-latin: "Inter","Helvetica Neue","Arial",sans-serif;
   --fs-font-mono:  "JetBrains Mono","SF Mono","Menlo",monospace;
 
+  /* — Type scale (4-tier strict for CONTENT pages) — */
+  /* 2026-05-16: content slides use only these 4 sizes. Hero layouts
+     (cover / section / big-stat / end / quote) keep their master-spec
+     hero values and are NOT subject to this scale. See SKILL.md
+     "Typography floor" for the discipline. Rule of thumb:
+       PPT 16:9 13.33"×7.5" at 1pt = 1/72" → 1920×1080 canvas, 1pt ≈ 2px.
+       Title 24pt = 48px · Sub 14pt = 28px · Body 12pt = 24px · Foot 8pt = 16px. */
+  --fs-title: 48px;        /* Action Title on content pages */
+  --fs-sub:   28px;        /* Subtitle / column-title / lede (optional) */
+  --fs-body:  24px;        /* Body copy, list items, table cells, captions */
+  --fs-foot:  16px;        /* Footnote, eyebrow caps, pill, tag, attrib, source */
+
   /* — Geometry (1920 canvas) — */
   --fs-pad-x: 96px;
   --fs-pad-y: 64px;
@@ -216,7 +228,7 @@ body {
 .deck-ui {
   position: fixed; z-index: 50; pointer-events: none;
   font-family: var(--fs-font-latin); color: var(--fs-text-48);
-  font-size: 14px; letter-spacing: 0.08em;
+  font-size: 16px; letter-spacing: 0.08em;
 }
 
 /* Top progress bar — present-mode only, brand keyline gradient */
@@ -266,7 +278,7 @@ body {
 .deck-ui .deck-controls .indicator {
   display: inline-flex; align-items: baseline;
   min-width: 64px; justify-content: center;
-  font: 600 14px/1 var(--fs-font-latin); letter-spacing: 0.10em;
+  font: 600 16px/1 var(--fs-font-latin); letter-spacing: 0.10em;
   color: #fff;
 }
 .deck-ui .deck-controls .indicator .sep { color: var(--fs-text-40); margin: 0 2px; }
@@ -276,7 +288,7 @@ body {
 /* Tiny corner hint — present mode only */
 .deck-ui .nav-hint {
   position: fixed; left: 24px; bottom: 32px; pointer-events: none;
-  color: var(--fs-text-40); font: 500 12px/1 var(--fs-font-latin);
+  color: var(--fs-text-40); font: 500 16px/1 var(--fs-font-latin);
   letter-spacing: 0.10em;
 }
 
@@ -354,7 +366,7 @@ body {
 
 /* Eyebrow (uppercase Latin, accent color, tracked) */
 .slide .eyebrow {
-  font: 600 18px/1 var(--fs-font-latin);
+  font: 600 16px/1 var(--fs-font-latin);
   letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--fs-accent);
 }
@@ -368,12 +380,12 @@ body {
 
 /* Reusable bilingual title block */
 .slide .title-zh {
-  font: 600 64px/1.15 var(--fs-font-cjk);
+  font: 600 48px/1.15 var(--fs-font-cjk);
   letter-spacing: -0.005em; color: #fff;
 }
 .slide .title-en {
   margin-top: 14px;
-  font: 500 22px/1.4 var(--fs-font-latin);
+  font: 500 24px/1.4 var(--fs-font-latin);
   color: var(--fs-text-48); letter-spacing: 0.02em;
 }
 
@@ -382,7 +394,7 @@ body {
   font: 500 28px/1.5 var(--fs-font-cjk); color: var(--fs-text-72);
 }
 .slide .lede {
-  font: 500 32px/1.4 var(--fs-font-cjk); color: var(--fs-text-72);
+  font: 500 28px/1.4 var(--fs-font-cjk); color: var(--fs-text-72);
 }
 .slide .caption {
   /* Body content per SKILL.md "Typography floor — content body & captions
@@ -390,7 +402,7 @@ body {
      value was below the documented body floor and read as illegible
      fine print on projector. For chrome-style citations (e.g. footnote
      under a stats table) use `.footnote` (14 px chrome) instead. */
-  font: 500 22px/1.4 var(--fs-font-latin);
+  font: 500 24px/1.4 var(--fs-font-latin);
   color: var(--fs-text-48); letter-spacing: 0.06em;
 }
 
@@ -421,7 +433,7 @@ body {
   border: 1px solid var(--fs-text-16);
   border-radius: var(--fs-radius-pill);
   padding: 10px 18px;
-  font: 500 18px/1 var(--fs-font-cjk);
+  font: 500 16px/1 var(--fs-font-cjk);
   color: var(--fs-text-72);
   background: rgba(255,255,255,0.02);
 }
@@ -448,11 +460,11 @@ body {
    which read as visibly smaller than neighboring slides. content-3up's
    tighter overrides at lines 514-518 still apply where present. */
 .slide .ctitle {
-  font: 600 32px/1.3 var(--fs-font-cjk);
+  font: 600 28px/1.3 var(--fs-font-cjk);
   color: var(--fs-text); margin: 0;
 }
 .slide .cbody {
-  font: 500 22px/1.6 var(--fs-font-cjk);
+  font: 500 24px/1.6 var(--fs-font-cjk);
   color: var(--fs-text-72); margin: 0;
 }
 
@@ -569,7 +581,7 @@ body {
    52 px rule below now applies to ALL content layouts.
    See feishu-deck.css line ~922 .slide .header .title-zh */
 .slide[data-layout="content-3up"] .header .pageno {
-  font: 500 18px/1 var(--fs-font-latin);
+  font: 500 16px/1 var(--fs-font-latin);
   color: var(--fs-text-48); letter-spacing: 0.18em;
 }
 .slide[data-layout="content-3up"] .grid {
@@ -580,20 +592,20 @@ body {
   display: flex; justify-content: space-between; align-items: center;
 }
 .slide[data-layout="content-3up"] .card .num {
-  font: 700 56px/1 var(--fs-font-latin);
+  font: 700 48px/1 var(--fs-font-latin);
   color: var(--fs-accent); opacity: 0.55; letter-spacing: -0.02em;
 }
 .slide[data-layout="content-3up"] .card .ctitle {
-  font: 600 32px/1.3 var(--fs-font-cjk); color: #fff;
+  font: 600 28px/1.3 var(--fs-font-cjk); color: #fff;
 }
 .slide[data-layout="content-3up"] .card .cbody {
   /* 2026-05-16: 20 → 22 — body content per SKILL.md typography floor. */
-  font: 500 22px/1.55 var(--fs-font-cjk); color: var(--fs-text-65); flex: 1;
+  font: 500 24px/1.55 var(--fs-font-cjk); color: var(--fs-text-65); flex: 1;
 }
 .slide[data-layout="content-3up"] .card .cfoot {
   display: flex; align-items: center; justify-content: space-between;
   border-top: 1px solid var(--fs-hairline); padding-top: 16px;
-  font: 500 14px/1 var(--fs-font-latin); letter-spacing: 0.14em;
+  font: 500 16px/1 var(--fs-font-latin); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--fs-text-48);
 }
 .slide[data-layout="content-3up"] .card .cfoot svg { color: var(--fs-accent); }
@@ -682,7 +694,7 @@ body {
    to system font and renders smaller). */
 .slide[data-layout="stats"] .col .trend {
   display: inline-flex; align-items: center; gap: 8px;
-  font: 600 20px/1 var(--fs-font-cjk); letter-spacing: 0.04em;
+  font: 600 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em;
   text-transform: none; color: var(--fs-accent);
 }
 .slide[data-layout="stats"] .col .num {
@@ -690,18 +702,18 @@ body {
   color: #fff;
 }
 .slide[data-layout="stats"] .col .num .unit {
-  font-size: 56px; color: var(--fs-text-72); margin-left: 8px; font-weight: 600;
+  font-size: 48px; color: var(--fs-text-72); margin-left: 8px; font-weight: 600;
 }
 .slide[data-layout="stats"] .col .label {
   font: 500 24px/1.4 var(--fs-font-cjk); color: var(--fs-text-72);
 }
 .slide[data-layout="stats"] .col .source {
-  font: 500 14px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
+  font: 500 16px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
   letter-spacing: 0.06em;
 }
 .slide[data-layout="stats"] .footnote {
   position: absolute; left: 96px; right: 96px; bottom: 110px;
-  font: 500 14px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
+  font: 500 16px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
   letter-spacing: 0.04em;
 }
 
@@ -721,7 +733,7 @@ body {
 }
 .slide[data-layout="image-text"] h2.title {
   margin-top: 24px;
-  font: 700 96px/1.1 var(--fs-font-cjk); letter-spacing: -0.005em;
+  font: 700 48px/1.1 var(--fs-font-cjk); letter-spacing: -0.005em;
 }
 .slide[data-layout="image-text"] .lede { margin-top: 28px; color: var(--fs-text-65); }
 
@@ -751,7 +763,7 @@ body {
 }
 .slide[data-layout="table"] tbody td {
   padding: 26px 24px; vertical-align: top;
-  font: 500 22px/1.45 var(--fs-font-cjk); color: var(--fs-text-72);
+  font: 500 24px/1.45 var(--fs-font-cjk); color: var(--fs-text-72);
   border-bottom: 1px solid var(--fs-hairline);
 }
 .slide[data-layout="table"] tbody td:first-child {
@@ -801,12 +813,12 @@ body {
   font: 700 28px/1 var(--fs-font-latin); color: #fff; letter-spacing: 0.04em;
 }
 .slide[data-layout="timeline"] .node .what {
-  font: 600 26px/1.3 var(--fs-font-cjk); color: #fff;
+  font: 600 28px/1.3 var(--fs-font-cjk); color: #fff;
 }
 .slide[data-layout="timeline"] .node .desc {
   /* 2026-05-16: 18 → 22 — timeline node body content per SKILL.md
      typography floor. Was reading as illegible fine print on projector. */
-  font: 500 22px/1.5 var(--fs-font-cjk); color: var(--fs-text-65);
+  font: 500 24px/1.5 var(--fs-font-cjk); color: var(--fs-text-65);
 }
 
 /* ============================================================================
@@ -830,14 +842,14 @@ body {
   display: flex; flex-direction: column; gap: 20px; position: relative;
 }
 .slide[data-layout="process"] .step .stnum {
-  font: 700 56px/1 var(--fs-font-latin); color: var(--fs-accent); opacity: 0.6;
+  font: 700 48px/1 var(--fs-font-latin); color: var(--fs-accent); opacity: 0.6;
 }
 .slide[data-layout="process"] .step h3 {
   font: 600 28px/1.3 var(--fs-font-cjk); color: #fff;
 }
 .slide[data-layout="process"] .step p {
   /* 2026-05-16: 18 → 22 — process-step body per SKILL.md typography floor. */
-  font: 500 22px/1.55 var(--fs-font-cjk); color: var(--fs-text-65);
+  font: 500 24px/1.55 var(--fs-font-cjk); color: var(--fs-text-65);
 }
 .slide[data-layout="process"] .step:not(:last-child)::after {
   content: ""; position: absolute; right: -22px; top: 50%;
@@ -859,7 +871,7 @@ body {
   gap: 14px 0;
 }
 .slide[data-layout="process"] .output .attrs > * {
-  font: 500 22px/1.4 var(--fs-font-cjk);
+  font: 500 24px/1.4 var(--fs-font-cjk);
   color: var(--fs-text-72);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -883,7 +895,7 @@ body {
   position: absolute; top: 96px; left: 96px; right: 96px;
 }
 .slide[data-layout="agenda"][data-variant="with-header"] .header h2 {
-  font: 700 72px/1.05 var(--fs-font-cjk); letter-spacing: -0.005em;
+  font: 700 48px/1.05 var(--fs-font-cjk); letter-spacing: -0.005em;
 }
 
 /* TOC = vertical pill stack, centered on canvas */
@@ -919,7 +931,7 @@ body {
 
 /* Numeral — italic, large, brand blue */
 .slide[data-layout="agenda"] .toc .item .n {
-  font: italic 700 38px/1 var(--fs-font-latin);
+  font: italic 700 48px/1 var(--fs-font-latin);
   color: var(--fs-blue);
   letter-spacing: 0.04em;
 }
@@ -928,7 +940,7 @@ body {
 .slide[data-layout="agenda"] .toc .item .title-zh {
   /* allow:white-opacity — agenda pill text master-spec hierarchy at 0.92
      keeps the active item's 1.0 readable as "this is the section we're in". */
-  font: 600 32px/1.2 var(--fs-font-cjk);
+  font: 600 28px/1.2 var(--fs-font-cjk);
   color: rgba(255,255,255,0.92);
   letter-spacing: 0.005em;
 }
@@ -1064,7 +1076,7 @@ body {
 }
 .slide .header .eyebrow {
   display: block; margin: 14px 0 0 0;
-  font: 600 14px/1 var(--fs-font-latin); letter-spacing: 0.18em;
+  font: 600 16px/1 var(--fs-font-latin); letter-spacing: 0.18em;
   color: var(--fs-accent);
 }
 .slide .header .title-zh,
@@ -1077,7 +1089,7 @@ body {
      CSS in per-page <style> blocks can adjust title margin normally;
      if you need to push a subtitle further from the title, prefer
      `margin-top` on the subtitle (see `.page-sub` default below). */
-  font: 600 52px/1.1 var(--fs-font-cjk);
+  font: 600 48px/1.1 var(--fs-font-cjk);
   letter-spacing: -0.005em; color: #fff;
   white-space: nowrap;                      /* 规范: single line — no wrap */
   max-width: 100%; overflow: hidden; text-overflow: ellipsis;
@@ -1465,11 +1477,11 @@ body {
   display: inline-flex; align-items: center; gap: 10px;
   padding: 10px 18px; border-radius: 999px;
   border: 1px dashed color-mix(in srgb, var(--fs-teal) 60%, transparent);
-  font: 600 18px/1 var(--fs-font-cjk);
+  font: 600 16px/1 var(--fs-font-cjk);
   color: var(--fs-teal); letter-spacing: 0.02em;
 }
 .slide .north-star::before {
-  content: "★"; font-size: 18px; color: var(--fs-teal);
+  content: "★"; font-size: 16px; color: var(--fs-teal);
 }
 
 /* Verdict pill matrix (pattern B) — Go / Conditional / No-Go cards */
@@ -1491,7 +1503,7 @@ body {
 .slide .verdict-card[data-verdict="nogo"]::before { background: var(--fs-orange); }
 .slide .verdict-card .badge {
   position: absolute; top: 24px; right: 24px;
-  font: 700 14px/1 var(--fs-font-latin); letter-spacing: 0.18em;
+  font: 700 16px/1 var(--fs-font-latin); letter-spacing: 0.18em;
   color: var(--fs-text-72); text-transform: uppercase;
 }
 .slide .verdict-card[data-verdict="go"] .badge        { color: var(--fs-teal); }
@@ -1509,14 +1521,14 @@ body {
 .slide .boundary-no  { border: 1px dashed color-mix(in srgb, var(--fs-orange) 60%, transparent); }
 .slide .boundary-yes { border: 1px solid color-mix(in srgb, var(--fs-teal) 60%, transparent); }
 .slide .boundary-no .pill, .slide .boundary-yes .pill {
-  display: inline-flex; padding: 8px 14px; font: 600 14px/1 var(--fs-font-latin);
+  display: inline-flex; padding: 8px 14px; font: 600 16px/1 var(--fs-font-latin);
   letter-spacing: 0.14em; text-transform: uppercase; border-radius: 999px;
   margin-bottom: 14px;
 }
 .slide .boundary-no .pill  { background: rgba(254,127,0,0.16);  color: var(--fs-orange); }
 .slide .boundary-yes .pill { background: rgba(51,214,192,0.16); color: var(--fs-teal); }
-.slide .boundary-no .body  { font: 500 22px/1.55 var(--fs-font-cjk); color: var(--fs-text-65); text-decoration: line-through; text-decoration-color: rgba(254,127,0,.45); }
-.slide .boundary-yes .body { font: 500 22px/1.55 var(--fs-font-cjk); color: var(--fs-text); }
+.slide .boundary-no .body  { font: 500 24px/1.55 var(--fs-font-cjk); color: var(--fs-text-65); text-decoration: line-through; text-decoration-color: rgba(254,127,0,.45); }
+.slide .boundary-yes .body { font: 500 24px/1.55 var(--fs-font-cjk); color: var(--fs-text); }
 .slide .boundary-yes .hl   { color: var(--fs-teal); font-weight: 600; }
 
 /* Evolution chip (pattern F) — 现阶段 → 未来 */
@@ -1526,12 +1538,12 @@ body {
   border: 1px dashed var(--fs-text-16);
 }
 .slide .evolution-chip .stage-tag {
-  font: 600 14px/1 var(--fs-font-latin); letter-spacing: 0.18em;
+  font: 600 16px/1 var(--fs-font-latin); letter-spacing: 0.18em;
   text-transform: uppercase; color: var(--fs-text-48);
   white-space: nowrap;
 }
 .slide .evolution-chip .stage-body {
-  font: 500 22px/1.4 var(--fs-font-cjk); color: var(--fs-text);
+  font: 500 24px/1.4 var(--fs-font-cjk); color: var(--fs-text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .slide .evolution-chip .stage-body.is-future { color: var(--fs-teal); font-weight: 600; }
@@ -1548,7 +1560,7 @@ body {
      Per SKILL.md: "Content chips that carry meaning ≥ 18 px min" — but
      these are headline strategy labels, treated as body. */
   display: inline-flex; align-items: center; gap: 10px;
-  font: 600 22px/1.2 var(--fs-font-cjk);
+  font: 600 24px/1.2 var(--fs-font-cjk);
 }
 .slide .principle-band .principle::before {
   content: ""; width: 8px; height: 8px; border-radius: 999px;
@@ -1597,7 +1609,7 @@ body {
     color-mix(in srgb, var(--fs-blue) 22%, transparent),
     color-mix(in srgb, var(--fs-purple) 14%, transparent));
   border: 1px solid color-mix(in srgb, var(--fs-blue) 45%, transparent);
-  font: 700 22px/1.3 var(--fs-font-cjk);
+  font: 700 24px/1.3 var(--fs-font-cjk);
   color: var(--fs-text);
   letter-spacing: 0.06em;
   display: inline-flex; align-items: center; gap: 14px;
@@ -1629,19 +1641,19 @@ body {
 }
 .slide .arch-hand-title { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 .slide .arch-hand-title h3 {
-  font: 700 32px/1.2 var(--fs-font-cjk);
+  font: 700 28px/1.2 var(--fs-font-cjk);
   color: var(--fs-text);
 }
 .slide .arch-hand-title .em {
   /* 2026-05-16: 16 → 22 — EN motto under hand title is a content sub-line
      (carries the architecture's English name); per SKILL.md it's body. */
-  font: 600 22px/1.2 var(--fs-font-latin);
+  font: 600 24px/1.2 var(--fs-font-latin);
   letter-spacing: 0.18em;
   color: var(--fs-text-72);
 }
 .slide .arch-hand .sub {
   /* 2026-05-16: 20 → 22 — hand explanation line per SKILL.md body floor. */
-  font: 500 22px/1.5 var(--fs-font-cjk);
+  font: 500 24px/1.5 var(--fs-font-cjk);
   color: var(--fs-text-72);
 }
 .slide .arch-items { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
@@ -1650,7 +1662,7 @@ body {
   display: flex; align-items: center; gap: 14px;
   padding: 14px 16px; border-radius: 10px;
   background: rgba(255,255,255,0.05);
-  font: 500 22px/1.45 var(--fs-font-cjk);
+  font: 500 24px/1.45 var(--fs-font-cjk);
   color: var(--fs-text);
 }
 .slide .arch-item .n {
@@ -1658,7 +1670,7 @@ body {
   border-radius: 8px;
   display: grid; place-items: center;
   background: var(--fs-blue); color: #fff;
-  font: 700 14px/1 var(--fs-font-cjk);
+  font: 700 16px/1 var(--fs-font-cjk);
 }
 .slide .arch-hand.right .arch-item .n { background: var(--fs-teal); color: #0A0E1B; }
 .slide .arch-base {
@@ -1669,7 +1681,7 @@ body {
     color-mix(in srgb, var(--fs-teal) 12%, transparent));
   border: 1px dashed color-mix(in srgb, var(--fs-text) 18%, transparent);
   text-align: center;
-  font: 500 22px/1.45 var(--fs-font-cjk);
+  font: 500 24px/1.45 var(--fs-font-cjk);
   color: var(--fs-text-72);
   letter-spacing: 0.04em;
 }
@@ -1744,7 +1756,7 @@ body {
 }
 .slide .desktop-frame .iframe-hint {
   position: absolute; top: 16px; right: 16px;
-  font: 600 14px/1 var(--fs-font-latin); letter-spacing: 0.14em;
+  font: 600 16px/1 var(--fs-font-latin); letter-spacing: 0.14em;
   text-transform: uppercase;
   background: rgba(60,127,255,0.85); color: #fff;
   padding: 8px 14px; border-radius: 999px;
@@ -1900,7 +1912,7 @@ body {
   display: flex; flex-direction: column; gap: 4px;
 }
 .slide .ui-sidebar .ui-section {
-  font: 600 14px/1 var(--fs-font-latin); letter-spacing: 0.14em;
+  font: 600 16px/1 var(--fs-font-latin); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--fs-text-40);
   padding: 14px 12px 8px;
 }
@@ -1948,7 +1960,7 @@ body {
   gap: 14px;
   padding: 14px 18px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-  font: 500 18px/1.4 var(--fs-font-cjk);
+  font: 500 16px/1.4 var(--fs-font-cjk);
   color: var(--fs-text-72);
 }
 .slide .ui-list-item.is-selected {
@@ -1956,7 +1968,7 @@ body {
   color: #fff;
 }
 .slide .ui-list-item .ui-meta {
-  font: 500 14px/1 var(--fs-font-latin);
+  font: 500 16px/1 var(--fs-font-latin);
   color: var(--fs-text-40); letter-spacing: 0.02em;
   white-space: nowrap;
 }
@@ -1964,11 +1976,11 @@ body {
   display: flex; flex-direction: column; gap: 4px; min-width: 0;
 }
 .slide .ui-list-item .ui-line .name {
-  font-size: 18px; color: #fff; font-weight: 600;
+  font-size: 16px; color: #fff; font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .slide .ui-list-item .ui-line .preview {
-  font-size: 14px; color: var(--fs-text-48);
+  font-size: 16px; color: var(--fs-text-48);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
@@ -1986,8 +1998,8 @@ body {
 .slide .ui-avatar[data-tone="teal"]   { background: #1F2D34; background: rgba(51,214,192,0.26); }
 .slide .ui-avatar[data-tone="purple"] { background: #1E1A38; background: rgba(92,63,251,0.26); }
 .slide .ui-avatar[data-tone="orange"] { background: #292019; background: rgba(254,127,0,0.26); }
-.slide .ui-avatar.lg { width: 56px; height: 56px; font-size: 20px; }
-.slide .ui-avatar.sm { width: 32px; height: 32px; font-size: 14px; }
+.slide .ui-avatar.lg { width: 56px; height: 56px; font-size: 24px; }
+.slide .ui-avatar.sm { width: 32px; height: 32px; font-size: 16px; }
 
 /* ---- Chat bubbles ---- */
 
@@ -1995,7 +2007,7 @@ body {
   max-width: 70%;
   padding: 14px 18px;
   border-radius: 16px;
-  font: 500 18px/1.45 var(--fs-font-cjk);
+  font: 500 16px/1.45 var(--fs-font-cjk);
   background: rgba(255,255,255,0.06);
   color: var(--fs-text);
   border: 1px solid rgba(255,255,255,0.04);
@@ -2024,7 +2036,7 @@ body {
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 10px;
-  font: 500 18px/1.3 var(--fs-font-cjk);
+  font: 500 16px/1.3 var(--fs-font-cjk);
   color: #fff;
 }
 .slide .ui-input::placeholder { color: var(--fs-text-40); }
@@ -2073,14 +2085,14 @@ body {
 .slide .ui-grid .ui-cell.is-header {
   background: rgba(255,255,255,0.04);
   color: #fff; font-weight: 600;
-  font-size: 14px; letter-spacing: 0.04em;
+  font-size: 16px; letter-spacing: 0.04em;
 }
 .slide .ui-grid .ui-cell.is-tag {
   display: inline-block;
 }
 .slide .ui-grid .ui-cell .ui-pill {
   display: inline-block; padding: 4px 10px; border-radius: 999px;
-  font: 600 14px/1 var(--fs-font-latin); letter-spacing: 0.06em;
+  font: 600 16px/1 var(--fs-font-latin); letter-spacing: 0.06em;
 }
 /* Per-tone pill backgrounds — rgba baked (was color-mix). */
 .slide .ui-grid .ui-cell .ui-pill[data-tone="teal"]   { background: rgba(51,214,192,0.18);  color: var(--fs-teal); }
@@ -2102,7 +2114,7 @@ body {
   display: inline-grid; place-items: center;
   min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px;
   background: var(--fs-blue); color: #fff;
-  font: 700 14px/1 var(--fs-font-latin);
+  font: 700 16px/1 var(--fs-font-latin);
 }
 .slide .ui-badge.is-mute { background: rgba(255,255,255,0.16); color: var(--fs-text-72); }
 
@@ -2175,7 +2187,7 @@ body {
    Matches the v3 reference where number+icon header creates a strong eyebrow. */
 .slide .card .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .slide .card .num {
-  font: 700 36px/1 var(--fs-font-cjk);
+  font: 700 28px/1 var(--fs-font-cjk);
   color: var(--fs-text-50);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -2213,7 +2225,7 @@ body {
 .slide .voice-card::before {
   content: "\201C";
   position: absolute; top: 6px; left: 24px;
-  font: 96px/1 Georgia, serif;
+  font: 48px/1 Georgia, serif;
   color: var(--fs-blue);
   opacity: 0.45;
 }
@@ -2226,7 +2238,7 @@ body {
   /* 2026-05-16: 18 → 22 — customer/attribution name MUST be legible on
      projector; this is content, not chrome. Use .attrib (14 px chrome)
      for anonymous attribution like "anonymous source · 2024 industry data". */
-  font: 500 22px/1.4 var(--fs-font-cjk);
+  font: 500 24px/1.4 var(--fs-font-cjk);
   color: var(--fs-text-72);
   letter-spacing: 0.04em;
   border-top: 1px dashed var(--fs-hairline);
@@ -2258,7 +2270,7 @@ body {
 }
 .slide .cta-box .l p {
   /* 2026-05-16: 20 → 22 — CTA explanation body per SKILL.md body floor. */
-  font: 500 22px/1.55 var(--fs-font-cjk);
+  font: 500 24px/1.55 var(--fs-font-cjk);
   color: var(--fs-text-72);
 }
 .slide .cta-box .cta-btn {
@@ -2270,7 +2282,7 @@ body {
   border-radius: var(--fs-radius-pill);
   background: var(--fs-text);
   color: var(--fs-bg);
-  font: 700 22px/1 var(--fs-font-cjk);
+  font: 700 24px/1 var(--fs-font-cjk);
   letter-spacing: 0.04em;
   cursor: pointer;
   transition:
@@ -2305,7 +2317,7 @@ body {
   text-align: center;
 }
 .slide .kpi-strip .kpi .v {
-  font: 800 36px/1.1 var(--fs-font-cjk);
+  font: 800 28px/1.1 var(--fs-font-cjk);
   color: var(--fs-text);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -2314,7 +2326,7 @@ body {
 .slide .kpi-strip .kpi .v.is-blue   { color: var(--fs-blue);   }
 .slide .kpi-strip .kpi .v.is-orange { color: var(--fs-orange); }
 .slide .kpi-strip .kpi .l {
-  font: 500 18px/1.4 var(--fs-font-cjk);
+  font: 500 16px/1.4 var(--fs-font-cjk);
   color: var(--fs-text-72);
   margin-top: 6px;
 }
@@ -2340,7 +2352,7 @@ body {
 }
 .slide .calc-row:last-of-type { border-bottom: 0; }
 .slide .calc-row label {
-  font: 500 22px/1.4 var(--fs-font-cjk);
+  font: 500 24px/1.4 var(--fs-font-cjk);
   color: var(--fs-text-72);
 }
 .slide .calc-row input[type="range"] {
@@ -2367,7 +2379,7 @@ body {
   box-shadow: 0 0 0 4px rgba(60,127,255,0.30);
 }
 .slide .calc-row .v {
-  font: 700 22px/1 var(--fs-font-cjk);
+  font: 700 24px/1 var(--fs-font-cjk);
   color: var(--fs-teal);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -2381,12 +2393,12 @@ body {
   display: flex; justify-content: space-between; align-items: center; gap: 24px;
 }
 .slide .calc-result .lbl {
-  font: 500 22px/1.4 var(--fs-font-cjk);
+  font: 500 24px/1.4 var(--fs-font-cjk);
   color: var(--fs-text);
   letter-spacing: 0.04em;
 }
 .slide .calc-result .amount {
-  font: 800 64px/1 var(--fs-font-cjk);
+  font: 800 48px/1 var(--fs-font-cjk);
   background: var(--fs-grad-keyline);
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
@@ -2394,7 +2406,7 @@ body {
   letter-spacing: -0.02em;
 }
 .slide .calc-hint {
-  font: italic 500 18px/1.55 var(--fs-font-cjk);
+  font: italic 500 16px/1.55 var(--fs-font-cjk);
   color: var(--fs-text-50);
   letter-spacing: 0.04em;
 }
@@ -2409,7 +2421,7 @@ body {
   padding: 14px 18px;
   background: rgba(255,255,255,0.03);
   border-radius: 12px;
-  font: 500 20px/1.4 var(--fs-font-cjk);
+  font: 500 24px/1.4 var(--fs-font-cjk);
   color: var(--fs-text-72);
 }
 .slide .ui-row .lbl { color: var(--fs-text-72); }
@@ -2434,12 +2446,12 @@ body {
   margin-bottom: 8px;
 }
 .slide .ui-alert h5 {
-  font: 700 22px/1.3 var(--fs-font-cjk);
+  font: 700 24px/1.3 var(--fs-font-cjk);
   color: var(--fs-text);
   margin-bottom: 6px;
 }
 .slide .ui-alert p {
-  font: 500 18px/1.55 var(--fs-font-cjk);
+  font: 500 16px/1.55 var(--fs-font-cjk);
   color: var(--fs-text-72);
 }
 
@@ -2456,7 +2468,7 @@ body {
   margin-bottom: 8px;
 }
 .slide .ui-kpi .v {
-  font: 800 36px/1 var(--fs-font-cjk);
+  font: 800 28px/1 var(--fs-font-cjk);
   color: var(--fs-text);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -2491,7 +2503,7 @@ body {
   gap: 18px;
 }
 .slide .data-panel > h4 {
-  font: 600 22px/1.3 var(--fs-font-cjk);
+  font: 600 24px/1.3 var(--fs-font-cjk);
   color: var(--fs-text);
   letter-spacing: 0.02em;
   margin: 0;
@@ -2509,13 +2521,13 @@ body {
   display: flex;
   gap: 18px;
   align-items: baseline;
-  font: 500 22px/1.45 var(--fs-font-cjk);
+  font: 500 24px/1.45 var(--fs-font-cjk);
   color: var(--fs-text);
 }
 .slide .data-panel .row::before {
   content: "▸";
   color: var(--fs-blue);
-  font-size: 18px;
+  font-size: 16px;
   flex-shrink: 0;
 }
 .slide .data-panel .row .lbl { flex: 1;          color: var(--fs-text); }
@@ -2605,28 +2617,28 @@ body {
   box-shadow: 0 0 0 4px rgba(60, 127, 255, 0.10);
 }
 .slide .ns-card .idx {
-  font: 800 44px/1 var(--fs-font-cjk);
+  font: 800 48px/1 var(--fs-font-cjk);
   letter-spacing: -0.02em;
   color: var(--fs-blue);
 }
 .slide .ns-card h4 {
-  font: 700 26px/1.3 var(--fs-font-cjk);
+  font: 700 28px/1.3 var(--fs-font-cjk);
   color: var(--fs-text);
   margin: 0;
 }
 .slide .ns-card .star-label,
 .slide .ns-card .core-label {
-  font: 700 14px/1 var(--fs-font-cjk);
+  font: 700 16px/1 var(--fs-font-cjk);
   letter-spacing: 0.18em;
   color: var(--fs-text-72);
   margin-top: 4px;
 }
 .slide .ns-card .star {
-  font: 700 22px/1.3 var(--fs-font-cjk);
+  font: 700 24px/1.3 var(--fs-font-cjk);
   color: var(--fs-teal);
 }
 .slide .ns-card .core {
-  font: 600 18px/1.4 var(--fs-font-cjk);
+  font: 600 16px/1.4 var(--fs-font-cjk);
   color: var(--fs-text);
 }
 .slide .ns-card .tags {
@@ -2638,7 +2650,7 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .slide .ns-card .tag-chip {
-  font: 600 14px/1.3 var(--fs-font-cjk);
+  font: 600 16px/1.3 var(--fs-font-cjk);
   padding: 6px 10px;
   border-radius: 7px;
   border: 1px solid rgba(255, 255, 255, 0.10);
@@ -2727,20 +2739,20 @@ body {
   border: 0;
 }
 .slide .scene-card .sc-label {
-  font: 700 14px/1 var(--fs-font-cjk);
+  font: 700 16px/1 var(--fs-font-cjk);
   letter-spacing: 0.18em;
   color: currentColor;
 }
 .slide .scene-card .sc-obj {
   /* 2026-05-16: 18 → 22 — scene-card "个性化对象" body line per body floor.
      The 6-up grid is dense, but 18 px reads as fine print on projector. */
-  font: 600 22px/1.45 var(--fs-font-cjk);
+  font: 600 24px/1.45 var(--fs-font-cjk);
   color: var(--fs-text);
 }
 .slide .scene-card .sc-lever {
   /* 2026-05-16: 16 → 22 — scene-card economic-lever line is the rhetorical
      hook per SKILL.md scene-grid recipe; MUST be legible. */
-  font: 500 22px/1.45 var(--fs-font-cjk);
+  font: 500 24px/1.45 var(--fs-font-cjk);
   color: var(--fs-text-72);
   padding: 10px 12px;
   border-radius: 8px;
@@ -2769,7 +2781,7 @@ body {
   background: rgba(255,255,255,0.04);
   border-left: 3px solid var(--fs-teal);
   border-radius: 8px;
-  font: 500 20px/1.55 var(--fs-font-cjk);
+  font: 500 24px/1.55 var(--fs-font-cjk);
   color: var(--fs-text-72);
   display: flex; align-items: flex-start; gap: 14px;
 }
@@ -2780,7 +2792,7 @@ body {
   border-radius: 6px;
   background: rgba(51,214,192,0.15);
   color: var(--fs-teal);
-  font: 700 14px/1.3 var(--fs-font-cjk);
+  font: 700 16px/1.3 var(--fs-font-cjk);
   letter-spacing: 0.06em;
 }
 .slide .report-item.is-warn { border-left-color: var(--fs-orange); }

@@ -26,11 +26,11 @@ from pathlib import Path
 #  规范 thresholds (hard floors)
 # ---------------------------------------------------------------------------
 
-FLOOR_BODY_PX        = 22   # body text never smaller than this on canvas
-FLOOR_CHROME_PX      = 14   # corner metadata floor
-FLOOR_HEADER_PX      = 52   # page-header H2 minimum (master is 26pt × 2 = 52)
+FLOOR_BODY_PX        = 24   # body text on content pages (was 22 pre-2026-05-16 · 4-tier spec rung 3)
+FLOOR_CHROME_PX      = 16   # corner metadata / footnote / pill / tag (was 14 pre-2026-05-16 · 4-tier rung 4)
+FLOOR_HEADER_PX      = 48   # content-page H2 minimum (4-tier rung 1, was 52 · master spec uses this for cover/section hero only)
 FLOOR_TABLE_TH_PX    = 24   # table thead 规范
-FLOOR_STATS_TREND_PX = 20   # stats trend tag 规范
+FLOOR_STATS_TREND_PX = 24   # stats trend tag 规范 — body-tier per spec
 
 # Brand palette — all hex values inside slide markup must be from this set.
 ALLOWED_HEX = {
@@ -410,53 +410,64 @@ def audit_font_sizes(html: str, iss: Issues):
 
 
 TYPE_LADDER_PX = {
-    10, 11, 12, 13,        # rung 8 — mockup-internal text only
-    14,                    # rung 7 — chrome (footnote, pageno, eyebrow caps)
-    18,                    # rung 6 — pill / sub-meta
-    22,                    # rung 5 — body floor
-    28,                    # rung 4 — col-title / lede
-    38,                    # rung 3 — content sub-heading
-    44,                    # rung 2 — slide title (per SKILL ladder)
-    52,                    # master-spec — unified `.header .title-zh`
-    56,                    # master-spec — content-3up `.num`
-    64,                    # master-spec — `.slide .title-zh` global baseline
-    88,                    # master-spec — section h2, hero KPI
-    100,                   # rung 1 — cover hero
-    132,                   # master-spec — `.bigstat-num`
-    160,                   # master-spec — chapter-num
+    # 4-tier strict (2026-05-16) — CONTENT pages use ONLY these four:
+    16,                    # Foot — footnote, eyebrow, pill, tag, attrib, source
+    24,                    # Body — paragraphs, list items, table cells, captions
+    28,                    # Sub  — subtitle, column-title, lede (optional tier)
+    48,                    # Title — Action Title on content pages
+    # Mockup-internal text (Lark Doc / dashboard simulations) opts out via
+    # /* allow:typescale */ — no longer in the default ladder.
+    # Hero exceptions (cover 100, section 88/160, big-stat 132+, quote 88+)
+    # also live OUTSIDE this ladder. They must be tagged with
+    # /* allow:typescale */ when they appear in per-page <style> blocks.
+    # Framework CSS itself is exempt from R20 (R20 only audits per-page
+    # rules scoped to [data-page=...]).
 }
 
 
 def audit_type_ladder(html: str, iss: Issues):
-    """R20: every per-page font-size MUST be on the modular type-scale.
+    """R20: every per-page font-size MUST be on the 4-tier type-scale.
 
     Scope: only rules whose selector contains `[data-page="NN"]`. The global
     framework stylesheet (feishu-deck.css) is the authoritative master spec
-    for cover / section / big-stat etc. and has its own review process; this
-    rule targets the per-page `<style>` blocks where agents improvise card
-    typography and go off-ladder (16/17/19/20/24/26/32/36/40/48/64*/72/96 etc.).
+    for cover / section / big-stat / end / quote hero values and is exempt
+    from R20 by design — R20 targets the per-page `<style>` blocks where
+    agents improvise content-page typography.
 
-    Genuine master-spec exceptions opt out by adding `/* allow:typescale */`
-    in the same rule block. Use sparingly and document why.
+    Allowed sizes (2026-05-16, 4-tier strict per the canonical PPT→Web
+    1pt≈2px mapping; see SKILL.md "Typography floor"):
+        16  Foot   — footnote / eyebrow / pill / tag / attrib / source
+        24  Body   — paragraphs, list items, table cells, captions
+        28  Sub    — subtitle / column-title / lede (optional tier)
+        48  Title  — Action Title on content pages
+
+    Hero exceptions (only for cover/section/big-stat/end/quote content
+    that genuinely needs a hero-scale value — 88, 100, 132, 160 etc.)
+    opt out by adding `/* allow:typescale */` in the rule block. Same
+    opt-out applies to mockup-internal text (10-13 px Lark Doc / dashboard
+    simulations inside .ui-window).
     """
     seen = set()
+    comment_re = re.compile(r'/\*.*?\*/', re.S)
     for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
-        css = style_m.group(1)
-        # Strip CSS comments first so they can't pollute selector capture
-        css_clean = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
-        # Strip nested @-blocks (media/keyframes/supports) — the rule
-        # regex below can't handle nested braces.
-        css_clean = _strip_nested_at_rules(css_clean)
-        for rule_m in re.finditer(r'([^{}]+)\{([^}]+)\}', css_clean):
+        # Single-pass scan: walk raw CSS with comment-tolerant rule regex
+        # so the `/* allow:typescale */` marker is visible in the body.
+        # Previously we stripped comments BEFORE scanning, which dropped
+        # the marker and forced every hero exception to look off-ladder.
+        css = _strip_nested_at_rules(style_m.group(1))
+        for rule_m in _RULE_WITH_COMMENTS_RE.finditer(css):
             selector = rule_m.group(1).strip()
-            block    = rule_m.group(2)
+            body_with_comments = rule_m.group(2)
             # Only audit per-page rules (where agents author improvised CSS)
             if '[data-page=' not in selector:
                 continue
             if '@' in selector:
                 continue
-            if 'allow:typescale' in block:
+            if 'allow:typescale' in body_with_comments:
                 continue
+            # Strip comments for the size scan so a commented-out font-size
+            # doesn't trip the audit.
+            block = comment_re.sub('', body_with_comments)
             sizes = []
             for m in re.finditer(r'font-size:\s*(\d+)px', block):
                 sizes.append(int(m.group(1)))
@@ -471,11 +482,13 @@ def audit_type_ladder(html: str, iss: Issues):
                 seen.add(key)
                 nearest = min(TYPE_LADDER_PX, key=lambda r: abs(r - size))
                 iss.err('R20',
-                    f'font-size {size}px on `{selector[:80]}` is off-ladder; '
-                    f'nearest rung = {nearest}px '
-                    f'(allowed: 14 chrome / 18 pill / 22 body / 28 sub-title / '
-                    f'38 / 44 / 52 / 56 / 64 / 88 / 100 / 132 / 160). '
-                    f'Add /* allow:typescale */ in the rule to override.')
+                    f'font-size {size}px on `{selector[:80]}` is off-tier; '
+                    f'nearest tier = {nearest}px '
+                    f'(allowed: 16 Foot / 24 Body / 28 Sub / 48 Title — '
+                    f'4-tier strict per the canonical PPT→Web mapping). '
+                    f'Add /* allow:typescale */ in the rule to override '
+                    f'(only for hero exceptions: cover 100, section 88/160, '
+                    f'big-stat 132+, quote 88+, or mockup-internal 10-13).')
 
 
 def audit_no_drop_shadows(html: str, iss: Issues):
