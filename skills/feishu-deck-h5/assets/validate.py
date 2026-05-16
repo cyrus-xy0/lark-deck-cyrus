@@ -75,18 +75,31 @@ class Issues:
 #  Slide extraction
 # ---------------------------------------------------------------------------
 
+_SLIDE_FRAME_OPEN_RE = re.compile(
+    r'<div\s+(?=[^>]*\bclass="(?:[^"]*\s)?slide-frame(?:\s[^"]*)?")[^>]*>',
+    re.S,
+)
+
+
 def extract_slides(html: str) -> list[str]:
-    """Return list of per-slide HTML strings (between each <div class='slide-frame'>)."""
+    """Return list of per-slide HTML strings (one per `<div class="slide-frame">`).
+
+    Splits on the slide-frame opening tag via regex (NOT literal string) so
+    that frames with attributes — `data-page="NN"`, additional classes, etc.
+    — are still recognized. Previously this used
+    `body.split('<div class="slide-frame">')` which only matched the bare
+    no-attribute form; any deck that put `data-page` on the frame returned
+    zero slides.
+    """
     body_m = re.search(r'<body[^>]*>(.*)</body>', html, re.S)
     if not body_m:
         return []
     body = body_m.group(1)
-    # Strip HTML comments FIRST so that any literal '<script>' / '</script>' text
-    # inside comments doesn't confuse the script-tag stripper below.
+    # Strip HTML comments FIRST so any literal '<script>' inside comments
+    # doesn't confuse the script-tag stripper below.
     body = re.sub(r'<!--.*?-->', '', body, flags=re.S)
-    # Now strip real script tags
     body = re.sub(r'<script[^>]*>.*?</script>', '', body, flags=re.S)
-    parts = body.split('<div class="slide-frame">')
+    parts = _SLIDE_FRAME_OPEN_RE.split(body)
     return parts[1:]   # discard preamble before first slide-frame
 
 
@@ -980,17 +993,30 @@ def audit_language_policy(html: str, slides: list[str], iss: Issues, strict: boo
 
 
 def audit_default_centering(html: str, iss: Issues):
-    """R48: every fixed-shape container layout vertically centers by default."""
-    for style_m in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
-        css = re.sub(r'/\*.*?\*/', '', style_m.group(1), flags=re.S)
-        css = _strip_nested_at_rules(css)
-        for missing in check_default_centering(css):
-            iss.err('R48',
-                f'data-layout="{missing}" container has no vertical-centering '
-                'rule (justify-content / align-content / align-items: center). '
-                'Fixed-shape layouts must default-center so short content '
-                'doesn\'t strand at the top with empty bottom. pipeline / '
-                'timeline / process are explicit exceptions that fill.')
+    """R48: every fixed-shape container layout vertically centers by default.
+
+    Aggregate across ALL `<style>` blocks before checking — a deck's inline
+    `<style>` can override framework rules with custom grid-template-columns
+    WITHOUT replicating the centering decl, because the framework rule still
+    applies (the override's specificity doesn't strip the inherited
+    `align-content: center` cascading from the broader `.slide[data-layout]`
+    rule). So R48 is satisfied if ANY rule across the document defines
+    centering for the layout — checking per-block over-flags every override.
+    """
+    css_combined = []
+    for raw, _is_fw in _iter_style_blocks(html):
+        cleaned = re.sub(r'/\*.*?\*/', '', raw, flags=re.S)
+        cleaned = _strip_nested_at_rules(cleaned)
+        css_combined.append(cleaned)
+    full_css = '\n'.join(css_combined)
+    for missing in check_default_centering(full_css):
+        iss.err('R48',
+            f'data-layout="{missing}" container has no vertical-centering '
+            'rule (justify-content / align-content / align-items: center) '
+            'anywhere in the deck\'s CSS. Fixed-shape layouts must '
+            'default-center so short content doesn\'t strand at the top '
+            'with empty bottom. pipeline / timeline / process are explicit '
+            'exceptions that fill.')
 
 
 def audit_variant_discipline(html: str, iss: Issues):
