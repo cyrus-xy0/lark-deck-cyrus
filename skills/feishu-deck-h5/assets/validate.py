@@ -1756,12 +1756,40 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             if want_screenshots:
                 shots_dir = html_path.parent / (html_path.stem + '-previews')
                 shots_dir.mkdir(parents=True, exist_ok=True)
+                # Wait for deck JS to wire the .is-current class onto the
+                # active slide-frame; otherwise slide-1 stays opacity:1 and
+                # bleeds through every screenshot.
+                try:
+                    page.wait_for_function(
+                        "() => document.querySelector('.slide-frame.is-current') !== null",
+                        timeout=3000)
+                except Exception:
+                    pass  # fall through; bleed may occur if JS never runs
+                # Neutralize the pre-JS `:first-child { opacity:1 }` fallback
+                # rule in the deck framework: once JS has wired is-current,
+                # the first frame should follow the same opacity logic as any
+                # other frame — but the CSS rule sticks because :first-child
+                # has equal specificity. Force inline opacity:0 + revert on
+                # is-current via inline style so screenshots don't bleed.
+                page.add_style_tag(content="""
+                    .deck[data-mode="present"] .slide-frame:first-child:not(.is-current) {
+                        opacity: 0 !important;
+                    }
+                """)
                 # Re-iterate slides, hashchange-navigate, screenshot each.
                 slide_count = page.evaluate(
                     "() => document.querySelectorAll('.slide').length")
                 for i in range(1, slide_count + 1):
                     page.evaluate(f"window.location.hash = '#{i}'")
-                    page.wait_for_timeout(180)
+                    # Wait for is-current to land on the expected frame
+                    # (deck JS uses 1-based hash matching data-page).
+                    try:
+                        page.wait_for_function(
+                            f"() => document.querySelector('.slide-frame[data-page=\"{i}\"]')?.classList.contains('is-current')",
+                            timeout=1500)
+                    except Exception:
+                        pass
+                    page.wait_for_timeout(350)  # CSS opacity transition is .25s; allow fade to finish
                     fname = f's{i:02d}.png'
                     page.screenshot(path=str(shots_dir / fname),
                                     full_page=False)
@@ -1865,7 +1893,10 @@ _VISUAL_AUDIT_JS = r"""
   ];
 
   const hasAnyClass = (el, keys) => {
-    const cls = (el.className || '').toLowerCase();
+    // SVG elements have className as SVGAnimatedString, not string —
+    // coerce via baseVal / toString before .toLowerCase().
+    const raw = el.className;
+    const cls = (raw && raw.baseVal !== undefined ? raw.baseVal : (raw || '')).toString().toLowerCase();
     return keys.some(k => cls.includes(k));
   };
   const firstAncestor = (el, keys) => {
@@ -1878,7 +1909,9 @@ _VISUAL_AUDIT_JS = r"""
   };
   const shortSel = el => {
     const tag = el.tagName.toLowerCase();
-    const cls = (el.className || '').toString().split(/\s+/).filter(Boolean);
+    const raw = el.className;
+    const clsStr = (raw && raw.baseVal !== undefined ? raw.baseVal : (raw || '')).toString();
+    const cls = clsStr.split(/\s+/).filter(Boolean);
     return cls.length ? `${tag}.${cls.join('.')}` : tag;
   };
   // Decide whether an element has direct text content (not just child elements)

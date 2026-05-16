@@ -1188,9 +1188,9 @@ body {
 /* Optional contact line at bottom — kept off the master but provided as opt-in */
 .slide[data-layout="end"] .contact {
   /* allow:white-opacity — small Latin contact line at bottom-left of end
-     page; 0.55 is the "chrome / metadata" tone, sized 18px (rung 6). */
+     page; 0.55 is the "chrome / metadata" tone, sized 16px (Foot tier). */
   position: absolute; left: 124px; bottom: 80px;
-  font: 500 18px/1.5 var(--fs-font-latin);
+  font: 500 16px/1.5 var(--fs-font-latin);
   color: rgba(255,255,255,0.55); letter-spacing: 0.06em;
 }
 /* (end .footer hide rule retired — global .slide .footer { display: none } now handles it.) */
