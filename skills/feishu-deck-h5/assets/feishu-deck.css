@@ -716,11 +716,18 @@ body {
   display: flex; justify-content: space-between; align-items: center;
 }
 .slide[data-layout="content-3up"] .card .num {
-  font: 700 48px/1 var(--fs-font-latin);
-  color: var(--fs-accent); opacity: 0.55; letter-spacing: -0.02em;
+  /* allow:typescale — hero numeral 88 anchors the card; was 48 (off-tier
+     but visually competing with the 28 ctitle); upgraded so the eye locks
+     onto the index, then the 48 title, then the body. Pairs with Pattern N. */
+  font: 500 88px/0.95 var(--fs-font-latin);
+  color: color-mix(in srgb, var(--fs-accent) 55%, transparent);
+  letter-spacing: -0.01em;
 }
 .slide[data-layout="content-3up"] .card .ctitle {
-  font: 600 28px/1.3 var(--fs-font-cjk); color: #fff;
+  /* 2026-05-17: 28 → 48 — when a hero numeral is the visual anchor, the
+     accompanying title must hold its own at Title tier; 28 reads as sub
+     and the title looked weak against the 88 num. */
+  font: 700 48px/1.15 var(--fs-font-cjk); color: #fff;
 }
 .slide[data-layout="content-3up"] .card .cbody {
   /* 2026-05-16: 20 → 22 — body content per SKILL.md typography floor. */
@@ -757,8 +764,10 @@ body {
    trailing text node as two separate items: text node would auto-place
    into row 2 / col 1 (36px wide) and CJK chars would wrap one-per-line. */
 .slide[data-layout="content-2col"] .col-text ul.feature-list li {
+  /* 2026-05-17: text-72 → #fff. feature-list items ARE body content;
+     muted color was readability gap on projector. */
   position: relative; padding-left: 36px;
-  font: 500 24px/1.45 var(--fs-font-cjk); color: var(--fs-text-72);
+  font: 500 24px/1.45 var(--fs-font-cjk); color: #fff;
 }
 .slide[data-layout="content-2col"] .col-text ul.feature-list li::before {
   content: ""; position: absolute; left: 0; top: 14px;
@@ -969,7 +978,9 @@ body {
   font: 700 48px/1 var(--fs-font-latin); color: var(--fs-accent); opacity: 0.6;
 }
 .slide[data-layout="process"] .step h3 {
-  font: 600 28px/1.3 var(--fs-font-cjk); color: #fff;
+  /* 2026-05-17: 28 → 48 — when stnum (48 hero) is the visual anchor of
+     each card, the step title must hold its own at Title tier. */
+  font: 700 48px/1.2 var(--fs-font-cjk); color: #fff;
 }
 .slide[data-layout="process"] .step p {
   /* 2026-05-16: 18 → 22 — process-step body per SKILL.md typography floor. */
@@ -1687,9 +1698,13 @@ body {
 .slide .verdict-card[data-verdict="nogo"] { border-color: color-mix(in srgb, var(--fs-orange) 60%, transparent); }
 .slide .verdict-card[data-verdict="nogo"]::before { background: var(--fs-orange); }
 .slide .verdict-card .badge {
-  position: absolute; top: 24px; right: 24px;
-  font: 700 16px/1 var(--fs-font-latin); letter-spacing: 0.18em;
-  color: var(--fs-text-72); text-transform: uppercase;
+  /* 2026-05-17: was absolute top-right at 16px chrome — got clipped/overlapped
+     on dense cards and read as illegible. Now inline self-aligned-start pill
+     at Body tier (24); reads as a peer label, never overlaps. */
+  align-self: flex-start;
+  font: 700 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em;
+  padding: 10px 20px; border-radius: 999px;
+  color: var(--fs-text-72);
 }
 .slide .verdict-card[data-verdict="go"] .badge        { color: var(--fs-teal); }
 .slide .verdict-card[data-verdict="conditional"] .badge{ color: var(--fs-violet); }

@@ -75,7 +75,7 @@
   [data-page="9"] .slide .grid { grid-template-columns: repeat(4, 1fr); gap: 32px; }
   [data-page="9"] .slide .col { padding: 0 24px; border-left: 1px solid var(--fs-text-16); display: flex; flex-direction: column; gap: 12px; }
   [data-page="9"] .slide .col:first-child { border-left: 0; }
-  [data-page="9"] .slide .col .trend { font: 700 16px/1 var(--fs-font-cjk); color: var(--fs-teal); letter-spacing: 0.06em; }
+  [data-page="9"] .slide .col .trend { font: 700 24px/1 var(--fs-font-cjk); color: var(--fs-teal); letter-spacing: 0.06em; }
   [data-page="9"] .slide .col .num { /* allow:typescale — stats hero numeral, 88px. */ font: 800 88px/1 var(--fs-font-latin); color: #fff; background: var(--fs-grad-keyline); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: -0.02em; }
   [data-page="9"] .slide .col .num .unit { /* allow:typescale — unit subscript of hero numeral. */ font-size: 36px; color: #fff; -webkit-text-fill-color: #fff; }
   [data-page="9"] .slide .col .label { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
@@ -128,7 +128,6 @@
     font: 700 28px/1 var(--fs-font-cjk); color: var(--fs-blue);
   }
   [data-page="14"] .slide .step .stnum { font: 700 48px/1 var(--fs-font-latin); color: var(--fs-blue); letter-spacing: 0.02em; }
-  [data-page="14"] .slide .step h3 { font: 700 28px/1.3 var(--fs-font-cjk); color: #fff; }
   [data-page="14"] .slide .step p { font: 500 24px/1.5 var(--fs-font-cjk); color: #fff; }
 
   /* slide-15 · Pattern N — 5-up overview hero numerals */
@@ -164,25 +163,25 @@
   [data-page="15"] .slide .overview-card.is-c5 .ov-num { /* allow:white-opacity */ color: rgba(255,255,255,0.55); }
 
   /* slide-16 · Pattern L — north-star-map */
-  [data-page="16"] .slide .north-star-map { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; padding: 0 96px; }
+  [data-page="16"] .slide .north-star-map { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; padding: 0 96px; }
   [data-page="16"] .slide .ns-card {
-    padding: 24px 22px; border-radius: 14px;
+    padding: 32px 28px 28px; border-radius: 16px;
     border: 1px solid var(--fs-text-16);
     background: rgba(255,255,255,0.04);
-    display: flex; flex-direction: column; gap: 8px;
+    display: flex; flex-direction: column; gap: 12px;
   }
-  [data-page="16"] .slide .ns-card .idx { font: 700 24px/1 var(--fs-font-latin); color: var(--fs-accent); letter-spacing: 0.04em; }
-  [data-page="16"] .slide .ns-card h4 { font: 700 28px/1.2 var(--fs-font-cjk); color: #fff; margin: 0 0 10px; }
-  [data-page="16"] .slide .ns-card .star-label, [data-page="16"] .slide .ns-card .core-label { font: 700 16px/1 var(--fs-font-cjk); color: var(--fs-text-72); letter-spacing: 0.04em; margin-top: 6px; }
-  [data-page="16"] .slide .ns-card .star, [data-page="16"] .slide .ns-card .core { font: 500 24px/1.35 var(--fs-font-cjk); color: #fff; }
-  [data-page="16"] .slide .ns-card.is-blue { border-color: rgba(60,127,255,0.55); }
-  [data-page="16"] .slide .ns-card.is-blue .idx { color: var(--fs-blue); }
-  [data-page="16"] .slide .ns-card.is-violet { border-color: rgba(159,111,241,0.55); }
-  [data-page="16"] .slide .ns-card.is-violet .idx { color: var(--fs-violet); }
-  [data-page="16"] .slide .ns-card.is-teal { border-color: rgba(51,214,192,0.55); }
-  [data-page="16"] .slide .ns-card.is-teal .idx { color: var(--fs-teal); }
-  [data-page="16"] .slide .ns-card.is-orange { border-color: rgba(254,127,0,0.50); }
-  [data-page="16"] .slide .ns-card.is-orange .idx { color: var(--fs-orange); }
+  [data-page="16"] .slide .ns-card .idx { /* allow:typescale — hero numeral 88, anchors the card */ font: 500 88px/0.95 var(--fs-font-latin); color: color-mix(in srgb, var(--fs-accent) 55%, transparent); letter-spacing: -0.01em; }
+  [data-page="16"] .slide .ns-card h4 { font: 700 48px/1.1 var(--fs-font-cjk); color: #fff; margin: 0 0 6px; }
+  [data-page="16"] .slide .ns-card .star-label, [data-page="16"] .slide .ns-card .core-label { font: 700 24px/1 var(--fs-font-cjk); color: currentColor; letter-spacing: 0.04em; margin-top: 8px; }
+  [data-page="16"] .slide .ns-card .star, [data-page="16"] .slide .ns-card .core { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
+  [data-page="16"] .slide .ns-card.is-blue { border-color: rgba(60,127,255,0.55); color: var(--fs-blue); }
+  [data-page="16"] .slide .ns-card.is-blue .idx { color: color-mix(in srgb, var(--fs-blue) 55%, transparent); }
+  [data-page="16"] .slide .ns-card.is-violet { border-color: rgba(159,111,241,0.55); color: var(--fs-violet); }
+  [data-page="16"] .slide .ns-card.is-violet .idx { color: color-mix(in srgb, var(--fs-violet) 55%, transparent); }
+  [data-page="16"] .slide .ns-card.is-teal { border-color: rgba(51,214,192,0.55); color: var(--fs-teal); }
+  [data-page="16"] .slide .ns-card.is-teal .idx { color: color-mix(in srgb, var(--fs-teal) 55%, transparent); }
+  [data-page="16"] .slide .ns-card.is-orange { border-color: rgba(254,127,0,0.50); color: var(--fs-orange); }
+  [data-page="16"] .slide .ns-card.is-orange .idx { color: color-mix(in srgb, var(--fs-orange) 55%, transparent); }
 
   /* slide-17 · Pattern M — scene-grid */
   [data-page="17"] .slide .scene-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding: 0 96px; }
@@ -195,7 +194,7 @@
   }
   [data-page="17"] .slide .scene-card .sc-name { font: 700 24px/1.2 var(--fs-font-cjk); color: #fff; }
   [data-page="17"] .slide .scene-card hr { border: 0; height: 1px; background: var(--fs-text-16); margin: 0; }
-  [data-page="17"] .slide .scene-card .sc-label { font: 700 16px/1 var(--fs-font-cjk); color: currentColor; letter-spacing: 0.06em; }
+  [data-page="17"] .slide .scene-card .sc-label { font: 700 24px/1 var(--fs-font-cjk); color: currentColor; letter-spacing: 0.04em; }
   [data-page="17"] .slide .scene-card .sc-obj { font: 600 24px/1.4 var(--fs-font-cjk); color: #fff; }
   [data-page="17"] .slide .scene-card .sc-lever { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.025); }
   [data-page="17"] .slide .scene-card .sc-lever em { font-style: normal; font-weight: 800; color: #fff; }
@@ -243,23 +242,55 @@
   [data-page="20"] .slide .arch-hand.left .arch-item .n { background: var(--fs-blue); }
   [data-page="20"] .slide .arch-hand.right .arch-item .n { background: var(--fs-teal); color: #0A0E1B; }
 
-  /* slide-21 · Pattern I — 6-step pipeline (simplified to 5 steps for fit) */
-  [data-page="21"] .slide .stage { padding: 0 96px; display: flex; flex-direction: column; gap: 32px; justify-content: center; }
-  [data-page="21"] .slide .pipe-rail { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; position: relative; }
-  [data-page="21"] .slide .pipe-rail::before { content: ''; position: absolute; left: 32px; right: 32px; top: 20px; height: 2px; background: linear-gradient(90deg, var(--fs-blue), var(--fs-teal)); }
-  [data-page="21"] .slide .pipe-step { display: flex; flex-direction: column; gap: 8px; padding-top: 56px; position: relative; }
-  [data-page="21"] .slide .pipe-step::before { content: ''; position: absolute; left: calc(50% - 8px); top: 12px; width: 16px; height: 16px; border-radius: 999px; background: var(--fs-blue); box-shadow: 0 0 0 4px rgba(60,127,255,0.20); }
-  [data-page="21"] .slide .pipe-step:last-child::before { background: var(--fs-teal); box-shadow: 0 0 0 4px rgba(51,214,192,0.20); }
-  [data-page="21"] .slide .pipe-step .num { font: 700 24px/1 var(--fs-font-latin); color: var(--fs-accent); letter-spacing: 0.04em; }
-  [data-page="21"] .slide .pipe-step .title-zh { font: 700 28px/1.3 var(--fs-font-cjk); color: #fff; }
-  [data-page="21"] .slide .pipe-step ul { list-style: none; padding: 0; margin: 10px 0 0; }
-  [data-page="21"] .slide .pipe-step li { font: 500 16px/1.5 var(--fs-font-cjk); color: var(--fs-text-72); }
+  /* slide-21 · Pattern I — 5-stage pipeline (chevron-connected solid boxes,
+     visually distinct from slide-13 timeline which is dotted-rail). */
+  [data-page="21"] .slide .stage { padding: 0 64px; display: flex; flex-direction: column; gap: 32px; justify-content: center; }
+  [data-page="21"] .slide .pipe-row { display: grid; grid-template-columns: repeat(5, 1fr) ; gap: 12px; align-items: stretch; }
+  [data-page="21"] .slide .pipe-box {
+    position: relative;
+    padding: 28px 26px;
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(60,127,255,0.18), rgba(60,127,255,0.04));
+    border: 1.5px solid rgba(60,127,255,0.45);
+    display: flex; flex-direction: column; gap: 12px;
+    min-height: 280px;
+  }
+  [data-page="21"] .slide .pipe-box:nth-child(2) { background: linear-gradient(160deg, rgba(96,143,255,0.20), rgba(96,143,255,0.05)); border-color: rgba(96,143,255,0.55); }
+  [data-page="21"] .slide .pipe-box:nth-child(3) { background: linear-gradient(160deg, rgba(120,180,238,0.20), rgba(120,180,238,0.05)); border-color: rgba(120,180,238,0.55); }
+  [data-page="21"] .slide .pipe-box:nth-child(4) { background: linear-gradient(160deg, rgba(81,205,213,0.20), rgba(81,205,213,0.05)); border-color: rgba(81,205,213,0.55); }
+  [data-page="21"] .slide .pipe-box:nth-child(5) { background: linear-gradient(160deg, rgba(51,214,192,0.22), rgba(51,214,192,0.05)); border-color: rgba(51,214,192,0.55); }
+  [data-page="21"] .slide .pipe-box:not(:last-child)::after {
+    content: '';
+    position: absolute; right: -18px; top: 50%;
+    width: 24px; height: 24px;
+    border-top: 3px solid var(--fs-blue);
+    border-right: 3px solid var(--fs-blue);
+    transform: translateY(-50%) rotate(45deg);
+    z-index: 2;
+  }
+  [data-page="21"] .slide .pipe-box:nth-child(4)::after { border-top-color: var(--fs-teal); border-right-color: var(--fs-teal); }
+  [data-page="21"] .slide .pipe-box .num {
+    /* allow:typescale — hero numeral anchor for the stage */
+    font: 500 88px/0.9 var(--fs-font-latin);
+    color: color-mix(in srgb, var(--fs-blue) 60%, transparent);
+    letter-spacing: -0.01em;
+  }
+  [data-page="21"] .slide .pipe-box:nth-child(2) .num { color: color-mix(in srgb, #608FFF 60%, transparent); }
+  [data-page="21"] .slide .pipe-box:nth-child(3) .num { color: color-mix(in srgb, #78B4EE 60%, transparent); }
+  [data-page="21"] .slide .pipe-box:nth-child(4) .num { color: color-mix(in srgb, #51CDD5 60%, transparent); }
+  [data-page="21"] .slide .pipe-box:nth-child(5) .num { color: color-mix(in srgb, var(--fs-teal) 60%, transparent); }
+  [data-page="21"] .slide .pipe-box .title-zh { font: 700 48px/1.1 var(--fs-font-cjk); color: #fff; }
+  [data-page="21"] .slide .pipe-box .out-label { font: 700 24px/1 var(--fs-font-cjk); color: var(--fs-blue); letter-spacing: 0.04em; margin-top: auto; }
+  [data-page="21"] .slide .pipe-box:nth-child(5) .out-label { color: var(--fs-teal); }
+  [data-page="21"] .slide .pipe-box .out { font: 500 24px/1.4 var(--fs-font-cjk); color: #fff; }
 
   /* slide-22 · Pattern B — verdict pill matrix */
   [data-page="22"] .slide .grid { grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 0 96px; }
-  [data-page="22"] .slide .verdict-card { padding: 28px 28px; border-radius: 14px; display: flex; flex-direction: column; gap: 14px; position: relative; border: 1.5px solid; border-top-width: 5px; }
-  [data-page="22"] .slide .verdict-card .badge { position: absolute; top: -14px; right: 18px; font: 700 16px/1 var(--fs-font-cjk); letter-spacing: 0.08em; padding: 6px 14px; border-radius: 999px; color: #fff; }
-  [data-page="22"] .slide .verdict-card .ctitle { font: 700 28px/1.2 var(--fs-font-cjk); color: #fff; }
+  [data-page="22"] .slide .verdict-card { padding: 32px 32px 28px; border-radius: 14px; display: flex; flex-direction: column; gap: 16px; border: 1.5px solid; border-top-width: 5px; }
+  /* badge moved inline as a self-aligned pill at the card top — was absolute
+     and overlapping border + title at low resolutions. 24 body so it reads. */
+  [data-page="22"] .slide .verdict-card .badge { align-self: flex-start; font: 700 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em; padding: 10px 20px; border-radius: 999px; color: #fff; }
+  [data-page="22"] .slide .verdict-card .ctitle { font: 700 48px/1.15 var(--fs-font-cjk); color: #fff; }
   [data-page="22"] .slide .verdict-card .cbody { font: 500 24px/1.45 var(--fs-font-cjk); color: #fff; }
   [data-page="22"] .slide .verdict-card[data-verdict="go"] { border-color: var(--fs-teal); background: rgba(51,214,192,0.08); }
   [data-page="22"] .slide .verdict-card[data-verdict="go"] .badge { background: var(--fs-teal); color: #0A0E1B; }
@@ -292,7 +323,7 @@
     align-items: center;
     align-self: flex-start;
   }
-  [data-page="24"] .slide .evolution-chip .stage-tag { font: 700 16px/1 var(--fs-font-latin); letter-spacing: 0.18em; color: var(--fs-text-72); }
+  [data-page="24"] .slide .evolution-chip .stage-tag { font: 700 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em; color: var(--fs-teal); }
   [data-page="24"] .slide .evolution-chip .stage-body { font: 500 28px/1.3 var(--fs-font-cjk); color: #fff; }
   [data-page="24"] .slide .evolution-chip .stage-body.is-future { color: var(--fs-teal); font-weight: 700; }
   [data-page="24"] .slide .why { font: 500 24px/1.55 var(--fs-font-cjk); color: #fff; max-width: 1200px; }
@@ -820,19 +851,44 @@
 
 <!-- 21 Pattern I · 6-step pipeline (5-step variant for fit) ============ -->
 <div class="slide-frame" data-page="21">
-  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="21 Pattern I · 6-step Pipeline" data-slide-key="pattern-i">
+  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="21 Pattern I · 5-stage Pipeline" data-slide-key="pattern-i">
     <div class="wordmark"></div>
-    <div class="demo-tag" data-text-id="slide-21.demo_tag">Pattern I · 6-step Pipeline</div>
+    <div class="demo-tag" data-text-id="slide-21.demo_tag">Pattern I · 5-stage Pipeline</div>
     <div class="header">
       <h2 class="title-zh" data-text-id="slide-21.title_zh">端到端项目五阶段</h2>
     </div>
     <div class="stage">
-      <div class="pipe-rail">
-        <div class="pipe-step"><span class="num" data-text-id="slide-21.num">01</span><span class="title-zh" data-text-id="slide-21.title_zh_02">访谈</span><ul><li data-text-id="slide-21.li">6 个部门</li><li data-text-id="slide-21.li_02">痛点输入</li></ul></div>
-        <div class="pipe-step"><span class="num" data-text-id="slide-21.num_02">02</span><span class="title-zh" data-text-id="slide-21.title_zh_03">蓝图</span><ul><li data-text-id="slide-21.li_03">协同地图</li><li data-text-id="slide-21.li_04">目标 KPI</li></ul></div>
-        <div class="pipe-step"><span class="num" data-text-id="slide-21.num_03">03</span><span class="title-zh" data-text-id="slide-21.title_zh_04">试点</span><ul><li data-text-id="slide-21.li_05">3 条核心流</li><li data-text-id="slide-21.li_06">关键岗位接入</li></ul></div>
-        <div class="pipe-step"><span class="num" data-text-id="slide-21.num_04">04</span><span class="title-zh" data-text-id="slide-21.title_zh_05">推广</span><ul><li data-text-id="slide-21.li_07">全员培训</li><li data-text-id="slide-21.li_08">数据搬迁</li></ul></div>
-        <div class="pipe-step"><span class="num" data-text-id="slide-21.num_05">05</span><span class="title-zh" data-text-id="slide-21.title_zh_06">治理</span><ul><li data-text-id="slide-21.li_09">KPI 复盘</li><li data-text-id="slide-21.li_10">长期机制</li></ul></div>
+      <div class="pipe-row">
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num">01</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_02">访谈</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_01">六部门痛点输入</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_02">02</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_03">蓝图</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_02">协同地图 + 目标 KPI</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_03">03</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_04">试点</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_03">3 条核心流跑通</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_04">04</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_05">推广</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_04">全员接入 + 数据搬迁</span>
+        </div>
+        <div class="pipe-box">
+          <span class="num" data-text-id="slide-21.num_05">05</span>
+          <span class="title-zh" data-text-id="slide-21.title_zh_06">治理</span>
+          <span class="out-label">交付</span>
+          <span class="out" data-text-id="slide-21.out_05">长期复盘机制</span>
+        </div>
       </div>
     </div>
   </div>
@@ -989,49 +1045,15 @@
 </div>
 
 <!-- ============================================================
-     Section E · End (slides 28-29)
+     Section E · End (slide 28)
      ============================================================ -->
 
-<!-- 28 closing 用法 ===================================================== -->
+<!-- 28 end · slogan ==================================================== -->
 <div class="slide-frame" data-page="28">
-  <div class="slide" data-layout="content-2col" data-accent="blue" data-screen-label="28 用法 · 怎么开始" data-slide-key="showcase-howto">
-    <div class="wordmark"></div>
-    <div class="demo-tag" data-text-id="slide-28.demo_tag">怎么开始</div>
-    <div class="header">
-      <h2 class="title-zh" data-text-id="slide-28.title_zh">想用这套设计语言 · 三步开始</h2>
-    </div>
-    <div class="stage">
-      <div class="bf-row">
-        <span class="bf-tag" data-text-id="slide-28.bf_tag">01</span>
-        <div class="bf-content">
-          <span class="bf-title" data-text-id="slide-28.bf_title">告诉 Claude Code 用 feishu-deck-h5 技能</span>
-          <span class="bf-desc" data-text-id="slide-28.bf_desc">"帮我做一份飞书风格 deck",skill 自动启动 · 给到主题或材料就好。</span>
-        </div>
-      </div>
-      <div class="bf-row">
-        <span class="bf-tag" data-text-id="slide-28.bf_tag_02">02</span>
-        <div class="bf-content">
-          <span class="bf-title" data-text-id="slide-28.bf_title_02">每张 slide 改文字编辑 texts.md</span>
-          <span class="bf-desc" data-text-id="slide-28.bf_desc_02">布局对了之后改文字,不动 HTML,双击 apply.command 重新生成。</span>
-        </div>
-      </div>
-      <div class="bf-row">
-        <span class="bf-tag" data-text-id="slide-28.bf_tag_03">03</span>
-        <div class="bf-content">
-          <span class="bf-title" data-text-id="slide-28.bf_title_03">交付前 validator --strict --visual</span>
-          <span class="bf-desc" data-text-id="slide-28.bf_desc_03">五秒跑完所有规则 · 字号 / 对齐 / 层级 / 溢出全检 · 0 错才能交付。</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 29 end · slogan ==================================================== -->
-<div class="slide-frame" data-page="29">
-  <div class="slide" data-layout="end" data-screen-label="29 End" data-slide-key="showcase-end">
-    <div class="wordmark" data-text-id="slide-29.wordmark">飞书</div>
+  <div class="slide" data-layout="end" data-screen-label="28 End" data-slide-key="showcase-end">
+    <div class="wordmark" data-text-id="slide-28.wordmark">飞书</div>
     <div class="slogan" role="img" aria-label="先进团队 先用飞书"></div>
-    <div class="contact" data-text-id="slide-29.contact">设计语言 · feishu-deck-h5</div>
+    <div class="contact" data-text-id="slide-28.contact">设计语言 · feishu-deck-h5</div>
   </div>
 </div>
 

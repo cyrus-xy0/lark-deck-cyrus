@@ -2592,6 +2592,64 @@ clearly Hero nor clearly Chrome.
 big" (88) depending on which way they were leaving from. The
 Goldilocks rule formalizes this: don't even TRY the middle.
 
+#### Hero-context label floor — labels next to hero data NEVER get 16 chrome (2026-05-17)
+
+When a card / panel contains a **hero anchor** (any element ≥ 48 px
+acting as the visual focal point — hero numeral, big-stat number,
+display title, large icon), every **content label** in the same
+card must be **≥ 24 (Body tier)**. The 16 (Foot / chrome) tier is
+reserved for page-level metadata ONLY.
+
+| Element role | Tier | Examples |
+|---|---|---|
+| Hero anchor | 48+ | Hero numeral, big-stat number, display title |
+| Content label (introduces a value) | **24 Body MIN** | "北极星" / "核心售卖" / "交付" / "触达" / "已读" / "个性化对象" |
+| Page-level chrome | 16 Foot | `.pageno` / `.source` / `.footnote` / `.copyright` / `.attrib` |
+
+**Why this rule exists** (showcase eval 2026-05-17):
+
+When a card looks like `[88 hero][48 title][24 body][16 label]`,
+the 16 label DISAPPEARS — the reader's eye locks onto 88+48+24 as
+the content rhythm and treats 16 as noise (or skips it entirely).
+On 1920×1080 projectors at 4-5m viewing distance, 16 px CJK is
+~3 mm tall — below the threshold for casual scanning.
+
+The fix is NOT to bump 16 → 18 / 20 (still off-tier AND still too
+small). The fix is to **promote the label to 24 Body** so it joins
+the readable rhythm. If the visual hierarchy worry is "now the
+label is the same size as the value below it", use **font-weight
+700** or **brand color** to differentiate — those are free hierarchy
+levers that don't require shrinking the font.
+
+**Concrete examples from showcase iteration**:
+
+- ❌ `.ns-card .star-label` at 16 (gray) next to `.star` at 24 (white):
+  the field name "北极星" reads as throwaway; reader doesn't know
+  what "门店坪效" IS. FIX → `.star-label` 24 brand-bold, `.star` 24
+  white-regular. Same size, hierarchy via weight + color.
+- ❌ `.stats .trend` at 16 chrome ("触达") above the 88 hero number:
+  the eyebrow vanishes; viewers see "3 秒" but can't tell it's
+  about reach time vs ROI vs decision time. FIX → `.trend` 24
+  brand-bold.
+- ❌ `.scene-card .sc-label` at 16 chrome ("个性化对象") above the
+  24 body value: same disappearing-label problem. FIX → 24.
+- ❌ `.evolution-chip .stage-tag` at 16 ("现阶段" / "未来"): readers
+  can't anchor the two-row evolution. FIX → 24 brand-bold.
+
+**Decision tree before sizing any label**:
+1. Is this label IN a card that has a hero anchor (≥48 element)?
+   → YES: minimum 24 (Body). Use weight + color for differentiation.
+   → NO: 16 (Foot) is OK if it's true page chrome.
+2. Is this label INTRODUCING content the reader needs to understand?
+   → YES: 24 minimum. Without the label, the value is orphan.
+   → NO (purely decorative numbering, page footer, source line): 16.
+
+**Postmortem (20260517 showcase eval)**: 7 of the user's 10
+complaints in slides 6/9/14/16/17/22/24 reduced to this single
+rule. Until codified, every per-page CSS that used 16 for a
+content-label produced "字小了" feedback even though the slide
+passed the 4-tier ladder and body-floor checks.
+
 #### Card density — title-size depends on cards-per-page (2026-05-16)
 
 When you author N parallel cards on a slide, the per-card title size

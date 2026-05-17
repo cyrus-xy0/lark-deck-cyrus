@@ -1840,6 +1840,17 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             'grids the cards should be equal-height; check `flex: 1` is '
             'applied or `align-items: stretch` is set on the container.')
 
+    for entry in report.get('label_floor', [])[:20]:
+        iss.err('R-VIS-LABEL-FLOOR',
+            f'slide {entry["slide_idx"]} · card `{entry["card_sel"]}` '
+            f'has a hero anchor (≥48px) but label `{entry["label_sel"]}` '
+            f'is {entry["label_px"]}px — hero-context labels MUST be '
+            '≥ 24 (Body tier). 16/18 chrome is reserved for true page '
+            'metadata (.source / .pageno / .footnote / .attrib / etc.). '
+            'See SKILL.md "Hero-context label floor". Promote to 24 + '
+            'differentiate via font-weight or brand color, not by '
+            'shrinking the size.')
+
     if want_screenshots and 'shots_dir' in dir():
         pass   # path already created above
 
@@ -1854,6 +1865,9 @@ _VISUAL_AUDIT_JS = r"""
     'hero-num', 'ov-num', 'chapter-num', 'bigstat-num',
     'cover-title', 'cover-h1', 'big-num', 'num', 'unit',
     'slogan',
+    // 2026-05-17: north-star-map / verdict-card / pipeline use `idx`
+    // as the visual anchor numeral (88 hero per the hero-context rule).
+    'idx',
   ];
   const HERO_SIZES = new Set([
     30,                                      // cover .author (master spec)
@@ -1891,6 +1905,17 @@ _VISUAL_AUDIT_JS = r"""
     'overview-grid', 'todo-grid', 'scene-grid', 'north-star-map',
     'dir-grid',
   ];
+  // True page-level chrome classes — these MAY use 16 (Foot) tier even
+  // inside hero cards because they are genuine page-level metadata
+  // (page numbers, source attribution, footnotes, copyright). Anything
+  // else at 16 inside a hero card is a "字小了" violation.
+  const CHROME_WHITELIST = [
+    'source', 'pageno', 'footnote', 'attrib', 'copyright',
+    'wordmark', 'contact', 'cfoot', 'demo-tag',
+    // Hero-numeral units (.unit inside hero numerals like "30 万人") are
+    // visually part of the hero anchor itself; they can be sub-tier.
+    'unit',
+  ];
 
   const hasAnyClass = (el, keys) => {
     // SVG elements have className as SVGAnimatedString, not string —
@@ -1922,7 +1947,7 @@ _VISUAL_AUDIT_JS = r"""
     return false;
   };
 
-  const out = { overflow: [], tier: [], hier: [], align: [] };
+  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [] };
   const slides = document.querySelectorAll('.slide');
   slides.forEach((slide, idx) => {
     const slide_idx = idx + 1;
@@ -1974,33 +1999,67 @@ _VISUAL_AUDIT_JS = r"""
     });
 
     // ---- Hierarchy: within each card, meta should be ≤ body ----
+    // ---- Label floor: hero-context cards forbid 16px non-chrome labels ----
     const cards = slide.querySelectorAll('*');
     const seenCards = new WeakSet();
+    const seenLabelFloor = new Set();
     cards.forEach(card => {
       if (!hasAnyClass(card, CARD_KEYS)) return;
       if (seenCards.has(card)) return;
       seenCards.add(card);
-      const metaEls = [...card.querySelectorAll('*')].filter(
-        e => hasAnyClass(e, META_KEYS) && hasOwnText(e));
-      const bodyEls = [...card.querySelectorAll('*')].filter(
-        e => hasAnyClass(e, BODY_KEYS) && hasOwnText(e));
-      if (!metaEls.length || !bodyEls.length) return;
-      // Compare every meta vs every body size; flag if meta > smallest body
-      const bodyPx = Math.min(...bodyEls.map(
-        b => Math.round(parseFloat(window.getComputedStyle(b).fontSize))));
-      metaEls.forEach(m => {
-        const mpx = Math.round(parseFloat(window.getComputedStyle(m).fontSize));
-        if (mpx > bodyPx) {
-          out.hier.push({
+      const allTextEls = [...card.querySelectorAll('*')].filter(hasOwnText);
+      const metaEls = allTextEls.filter(e => hasAnyClass(e, META_KEYS));
+      const bodyEls = allTextEls.filter(e => hasAnyClass(e, BODY_KEYS));
+
+      // --- HIER: meta vs body ---
+      if (metaEls.length && bodyEls.length) {
+        const bodyPx = Math.min(...bodyEls.map(
+          b => Math.round(parseFloat(window.getComputedStyle(b).fontSize))));
+        metaEls.forEach(m => {
+          const mpx = Math.round(parseFloat(window.getComputedStyle(m).fontSize));
+          if (mpx > bodyPx) {
+            out.hier.push({
+              slide_idx,
+              card_sel: shortSel(card),
+              meta_sel: shortSel(m),
+              meta_px: mpx,
+              body_sel: shortSel(bodyEls[0]),
+              body_px: bodyPx,
+            });
+          }
+        });
+      }
+
+      // --- LABEL FLOOR: hero anchor (>=48) + 16px non-chrome label = error ---
+      // R-VIS-LABEL-FLOOR codifies the 2026-05-17 hero-context-label-floor
+      // rule in SKILL.md. When a card has a hero anchor, every content
+      // label inside it must be >= 24; 16 is reserved for true page chrome.
+      const sizes = allTextEls.map(
+        e => Math.round(parseFloat(window.getComputedStyle(e).fontSize)));
+      const hasHeroAnchor = sizes.some(s => s >= 48);
+      if (hasHeroAnchor) {
+        allTextEls.forEach(el => {
+          const px = Math.round(parseFloat(window.getComputedStyle(el).fontSize));
+          if (px > 18) return;                          // ok body / sub / title
+          if (hasAnyClass(el, CHROME_WHITELIST)) return; // true chrome OK
+          // Walk ancestors to see if any are whitelisted chrome containers
+          let chromeAncestor = false;
+          for (let n = el.parentElement; n && n !== card; n = n.parentElement) {
+            if (hasAnyClass(n, CHROME_WHITELIST)) { chromeAncestor = true; break; }
+          }
+          if (chromeAncestor) return;
+          const sel = shortSel(el);
+          const key = `${slide_idx}::${sel}::${px}`;
+          if (seenLabelFloor.has(key)) return;
+          seenLabelFloor.add(key);
+          out.label_floor.push({
             slide_idx,
             card_sel: shortSel(card),
-            meta_sel: shortSel(m),
-            meta_px: mpx,
-            body_sel: shortSel(bodyEls[0]),
-            body_px: bodyPx,
+            label_sel: sel,
+            label_px: px,
           });
-        }
-      });
+        });
+      }
     });
 
     // ---- Alignment: grid children equal-height ----
