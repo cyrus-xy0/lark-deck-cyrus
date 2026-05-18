@@ -279,6 +279,12 @@ def _strip_nested_at_rules(css: str) -> str:
 # Names taken from SKILL.md "Typography floor" table + framework + observed
 # author conventions. These are class names that semantically carry SLIDE
 # COPY (paragraphs, descriptions, list items, table cells, captions).
+# R12: box-shadow that starts with "0 0 0 …" is a glow-ring (NOT a drop
+# shadow with offset). Hoisted to module scope so re.compile happens once
+# per process, not once per CSS rule scanned (2026-05-18 cleanup).
+_BOX_SHADOW_GLOW_RING_RE = re.compile(r'^\s*0\s+0\s+0(?:\s+\d+\w+)?\s')
+_BOX_SHADOW_INSET_RE = re.compile(r'\binset\b')
+
 _BODY_CLASS_RE = re.compile(
     r'\.(?:'
     r'cbody|body|desc|sub|lede|paragraph|para|caption|cap|note|'
@@ -521,8 +527,10 @@ def audit_undefined_css_vars(html: str, iss: Issues):
     explicit fallback `var(--x, fallback)` are exempt — fallback IS the
     safety net.
     """
-    css_blocks = re.findall(r'<style[^>]*>(.*?)</style>', html, re.S)
-    combined = '\n'.join(css_blocks)
+    # Collect every CSS source (author + inlined framework). R-CSSVAR
+    # needs to know about ALL `--name:` definitions, including those in
+    # feishu-deck.css, before flagging any `var()` reference as undefined.
+    combined = '\n'.join(body for body, _is_fw in _iter_style_blocks(html))
     if not combined:
         return
 
@@ -598,11 +606,7 @@ def audit_no_drop_shadows(html: str, iss: Issues):
     in the same block to opt out (same convention as R20's
     /* allow:typescale */ and R-WHITE-TEXT's /* allow:white-opacity */).
     """
-    glow_ring_re = re.compile(r'^\s*0\s+0\s+0(?:\s+\d+\w+)?\s')   # "0 0 0 [Npx ...]"
-    inset_re     = re.compile(r'\binset\b')
-
-    style_m = re.findall(r'<style[^>]*>(.*?)</style>', html, re.S)
-    for raw_css in style_m:
+    for raw_css, _is_fw in _iter_style_blocks(html):
         css = _strip_nested_at_rules(raw_css)
         # Walk rule blocks but preserve raw text per-rule so we can detect
         # the /* allow:drop-shadow */ marker (it survives comment-stripping
@@ -614,9 +618,9 @@ def audit_no_drop_shadows(html: str, iss: Issues):
                 continue
             for sm in re.finditer(r'box-shadow:\s*([^;}]+)', block):
                 value = sm.group(1).strip()
-                if inset_re.search(value):
+                if _BOX_SHADOW_INSET_RE.search(value):
                     continue           # inset shadows OK
-                if glow_ring_re.match(value):
+                if _BOX_SHADOW_GLOW_RING_RE.match(value):
                     continue           # 0 0 0 ... is a glow ring, not a shadow
                 # Anything else with non-zero offset → real drop shadow
                 iss.warn('R12',
@@ -788,7 +792,7 @@ def audit_perf(html: str, iss: Issues):
         r'<meta[^>]*name="fs-deck-mode"[^>]*content="inline"', html))
 
     # Extract style + script text once (used by P50 / P51 / P54 / P55)
-    style_text  = ' '.join(re.findall(r'<style[^>]*>(.*?)</style>',  html, re.S))
+    style_text  = ' '.join(body for body, _is_fw in _iter_style_blocks(html))
     script_text = ' '.join(re.findall(r'<script[^>]*>(.*?)</script>', html, re.S))
 
     # --- P50: base64 payload inside <style> (linked mode only) ---
@@ -1199,111 +1203,132 @@ def audit_language_policy(html: str, slides: list[str], iss: Issues):
 # ---------------------------------------------------------------------------
 
 _CJK_RE = re.compile(r'[一-鿿㐀-䶿豈-﫿]')
-_LANG_PAIR_ALLOWED_TAGS = {
+_HTML_LEAF_TAGS = {
     'span', 'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'li', 'a', 'b', 'em', 'strong', 'i', 'u', 'small', 'mark',
     'blockquote', 'dt', 'dd', 'figcaption', 'caption', 'th', 'td',
 }
-_LANG_PAIR_VOID_TAGS = {
+_HTML_VOID_TAGS = {
     'br', 'hr', 'img', 'input', 'meta', 'link', 'source', 'area',
     'base', 'col', 'embed', 'param', 'track', 'wbr',
 }
-_LANG_PAIR_SKIP_CONTAINERS = {'script', 'style', 'svg'}
+_HTML_SKIP_CONTAINERS = {'script', 'style', 'svg'}
 
 
-def audit_translation_track_pairs(html: str, slides: list[str], iss,
-                                   is_offending_latin) -> None:
-    """Walk each slide's DOM and flag parent elements whose direct child
-    leaves include BOTH a CJK-content leaf and a Latin-only-content leaf.
-    That pair IS the canonical translation-track signature."""
+def _walk_text_leaves(fragment: str) -> list[dict]:
+    """Walk `fragment` via stdlib html.parser; return text-bearing leaves.
+
+    Each leaf dict carries:
+      tag          element name ('span', 'p', etc.)
+      class        class attribute value (string, possibly multi-class)
+      text         direct text content, stripped
+      parents      list of parent class strings, closest-last
+      parent_class parents[-1] if parents else ''
+      parent_id    unique monotonic int for the immediate parent — group
+                   by this to reconstruct sibling sets after the walk
+
+    Void tags (`<br>` / `<img>` / etc.) are ignored; `<script>` /
+    `<style>` / `<svg>` are skipped wholesale. Malformed HTML errors
+    are swallowed — R-DOM is the place that reports structural
+    breakage.
+    """
     from html.parser import HTMLParser
 
-    class PairDetector(HTMLParser):
+    leaves: list[dict] = []
+
+    class W(HTMLParser):
         def __init__(self):
             super().__init__(convert_charrefs=True)
-            self.stack = []
-            self.flags = []  # (parent_class, leaf_tag, leaf_class, leaf_text)
-            self.skip_depth = 0
+            self.stack: list[dict] = []
+            self.skip = 0
+            self._next_id = 0
 
         def handle_starttag(self, tag, attrs):
-            if tag in _LANG_PAIR_VOID_TAGS:
+            if tag in _HTML_VOID_TAGS:
                 return
-            if tag in _LANG_PAIR_SKIP_CONTAINERS:
-                self.skip_depth += 1
-                self.stack.append({'tag': tag, 'class': '', 'tracked': False,
-                                    'text': '', 'leaves': []})
+            if tag in _HTML_SKIP_CONTAINERS:
+                self.skip += 1
+                self.stack.append({'tag': tag, 'class': '', 'text': '',
+                                    'has_children': False, 'id': -1})
                 return
-            cls = ''
-            for k, v in attrs:
-                if k == 'class':
-                    cls = v or ''
-            self.stack.append({
-                'tag': tag, 'class': cls,
-                'tracked': tag in _LANG_PAIR_ALLOWED_TAGS,
-                'text': '', 'leaves': [],
-            })
+            cls = next((v or '' for k, v in attrs if k == 'class'), '')
+            nid = self._next_id; self._next_id += 1
+            self.stack.append({'tag': tag, 'class': cls, 'text': '',
+                                'has_children': False, 'id': nid})
 
         def handle_endtag(self, tag):
-            if tag in _LANG_PAIR_VOID_TAGS:
+            if tag in _HTML_VOID_TAGS:
                 return
             if not self.stack:
                 return
             f = self.stack.pop()
-            if f['tag'] in _LANG_PAIR_SKIP_CONTAINERS:
-                self.skip_depth -= 1
+            if f['tag'] in _HTML_SKIP_CONTAINERS:
+                self.skip -= 1
                 return
-            if not f['tracked']:
-                return
-            own = f['text'].strip()
-            is_leaf = bool(own) and not f['leaves']
-            if self.stack and is_leaf:
-                parent = self.stack[-1]
-                if parent.get('tracked'):
-                    parent['leaves'].append({
-                        'tag': f['tag'], 'class': f['class'], 'text': own,
-                    })
-            # Pair-check among f's direct leaf children
-            if len(f['leaves']) >= 2:
-                cjk_lvs = [l for l in f['leaves']
-                           if _CJK_RE.search(l['text'])]
-                lat_lvs = [l for l in f['leaves']
-                           if is_offending_latin(l['text'])]
-                if cjk_lvs and lat_lvs:
-                    for l in lat_lvs:
-                        self.flags.append((
-                            f['class'][:60], l['tag'],
-                            l['class'][:60], l['text'][:60],
-                        ))
+            text = f['text'].strip()
+            if self.stack:
+                self.stack[-1]['has_children'] = True
+            if text and not f['has_children'] and f['tag'] in _HTML_LEAF_TAGS:
+                parents = [s.get('class', '') for s in self.stack]
+                leaves.append({
+                    'tag': f['tag'],
+                    'class': f['class'],
+                    'text': text,
+                    'parents': parents,
+                    'parent_class': parents[-1] if parents else '',
+                    'parent_id': self.stack[-1]['id'] if self.stack else -1,
+                })
 
         def handle_data(self, data):
-            if self.skip_depth > 0:
+            if self.skip > 0:
                 return
             if self.stack:
                 self.stack[-1]['text'] += data
 
+    try:
+        W().feed(fragment)
+    except Exception:
+        pass
+    return leaves
+
+
+def audit_translation_track_pairs(html: str, slides: list[str], iss,
+                                   is_offending_latin) -> None:
+    """For each slide: collect leaves via `_walk_text_leaves`, group by
+    parent_id, flag parents whose direct children include BOTH a CJK
+    leaf AND a Latin-only leaf. That pair IS the canonical
+    translation-track signature."""
     for i, fr in enumerate(slides, 1):
-        pd = PairDetector()
-        try:
-            pd.feed(fr)
-        except Exception:
+        leaves = _walk_text_leaves(fr)
+        if not leaves:
             continue
-        # De-dupe by (leaf-class, leaf-text) — repeated patterns across
-        # several siblings still report once each but not twice for the
-        # same leaf flagged via two parents.
+        by_parent: dict[int, list[dict]] = {}
+        for leaf in leaves:
+            by_parent.setdefault(leaf['parent_id'], []).append(leaf)
+
         seen = set()
-        for parent_class, leaf_tag, leaf_class, leaf_text in pd.flags:
-            key = (leaf_class, leaf_text)
-            if key in seen:
+        for sibs in by_parent.values():
+            if len(sibs) < 2:
                 continue
-            seen.add(key)
-            iss.warn('R-LANG',
-                f'slide {i}: `<{leaf_tag} class="{leaf_class}">{leaf_text}` — '
-                f'Latin-only leaf paired with CJK sibling inside '
-                f'`<… class="{parent_class}">` looks like an EN translation '
-                'track. Drop the Latin leaf, translate to CJK, opt into '
-                'bilingual via `<meta name="fs-language" content="zh-en">`, '
-                'or add the term to LATIN_BRAND_WHITELIST in validate.py if '
-                'it is genuinely a brand / acronym.')
+            cjk_lvs = [l for l in sibs if _CJK_RE.search(l['text'])]
+            lat_lvs = [l for l in sibs if is_offending_latin(l['text'])]
+            if not (cjk_lvs and lat_lvs):
+                continue
+            parent_class = sibs[0]['parent_class']
+            for l in lat_lvs:
+                key = (l['class'], l['text'])
+                if key in seen:
+                    continue
+                seen.add(key)
+                iss.warn('R-LANG',
+                    f'slide {i}: `<{l["tag"]} class="{l["class"][:60]}">'
+                    f'{l["text"][:60]}` — Latin-only leaf paired with CJK '
+                    f'sibling inside `<… class="{parent_class[:60]}">` '
+                    'looks like an EN translation track. Drop the Latin '
+                    'leaf, translate to CJK, opt into bilingual via '
+                    '`<meta name="fs-language" content="zh-en">`, or add '
+                    'the term to LATIN_BRAND_WHITELIST in validate.py if '
+                    'it is genuinely a brand / acronym.')
 
 
 def audit_list_echo(slides: list[str], iss: 'Issues'):
@@ -1331,66 +1356,8 @@ def audit_list_echo(slides: list[str], iss: 'Issues'):
     (e.g., a closing summary that restates an agenda). Author decides
     whether to act. Promoted to error only in --strict mode.
     """
-    # Reuse the html.parser walker from R-LANG pair detector. Each leaf
-    # is (tag, class, text, parent_classes).
-    from html.parser import HTMLParser
-
-    _LEAF_TAGS = {'span', 'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                  'li', 'a', 'b', 'em', 'strong', 'i', 'u', 'small', 'mark',
-                  'blockquote', 'dt', 'dd', 'figcaption', 'caption',
-                  'th', 'td'}
-    _SKIP_CONTAINERS = {'script', 'style', 'svg'}
-    _VOID = {'br', 'hr', 'img', 'input', 'meta', 'link', 'source',
-             'area', 'base', 'col', 'embed', 'param', 'track', 'wbr'}
-
-    class Collector(HTMLParser):
-        def __init__(self):
-            super().__init__(convert_charrefs=True)
-            self.stack = []
-            self.leaves = []  # each = {'tag':, 'class':, 'text':, 'parents':[]}
-            self.skip = 0
-
-        def handle_starttag(self, tag, attrs):
-            if tag in _VOID:
-                return
-            if tag in _SKIP_CONTAINERS:
-                self.skip += 1
-                self.stack.append({'tag': tag, 'class': '', 'text': '',
-                                    'has_children': False})
-                return
-            cls = ''
-            for k, v in attrs:
-                if k == 'class':
-                    cls = v or ''
-            self.stack.append({'tag': tag, 'class': cls, 'text': '',
-                                'has_children': False})
-
-        def handle_endtag(self, tag):
-            if tag in _VOID:
-                return
-            if not self.stack:
-                return
-            f = self.stack.pop()
-            if f['tag'] in _SKIP_CONTAINERS:
-                self.skip -= 1
-                return
-            text = f['text'].strip()
-            if self.stack:
-                self.stack[-1]['has_children'] = True
-            # Only collect as a leaf if (a) has direct text, (b) no
-            # element children with their own text.
-            if text and not f['has_children'] and f['tag'] in _LEAF_TAGS:
-                parents = [s.get('class', '') for s in self.stack]
-                self.leaves.append({
-                    'tag': f['tag'], 'class': f['class'],
-                    'text': text, 'parents': parents,
-                })
-
-        def handle_data(self, data):
-            if self.skip > 0:
-                return
-            if self.stack:
-                self.stack[-1]['text'] += data
+    # Leaf collection delegated to the shared walker; this audit just
+    # post-processes the flat list.
 
     # Slide-level layout context for skip detection
     _SKIP_LAYOUT_RE = re.compile(
@@ -1428,13 +1395,7 @@ def audit_list_echo(slides: list[str], iss: 'Issues'):
         # Skip layouts where echo is by design
         if _SKIP_LAYOUT_RE.search(fr):
             continue
-        col = Collector()
-        try:
-            col.feed(fr)
-        except Exception:
-            continue
-
-        leaves = col.leaves
+        leaves = _walk_text_leaves(fr)
         if len(leaves) < 4:  # too few to have meaningful echo
             continue
 
