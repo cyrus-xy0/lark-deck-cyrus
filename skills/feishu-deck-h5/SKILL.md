@@ -5835,7 +5835,7 @@ The validator covers programmable rules (last refreshed 2026-05-18):
 | Run-feedback | R-FEEDBACK | every run produces a `FEEDBACK.md` capturing decisions made for maintainer follow-up |
 | Preflight | PREFLIGHT | local mount writable; not ephemeral |
 
-**Severity model**: every audit emits `warn` or `err` at its inherent severity. `--strict` globally promotes all warnings to errors in one pass at the end of `main()` — no per-audit `if strict:` branching needed.
+**Severity model**: every audit emits `warn`, `err`, or `warn_soft` at its inherent severity. `--strict` globally promotes all regular `warn`s to errors at the end of `main()`. **Soft warnings** (`warn_soft`) — currently `R-FEEDBACK` and `R-VIS-ALIGN` — are editorial advisories that NEVER escalate to errors under `--strict`. They render alongside regular warnings (under the same `WARNINGS` heading) but don't fail CI.
 
 What the validator can't catch — needs human eyes before delivery:
 

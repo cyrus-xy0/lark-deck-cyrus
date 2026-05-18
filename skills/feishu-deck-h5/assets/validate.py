@@ -69,12 +69,25 @@ HERO_TITLE_LAYOUTS = {'cover', 'image-text', 'end', 'section', 'quote'}
 # ---------------------------------------------------------------------------
 
 class Issues:
+    """Aggregates findings during validation.
+
+    Three severity buckets:
+      - errors:   hard-fail (return code 1)
+      - warnings: soft (return code 0 unless --strict promotes them)
+      - soft_warnings: editorial advisories that NEVER promote to errors
+                       under --strict (e.g. R-FEEDBACK "consider adding a
+                       sidecar", R-VIS-ALIGN "4 px tolerance is fuzzy").
+                       Rendered indistinguishably from warnings, but
+                       protected from --strict promotion.
+    """
     def __init__(self):
         self.errors: list[tuple[str, str]] = []
         self.warnings: list[tuple[str, str]] = []
+        self.soft_warnings: list[tuple[str, str]] = []
 
-    def err(self, code, msg):     self.errors.append((code, msg))
-    def warn(self, code, msg):    self.warnings.append((code, msg))
+    def err(self, code, msg):       self.errors.append((code, msg))
+    def warn(self, code, msg):      self.warnings.append((code, msg))
+    def warn_soft(self, code, msg): self.soft_warnings.append((code, msg))
 
 
 # ---------------------------------------------------------------------------
@@ -953,31 +966,40 @@ def audit_header_minimal(slides: list[str], iss: Issues):
     sub-line is a documented exception (it's the bilingual EN translation
     of the agenda title, kept alongside the title).
     """
+    # 2026-05-18 round 2: walk DOM via `_walk_text_leaves` so the audit
+    # works on `<div class="header is-tall">` AND on header markup that
+    # nests a wrapper-div (`<div class="header"><div class="wrap"><h2>…</h2>`
+    # `</div><div class="eyebrow">…</div></div>`). The previous regex
+    # `<div\s[^>]*class="(?:[^"]*\s)?header(?:\s[^"]*)?"[^>]*>(.*?)</div>`
+    # closed at the first `</div>` and missed siblings of the wrapper.
+    # The walker yields every leaf with its full parent-class chain, so
+    # we can ask: "is any `.eyebrow` leaf an ancestor-descendant of a
+    # `.header` block on a non-hero layout?"
     for i, fr in enumerate(slides, 1):
         layout = slide_attr(fr, 'layout') or '?'
-        # Hero layouts use .stage not .header — skip. HERO_TITLE_LAYOUTS
-        # already covers cover / image-text / end / section / quote (B1
-        # fix, 2026-05-18); no need for the previous duplicate or-clause.
         if layout in HERO_TITLE_LAYOUTS:
             continue
-        # Find .header blocks. Match class="header" as a whole-word match
-        # inside the class attr (so `class="header is-tall"` works too),
-        # accept any leading attrs (`data-foo`, `style="…"`), then capture
-        # to the first balancing `</div>`. B3 fix 2026-05-18: old regex
-        # `<div class="header">` was strict-equal and missed legit variants
-        # like `class="header is-tall"`. The non-greedy `.*?` correctly
-        # captures the eyebrow's opening tag for the substring check below
-        # because we only need to find an open tag's literal needle inside.
-        for hdr in re.findall(
-                r'<div\s[^>]*class="(?:[^"]*\s)?header(?:\s[^"]*)?"[^>]*>(.*?)</div>',
-                fr, re.S):
-            if '<div class="eyebrow"' in hdr or 'class="eyebrow"' in hdr:
+        # Quick reject: if the slide markup never mentions `eyebrow`, no
+        # need to walk. (eyebrow as a string match elsewhere — e.g. in a
+        # comment or inside text content — is excluded by the leaf check.)
+        if 'eyebrow' not in fr:
+            continue
+        for leaf in _walk_text_leaves(fr):
+            # Is THIS leaf an `.eyebrow` element AND inside a `.header`?
+            leaf_classes = (leaf['class'] or '').split()
+            if 'eyebrow' not in leaf_classes:
+                # Also flag eyebrow on parent of the leaf (eyebrow may
+                # contain its own leaf text). Check parent chain.
+                if not any('eyebrow' in (p or '').split()
+                            for p in leaf['parents']):
+                    continue
+            # Is any ancestor a `.header`? (whole-word in class list)
+            if any('header' in (p or '').split() for p in leaf['parents']):
                 iss.warn('R56',
                     f'slide {i} ({layout}): .header still contains an .eyebrow. '
                     'CSS hides it visually but the markup should be removed too '
                     '— the content-page header is title-only.')
-            # .pageno was retired 2026-05 — no warning needed; rule
-            # only flags the historical "eyebrow inside header" footgun.
+                break  # one warning per slide is enough
 
 
 def audit_no_cyan_accent(slides: list[str], iss: Issues):
@@ -1270,13 +1292,15 @@ def _walk_text_leaves(fragment: str) -> list[dict]:
                 self.stack[-1]['has_children'] = True
             if text and not f['has_children'] and f['tag'] in _HTML_LEAF_TAGS:
                 parents = [s.get('class', '') for s in self.stack]
+                parent_frame = self.stack[-1] if self.stack else None
                 leaves.append({
                     'tag': f['tag'],
                     'class': f['class'],
                     'text': text,
                     'parents': parents,
                     'parent_class': parents[-1] if parents else '',
-                    'parent_id': self.stack[-1]['id'] if self.stack else -1,
+                    'parent_id': parent_frame['id'] if parent_frame else -1,
+                    'parent_tag': parent_frame['tag'] if parent_frame else '',
                 })
 
         def handle_data(self, data):
@@ -1297,7 +1321,17 @@ def audit_translation_track_pairs(html: str, slides: list[str], iss,
     """For each slide: collect leaves via `_walk_text_leaves`, group by
     parent_id, flag parents whose direct children include BOTH a CJK
     leaf AND a Latin-only leaf. That pair IS the canonical
-    translation-track signature."""
+    translation-track signature.
+
+    Layout-only parents (`tr / table / thead / tbody / ul / ol / dl /
+    figure`) are EXCLUDED — they routinely host bilingual columns by
+    design (e.g. CJK row label + EN data cell in a reference table).
+    The translation-track signature only applies to siblings inside a
+    SEMANTIC container (`.head / .card / .col-text / .stage / etc.`).
+    Round 2 review caught this as a refactor regression: pre-bbc8db6,
+    the per-parent pair-check was gated on the parent's tag being a
+    leaf-tag, which incidentally excluded these layout-only parents.
+    """
     for i, fr in enumerate(slides, 1):
         leaves = _walk_text_leaves(fr)
         if not leaves:
@@ -1310,11 +1344,19 @@ def audit_translation_track_pairs(html: str, slides: list[str], iss,
         for sibs in by_parent.values():
             if len(sibs) < 2:
                 continue
+            parent_tag = sibs[0]['parent_tag']
+            # Skip layout-only parents — bilingual columns inside tables /
+            # lists / figures are expected design, not translation tracks.
+            if parent_tag in _LAYOUT_ONLY_PARENT_TAGS:
+                continue
             cjk_lvs = [l for l in sibs if _CJK_RE.search(l['text'])]
             lat_lvs = [l for l in sibs if is_offending_latin(l['text'])]
             if not (cjk_lvs and lat_lvs):
                 continue
             parent_class = sibs[0]['parent_class']
+            # Empty parent class → reference parent by tag for clarity
+            parent_ref = (f'class="{parent_class[:60]}"' if parent_class
+                          else f'<{parent_tag}>')
             for l in lat_lvs:
                 key = (l['class'], l['text'])
                 if key in seen:
@@ -1323,12 +1365,21 @@ def audit_translation_track_pairs(html: str, slides: list[str], iss,
                 iss.warn('R-LANG',
                     f'slide {i}: `<{l["tag"]} class="{l["class"][:60]}">'
                     f'{l["text"][:60]}` — Latin-only leaf paired with CJK '
-                    f'sibling inside `<… class="{parent_class[:60]}">` '
-                    'looks like an EN translation track. Drop the Latin '
-                    'leaf, translate to CJK, opt into bilingual via '
-                    '`<meta name="fs-language" content="zh-en">`, or add '
-                    'the term to LATIN_BRAND_WHITELIST in validate.py if '
-                    'it is genuinely a brand / acronym.')
+                    f'sibling inside `<… {parent_ref}>` looks like an EN '
+                    'translation track. Drop the Latin leaf, translate to '
+                    'CJK, opt into bilingual via `<meta name="fs-language" '
+                    'content="zh-en">`, or add the term to '
+                    'LATIN_BRAND_WHITELIST in validate.py if it is '
+                    'genuinely a brand / acronym.')
+
+
+# Tags that are STRUCTURAL containers (rows / list-bodies / table-bodies)
+# rather than semantic content blocks. Their direct children are EXPECTED
+# to be sibling cells / items, not translation pairs.
+_LAYOUT_ONLY_PARENT_TAGS = {
+    'tr', 'table', 'thead', 'tbody', 'tfoot',
+    'ul', 'ol', 'dl', 'figure', 'select', 'fieldset',
+}
 
 
 def audit_list_echo(slides: list[str], iss: 'Issues'):
@@ -2067,7 +2118,7 @@ def audit_feedback_md(html_path: Path, iss: Issues):
 
     feedback = parent / 'FEEDBACK.md'
     if not feedback.is_file():
-        iss.warn('R-FEEDBACK',
+        iss.warn_soft('R-FEEDBACK',
             f'no FEEDBACK.md in {parent}. Every run should '
             'capture the agent\'s judgment calls + visual workarounds + '
             'validator escapes for the maintainer to fold into the next '
@@ -2085,7 +2136,7 @@ def audit_feedback_md(html_path: Path, iss: Issues):
     except OSError:
         return
     if 'FEEDBACK.md.auto-stub' in content:
-        iss.warn('R-FEEDBACK',
+        iss.warn_soft('R-FEEDBACK',
             f'{feedback.name} exists but is an unfilled auto-stub from '
             '`finalize.sh`. The agent must replace the placeholder '
             'sections with real decisions from this run BEFORE hand-off. '
@@ -2230,7 +2281,10 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             'this element is actually a column title (not meta).')
 
     for entry in report.get('align', [])[:20]:
-        iss.warn('R-VIS-ALIGN',
+        # Soft: 4 px tolerance is genuinely fuzzy (sub-pixel rounding on
+        # Chromium fractional scale can produce 5 px deltas on perfectly
+        # aligned grids). Editorial — flagged but never promoted to error.
+        iss.warn_soft('R-VIS-ALIGN',
             f'slide {entry["slide_idx"]} · grid `{entry["grid_sel"]}` has '
             f'{entry["count"]} direct children with heights '
             f'{entry["heights"]} — max diff {entry["delta"]} px '
@@ -2652,21 +2706,27 @@ def main():
         run_visual_audits(path, iss, want_screenshots=args.screenshots)
 
     if args.strict:
+        # Promote regular warnings to errors. SOFT warnings (R-FEEDBACK,
+        # R-VIS-ALIGN, etc.) stay as warnings — they are editorial
+        # advisories that should never fail CI.
         iss.errors.extend(iss.warnings)
         iss.warnings = []
+
+    # Soft warnings render alongside regular warnings, no separate header.
+    all_warnings = iss.warnings + iss.soft_warnings
 
     print(f'feishu-deck-h5 validator  ·  {path.name}')
     print(f'  slides: {len(slides)}')
     print(f'  errors:   {len(iss.errors)}')
-    print(f'  warnings: {len(iss.warnings)}')
+    print(f'  warnings: {len(all_warnings)}')
 
     if iss.errors:
         print('\nERRORS')
         for code, msg in iss.errors:
             print(f'  ✗ [{code}] {msg}')
-    if iss.warnings:
+    if all_warnings:
         print('\nWARNINGS')
-        for code, msg in iss.warnings:
+        for code, msg in all_warnings:
             print(f'  ! [{code}] {msg}')
 
     if iss.errors:

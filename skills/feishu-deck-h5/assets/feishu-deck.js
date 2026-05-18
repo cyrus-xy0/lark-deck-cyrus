@@ -370,7 +370,11 @@
   function toggleFullscreen() {
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (fsEl) {
-      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      // Guard: if neither exit API exists (Firefox-without-prefix in
+      // ancient builds, sandboxed iframes), `.call` would crash on
+      // undefined. 2026-05-18 round 2 review fix.
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
     } else {
       requestFullscreen();
     }
