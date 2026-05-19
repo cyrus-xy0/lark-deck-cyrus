@@ -1156,6 +1156,8 @@ def audit_language_policy(html: str, slides: list[str], iss: Issues):
         'Q1', 'Q2', 'Q3', 'Q4', 'H1', 'H2',
         'Lark', 'Feishu', 'Codex', 'Mira', 'Flow', 'Base', 'Wiki',
         'OpenAI', 'Anthropic', 'Claude', 'GPT', 'LLM',
+        # Industry-standard business system acronyms
+        'ERP', 'CRM', 'WMS', 'PMS', 'MES', 'SCM', 'BI', 'OA', 'POS',
     }
     # Pattern: technical reference codes (BF10, R20, P32, M1 etc.) — short
     # uppercase prefix + digits. Used to cross-reference SKILL.md sections /
@@ -2153,16 +2155,24 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
 
     Replaces standalone audit_visual_overflow. One Chromium launch covers:
 
-      R-OVERFLOW   · per-slide scrollHeight > 1080 or scrollWidth > 1920
-      R-VIS-TIER   · every text element's computed fontSize is on the
-                     4-tier ladder {16, 24, 28, 48} or a documented hero
-                     exception (88, 100, 132, 160) on hero-class selectors
-      R-VIS-HIER   · within each card / panel, meta-class fontSize ≤
-                     body-class fontSize (renderer-confirmed, not just
-                     static CSS — catches inheritance / overrides)
-      R-VIS-ALIGN  · grid containers (.overview-grid / .todo-grid / etc.)
-                     have all direct children at roughly the same
-                     bounding-box height (within 4 px tolerance)
+      R-OVERFLOW       · per-slide scrollHeight > 1080 or scrollWidth > 1920
+      R-VIS-TIER       · every text element's computed fontSize is on the
+                         4-tier ladder {16, 24, 28, 48} or a documented hero
+                         exception (88, 100, 132, 160) on hero-class selectors
+      R-VIS-HIER       · within each card / panel, meta-class fontSize ≤
+                         body-class fontSize (renderer-confirmed, not just
+                         static CSS — catches inheritance / overrides)
+      R-VIS-ALIGN      · grid containers (.overview-grid / .todo-grid / etc.)
+                         have all direct children at roughly the same
+                         bounding-box height (within 4 px tolerance)
+      R-VIS-BODY-FLOOR · 2026-05-19 · text elements with ≥ 8 chars of direct
+                         text rendered at < 24 px while NOT inside a mockup
+                         container or chrome class. Catches the gap where
+                         ambiguous short class names (.rt / .d / .ind-tag)
+                         pass both R20 (16 is on ladder) and R06 (class-
+                         heuristic). Renderer-aware: looks at actual
+                         content length + container. Opt out per element
+                         with `data-allow-body-floor`.
 
     Optionally archives PNG screenshots when want_screenshots=True.
 
@@ -2315,6 +2325,19 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             'differentiate via font-weight or brand color, not by '
             'shrinking the size.')
 
+    for entry in report.get('body_floor', [])[:20]:
+        iss.err('R-VIS-BODY-FLOOR',
+            f'slide {entry["slide_idx"]} · `{entry["selector"]}` renders at '
+            f'{entry["rendered_px"]}px but its direct text is '
+            f'{entry["char_count"]} chars ("{entry["preview"]}"). '
+            'Body content (≥ 8 chars of sentence-like text outside mockup '
+            'containers and chrome classes) must be ≥ 24 px on projector. '
+            'Bump to 24 (preferred), OR rename to a chrome class '
+            '(.eyebrow / .footnote / .source / .pill / .tag / .chip / '
+            '.badge / .pageno / .demo-tag) if it really is chrome, OR set '
+            '`data-allow-body-floor` on the element for a documented '
+            'exception (e.g. legend annotation by design).')
+
     # (screenshot archival happens inside the Playwright block above; no
     # post-step needed. The previous `if 'shots_dir' in dir(): pass` was
     # dead: `dir()` inside a function returns local names, not what one
@@ -2334,11 +2357,16 @@ _VISUAL_AUDIT_JS = r"""
     // 2026-05-17: north-star-map / verdict-card / pipeline use `idx`
     // as the visual anchor numeral (88 hero per the hero-context rule).
     'idx',
+    // 2026-05-19: generic "hero-*" prefix — anything with hero/anchor/-pct/-val
+    // in the class name is conventionally the focal numeral / metric.
+    'hero', 'kpi-val', 'metric-value', 'kpi-strip',
+    // closing-strip uses span for the 52 px hero callout
+    'closing-strip',
   ];
   const HERO_SIZES = new Set([
     30,                                      // cover .author (master spec)
-    36, 40, 44,                              // master sub-hero values (lede / section-h2 sub)
-    56, 64, 72, 88, 92, 96, 100, 132, 160,
+    36, 38, 40, 44,                          // master sub-hero values (lede / section-h2 sub / ctitle)
+    52, 56, 64, 72, 88, 92, 96, 100, 132, 160,
     240, 312,                                // big-stat extreme
   ]);
   // Hero layouts — any text element on these slides can use HERO_SIZES.
@@ -2413,7 +2441,7 @@ _VISUAL_AUDIT_JS = r"""
     return false;
   };
 
-  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [] };
+  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [] };
   const slides = document.querySelectorAll('.slide');
   slides.forEach((slide, idx) => {
     const slide_idx = idx + 1;
@@ -2430,10 +2458,31 @@ _VISUAL_AUDIT_JS = r"""
     }
 
     // ---- Tier: every text-bearing element ----
+    // Mock container classes whose internals are exempt from R-VIS-TIER
+    // (mock-internal typography is freely <14 px to look realistic).
+    // Shared with R-VIS-BODY-FLOOR below.
+    const TIER_MOCK = [
+      'ui-window', 'ui-screen', 'ui-chat', 'ui-body', 'ui-toolbar',
+      'ui-sidebar', 'ui-grid', 'ui-cell', 'ui-list-item', 'ui-msg',
+      'phone', 'phone-screen', 'p22-ph', 'p17-phone', 'fs-phone',
+      'chat-body', 'chat-header', 'p22-chat', 'p22-noti', 'p22-know',
+      'p22-task', 'ph-bar', 'ph-status', 'ph-chat', 'msg-ai', 'msg-user',
+      'dash', 'mini-ui', 'browser-mock', 'p17-xhs', 'p17-dy', 'p17-flow-card',
+      'page-replica', 'report-toc', 'report-mock', 'doc-mock',
+      'doc-preview', 'wiki-mock', 'feishu-doc', 'lark-doc-mock',
+      // 2026-05-19 · topology mockup (.pd-card uses ≤13 px nodes by design)
+      'pd-card',
+      // 2026-05-19 · doc-grid mockup (thumbnail card grid emulating Lark Doc list)
+      'doc-grid', 'doc-stage', 'doc-card',
+    ];
     const textEls = slide.querySelectorAll('*');
     const seenTierViolations = new Set();
     textEls.forEach(el => {
       if (!hasOwnText(el)) return;
+      // 2026-05-19 · skip SVG text — SVG <text>/<tspan> sizes are visual
+      // labels inside diagrams (hero numerals, axis labels) and don't follow
+      // the slide-content typography ladder.
+      if (el.ownerSVGElement || el.tagName === 'TEXT' || el.tagName === 'tspan') return;
       const cs = window.getComputedStyle(el);
       const px = Math.round(parseFloat(cs.fontSize));
       if (!px || px < 8) return;
@@ -2449,6 +2498,13 @@ _VISUAL_AUDIT_JS = r"""
         }
         if (heroAncestor) return;
       }
+      // 2026-05-19 · skip mock-internal: text inside phone / Lark Doc /
+      // diagram mockup containers is allowed at any size by design.
+      let inMock = false;
+      for (let n = el; n && n !== slide; n = n.parentElement) {
+        if (hasAnyClass(n, TIER_MOCK)) { inMock = true; break; }
+      }
+      if (inMock) return;
       // Explicit opt-out: walk up looking for [data-allow-typescale]
       let allowOut = false;
       for (let n = el; n; n = n.parentElement) {
@@ -2526,6 +2582,73 @@ _VISUAL_AUDIT_JS = r"""
           });
         });
       }
+    });
+
+    // ---- R-VIS-BODY-FLOOR: text content >= 8 chars at < 24px outside chrome ----
+    // 2026-05-19 · catches the gap where ambiguous short class names
+    // (.rt / .d / .ind-tag) pass both R20 (16 is on the 4-tier ladder)
+    // and R06 (class-name heuristic). This renderer-aware check looks at
+    // the element's actual rendered fontSize AND its direct text content
+    // length: if it has ≥ 8 chars of sentence-like text at < 24 px while
+    // NOT inside a mockup container or chrome class, flag it. Author
+    // can opt out per-element with [data-allow-body-floor].
+    const CONTENT_CHROME_CLASSES = [
+      'pageno', 'footnote', 'source', 'attrib', 'copyright', 'wordmark',
+      'contact', 'eyebrow', 'pill', 'tag', 'chip', 'badge', 'demo-tag',
+      'demo-label', 'caption-meta', 'cite',
+    ];
+    const MOCK_CONTAINERS = [
+      'ui-window', 'ui-screen', 'ui-chat', 'ui-body', 'ui-toolbar',
+      'ui-sidebar', 'ui-grid', 'ui-cell', 'ui-list-item', 'ui-msg',
+      'phone', 'phone-screen', 'p22-ph', 'p17-phone', 'fs-phone',
+      'chat-body', 'chat-header', 'p22-chat', 'p22-noti', 'p22-know',
+      'p22-task', 'ph-bar', 'ph-status', 'ph-chat', 'msg-ai', 'msg-user',
+      'dash', 'mini-ui', 'browser-mock', 'p17-xhs', 'p17-dy', 'p17-flow-card',
+      'page-replica',  // replica mode = full PDF image, no text leaves
+      // 2026-05-19 · doc / report mockups (Lark Doc / Wiki preview at small px)
+      'report-toc', 'report-mock', 'doc-mock', 'doc-preview', 'wiki-mock',
+      'feishu-doc', 'lark-doc-mock',
+      'doc-grid', 'doc-stage', 'doc-card',
+    ];
+    const seenBodyFloor = new Set();
+    textEls.forEach(el => {
+      // Skip SVG (different size semantics)
+      if (el.ownerSVGElement || el.tagName === 'TEXT' || el.tagName === 'tspan') return;
+      const cs = window.getComputedStyle(el);
+      const px = Math.round(parseFloat(cs.fontSize));
+      if (!px || px >= 24) return;
+      // Direct-text only (don't double-count nested child text)
+      let directText = '';
+      for (const n of el.childNodes) {
+        if (n.nodeType === 3) directText += n.textContent;
+      }
+      directText = directText.trim();
+      if (directText.length < 8) return;
+      // Element class hints chrome → skip
+      if (hasAnyClass(el, CONTENT_CHROME_CLASSES)) return;
+      // Inside mockup → skip
+      let inMock = false;
+      for (let n = el; n && n !== slide; n = n.parentElement) {
+        if (hasAnyClass(n, MOCK_CONTAINERS)) { inMock = true; break; }
+      }
+      if (inMock) return;
+      // [data-allow-body-floor] anywhere up the chain → opt out
+      let allowOut = false;
+      for (let n = el; n; n = n.parentElement) {
+        if (n.dataset && n.dataset.allowBodyFloor != null) { allowOut = true; break; }
+      }
+      if (allowOut) return;
+      // Skip hero layouts (cover/section/big-stat/end/quote) — stylized text OK
+      if (isHeroLayout) return;
+      const sel = shortSel(el);
+      const key = `${slide_idx}::${sel}::${px}`;
+      if (seenBodyFloor.has(key)) return;
+      seenBodyFloor.add(key);
+      out.body_floor.push({
+        slide_idx, selector: sel, rendered_px: px,
+        char_count: directText.length,
+        preview: directText.length > 40 ? directText.slice(0, 40) + '…' : directText,
+      });
     });
 
     // ---- Alignment: grid children equal-height ----

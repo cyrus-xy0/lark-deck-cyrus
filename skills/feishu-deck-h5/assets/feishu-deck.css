@@ -1281,6 +1281,7 @@ body {
 .slide .header h2,
 .slide .header h2.title-zh {
   display: block; margin: 0; padding: 0;
+  text-wrap: balance;
   /* 2026-05-15: dropped `!important` from margin — it silently broke every
      author-written `.title-zh { margin-bottom: Npx }` override, forcing
      a Devtools dig to discover that the rule wasn't honored. Now author
@@ -1323,6 +1324,18 @@ body {
 /* Defense: strip stray <br> from header titles (规范: titles must be one line) */
 .slide .header .title-zh br,
 .slide .header h2 br { display: none; }
+
+/* 2026-05-19 · text-wrap baseline (skill-level)
+   Prevent ugly orphan-character last-line wraps on common card titles /
+   names / sub-labels. `text-wrap: balance` re-distributes the line break
+   so the lines have similar character counts. CSS-only, zero JS cost.
+   Author can override per-rule. Applies to titles + card-name + role-name. */
+.slide .card .ctitle, .slide .card-name, .slide .role-name,
+.slide .ns-card h4, .slide .scene-card .sc-name, .slide .feat-label,
+.slide .bot-name, .slide .arch-label, .slide .dir-name {
+  text-wrap: balance;
+  word-break: break-word;
+}
 
 /* 规范 (per reference deck): content-page HEADER is a single-line title +
    top-right logo, NOTHING ELSE. The eyebrow under .header is suppressed on
@@ -2528,7 +2541,7 @@ body {
 .slide .kpi-strip .kpi .v.is-blue   { color: var(--fs-blue);   }
 .slide .kpi-strip .kpi .v.is-orange { color: var(--fs-orange); }
 .slide .kpi-strip .kpi .l {
-  font: 500 16px/1.4 var(--fs-font-cjk);
+  font: 500 24px/1.4 var(--fs-font-cjk);
   color: var(--fs-text-72);
   margin-top: 6px;
 }
