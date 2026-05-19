@@ -1,23 +1,17 @@
 ---
 name: feishu-deck-h5
 description: |
-  Use this skill whenever the user asks for a Feishu/Lark-style slide deck rendered as a single
-  HTML file (NOT a real .pptx). Triggers: "飞书风格 PPT", "Lark deck", "汇报材料", "客户提案",
-  "h5 deck", "presentation html", "16:9 网页演示", "用 html 模仿 ppt", "深色商务汇报",
-  or whenever the user attaches the 飞书 .thmx master and asks for an HTML version. The skill
-  produces a dark, cinematic deck at 1920×1080 design canvas with auto-responsive scale-to-fit,
-  plus a built-in mobile vertical browse mode in the same file. The default language is
-  CHINESE-ONLY (the body text, card titles, agenda items, section labels are all ZH; do NOT
-  mirror them with EN translations underneath). Bilingual ZH + EN output is opt-in only —
-  switch to it only when the user explicitly asks (e.g. for an external bilingual customer
-  pitch). Outputs look indistinguishable from a hand-built Lark sales deck. Do NOT use this
-  skill when the user actually wants a real PowerPoint (.pptx) file — that's the pptx skill.
-  ALSO use this skill in CHECK-ONLY mode when the user hands over a finished HTML and wants
-  to know what's non-compliant — triggers: "帮我检查这份 HTML/deck", "看看这个 deck 合不合规",
-  "审一下这个 HTML", "validate this", "check the deck", "扫一遍合规问题",
-  or anytime the user supplies an HTML and asks for review/validation without asking for
-  generation. Check-only mode runs assets/check-only.sh and produces a markdown report;
-  it skips PREFLIGHT / new-run / asset-copy entirely.
+  Use this skill when the user asks for a Feishu / Lark-style slide deck rendered as a
+  single HTML file (NOT a real .pptx). Common triggers: "飞书风格 PPT", "Lark deck",
+  "汇报材料", "客户提案", "h5 deck", "16:9 网页演示", "用 html 模仿 ppt", or the user
+  attaching the 飞书 .thmx master. Produces a dark, cinematic deck at 1920×1080 with
+  auto scale-to-fit + a mobile vertical browse mode in one file. Default language is
+  CHINESE-ONLY; bilingual ZH+EN is opt-in (external bilingual pitch). Output looks
+  indistinguishable from a hand-built Lark sales deck. Do NOT use for a real PowerPoint
+  .pptx — that's the pptx skill. Also runs in CHECK-ONLY mode when the user hands over
+  a finished HTML and asks for review / validation (e.g. "帮我检查这份 HTML",
+  "validate this", "审一下这个 deck") — see MODE SELECTION in SKILL.md body for the
+  full trigger list and what each mode does.
 ---
 
 # feishu-deck-h5
@@ -197,7 +191,7 @@ Either dump it in the chat (default) or write to a file the user names.
 | 演示模式 / 运行时 | R29-32 | `.deck-progress`, `.deck-controls`, prev/next/fs buttons, `requestFullscreen`, `fullscreenchange`, idle fade |
 | texts.md 联动 | T00 / T01 / T02 / T03 | data-text-id present; valid `slide-NN.field` shape; unique; paired `texts.md` synced |
 | 性能预算 | P50-P55 | base64 budget; blur radius; single ResizeObserver; AbortController; GPU layers |
-| 视觉 (Playwright, default-on since 2026-05-18) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR / R-VIS-ALIGN | canvas overflow; **sibling bbox overlap** (catches "column bleeds into legend" — internal overlap within canvas); computed `fontSize` on ladder; meta ≤ body; grid-children equal height. ~2 s overhead. Use `--no-visual` to skip (CI without Chromium); gracefully skips if playwright is not installed |
+| 视觉 (Playwright, default-on since 2026-05-18) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR / R-VIS-BODY-FLOOR / R-VIS-ALIGN | canvas overflow; **sibling bbox overlap** (catches "column bleeds into legend" — internal overlap within canvas); computed `fontSize` on ladder; meta ≤ body; **renderer-aware body-content < 24 px detection** (R-VIS-BODY-FLOOR · 2026-05-19 · catches ambiguous short class names like `.rt` / `.d` / `.ind-tag` that pass static R20/R06 because 16 is on the ladder and short class names match neither chrome nor body heuristic — checks actual rendered fontSize + ≥ 8 chars of direct text + not inside mockup containers; opt out per element with `data-allow-body-floor`); grid-children equal height. ~2 s overhead. Use `--no-visual` to skip (CI without Chromium); gracefully skips if playwright is not installed |
 | 交付物附件 | R-FEEDBACK | `FEEDBACK.md` sidecar present (relevant ONLY for new-run flow) |
 
 When the user asks "what does [Rxx] mean", look up the rule in `validate.py`
