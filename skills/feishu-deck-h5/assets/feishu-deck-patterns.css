@@ -64,14 +64,15 @@
   border: 1px solid rgba(60, 127, 255, 0.45);
   border-radius: 999px;
   background: rgba(60, 127, 255, 0.10);
-  font: 600 18px/1 var(--fs-font-cjk);
-  color: var(--fs-accent-blue);
+  /* 2026-05-20 · 18 → 16 (chrome pill, snap to 4-tier ladder). */
+  font: 600 16px/1 var(--fs-font-cjk);
+  color: var(--fs-blue);
   letter-spacing: 0.06em;
 }
 .slide.story-case .industry-tag::before {
   content: "";
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--fs-accent-blue);
+  background: var(--fs-blue);
 }
 
 .slide.story-case .story-hook {
@@ -80,7 +81,7 @@
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: -0.005em;
 }
-.slide.story-case .story-hook .accent { color: var(--fs-accent-teal); }
+.slide.story-case .story-hook .accent { color: var(--fs-teal); }
 
 .slide.story-case .story-arc {
   display: flex; flex-direction: column;
@@ -95,23 +96,26 @@
   align-items: baseline;
 }
 .slide.story-case .story-arc .lbl {
+  /* allow:body-floor — row labels (痛点/冲突/解法/价值) are short chrome
+     labels, like table row headers, not body content. */
   display: inline-flex; align-items: center; justify-content: center;
   padding: 4px 0 4px 14px;
-  font: 700 18px/1 var(--fs-font-cjk);
+  font: 700 16px/1 var(--fs-font-cjk);
   letter-spacing: 0.16em;
-  color: var(--fs-accent-blue);
-  border-left: 3px solid var(--fs-accent-blue);
+  color: var(--fs-blue);
+  border-left: 3px solid var(--fs-blue);
 }
 .slide.story-case .story-arc .lbl.is-orange { color: #FE7F00; border-color: #FE7F00; }
-.slide.story-case .story-arc .lbl.is-teal   { color: var(--fs-accent-teal); border-color: var(--fs-accent-teal); }
+.slide.story-case .story-arc .lbl.is-teal   { color: var(--fs-teal); border-color: var(--fs-teal); }
 .slide.story-case .story-arc .lbl.is-violet { color: #9F6FF1; border-color: #9F6FF1; }
 .slide.story-case .story-arc p {
   margin: 0;
-  font: 500 22px/1.55 var(--fs-font-cjk);
+  /* 2026-05-20 · 22 → 24 (body floor). */
+  font: 500 24px/1.55 var(--fs-font-cjk);
   color: rgba(255, 255, 255, 0.86);
 }
 .slide.story-case .story-arc p .accent {
-  color: var(--fs-accent-teal);
+  color: var(--fs-teal);
   font-weight: 600;
 }
 

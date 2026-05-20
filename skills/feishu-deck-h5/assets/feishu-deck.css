@@ -687,6 +687,14 @@ body {
   position: absolute; bottom: 96px; left: 126px; right: 124px;
   display: flex; flex-wrap: wrap; gap: 14px;
 }
+/* 2026-05-20 · section pill 升 16→24 (Body tier) — Hero-context label floor 规则
+   (SKILL.md 2026-05-17): section 页 chapter-num 160 / title 88 是 hero anchor,
+   同一页内 content label(产品名)必须 ≥ 24 Body,不能 16 chrome,否则在投影
+   距离上看不清。 */
+.slide[data-layout="section"] .pills .pill {
+  font-size: 24px;
+  padding: 12px 22px;
+}
 
 /* ============================================================================
    LAYOUT 03 — Content (3-up cards)
@@ -826,10 +834,14 @@ body {
 .slide[data-layout="stats"] .col:first-child { border-left: 0; padding-left: 0; }
 /* 规范: stats trend tags must be readable at slide projection distance.
    ≥ 20 px CJK font, no Latin-uppercase forcing on CJK glyphs (which falls back
-   to system font and renders smaller). */
+   to system font and renders smaller).
+   2026-05-20 · bumped 24 → 28 (sub tier). At 24, trend visually disappeared
+   next to the 132px hero number per BF13 hero-context label floor — needs to
+   sit closer in weight to the .label below it. 28 reads as deliberate label
+   without competing with the 132 number. */
 .slide[data-layout="stats"] .col .trend {
   display: inline-flex; align-items: center; gap: 8px;
-  font: 600 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em;
+  font: 600 28px/1 var(--fs-font-cjk); letter-spacing: 0.04em;
   text-transform: none; color: var(--fs-accent);
 }
 .slide[data-layout="stats"] .col .num {
@@ -842,13 +854,18 @@ body {
 .slide[data-layout="stats"] .col .label {
   font: 500 24px/1.4 var(--fs-font-cjk); color: var(--fs-text-72);
 }
+/* 2026-05-20 · font family switched latin → cjk on .source / .footnote.
+   When source text mixes Latin and CJK ("Source · 内部传输实测 2024 Q4"),
+   var(--fs-font-latin) falls back to system font for the CJK glyphs and
+   renders smaller / mismatched. CJK-first font handles both scripts more
+   uniformly at 16px. */
 .slide[data-layout="stats"] .col .source {
-  font: 500 16px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
+  font: 500 16px/1.4 var(--fs-font-cjk); color: var(--fs-text-40);
   letter-spacing: 0.06em;
 }
 .slide[data-layout="stats"] .footnote {
   position: absolute; left: 96px; right: 96px; bottom: 110px;
-  font: 500 16px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
+  font: 500 16px/1.4 var(--fs-font-cjk); color: var(--fs-text-40);
   letter-spacing: 0.04em;
 }
 
@@ -867,8 +884,11 @@ body {
   position: absolute; left: 96px; right: 96px; bottom: 130px; max-width: 1100px;
 }
 .slide[data-layout="image-text"] h2.title {
+  /* allow:typescale — image-text 是 hero-style 全幅图布局(类 cover/section),
+     2026-05-20 加入 Hero exception 名单,从 4-tier 的 48 升到 master-spec 的 88
+     (与 section H2 同级)。在 cinematic 全屏画面上 48 px ZH 标题视觉空虚。*/
   margin-top: 24px;
-  font: 700 48px/1.1 var(--fs-font-cjk); letter-spacing: -0.005em;
+  font: 700 88px/1.1 var(--fs-font-cjk); letter-spacing: -0.005em;
 }
 .slide[data-layout="image-text"] .lede { margin-top: 28px; color: var(--fs-text-65); }
 
@@ -1035,23 +1055,36 @@ body {
   font: 700 48px/1.05 var(--fs-font-cjk); letter-spacing: -0.005em;
 }
 
-/* TOC = vertical pill stack, centered on canvas */
+/* TOC = vertical pill stack, centered on canvas
+   2026-05-20 · 自适应 padding/gap by pill count (BF-AGENDA-DENSITY).
+   default tuned for N=3-4; N=5 / N≥6 progressively tighten so 6 pills
+   no longer overflow the 840px usable area and break "visually centered". */
 .slide[data-layout="agenda"] .toc {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  /* 2026-05-06 v2.1 · gap 36 → 56 (more breathing room between pills) */
   gap: 56px;
   padding: 120px 96px;
 }
 .slide[data-layout="agenda"][data-variant="with-header"] .toc { padding-top: 280px; }
+
+/* N=5 · 紧凑档 */
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(5)) {
+  gap: 36px; padding: 80px 96px;
+}
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(5)) .item { padding: 28px 96px; }
+
+/* N≥6 · 极致紧凑 */
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(6)) {
+  gap: 24px; padding: 60px 96px;
+}
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(6)) .item { padding: 22px 96px; }
 
 /* Each .item = a pill card */
 .slide[data-layout="agenda"] .toc .item {
   display: grid; grid-template-columns: 140px 1fr;
   align-items: center; gap: 40px;
   width: 1180px; max-width: 100%;
-  /* 2026-05-06 v2.1 · padding 34/52 → 44/96 (numbers no longer crowd left edge) */
   padding: 44px 96px;
   background: rgba(8,14,40,0.45);
   border: 1.5px solid rgba(60,127,255,0.55);
@@ -1115,6 +1148,15 @@ body {
 }
 .slide[data-layout="big-stat"] .copy p {
   font: 500 24px/1.55 var(--fs-font-cjk); color: var(--fs-text-65); max-width: 600px;
+}
+/* 2026-05-20 · big-stat eyebrow override. Global .slide .eyebrow is 16px
+   Latin (designed for footer chrome). In big-stat next to a 312px hero
+   number, 16 reads as invisible. Bump to 28 (sub tier) so eyebrow earns
+   its labeling role in the hero composition. */
+.slide[data-layout="big-stat"] .copy .eyebrow {
+  font-size: 28px;
+  margin-bottom: 18px;
+  letter-spacing: 0.08em;
 }
 
 /* BF11 — Hero zone content centered, not left-flush (2026-05-16).
@@ -1356,7 +1398,7 @@ body {
    this is safe to apply universally. */
 .slide[data-layout="content-3up"]  .grid       { top: 200px; bottom: 110px; align-content: center; }
 .slide[data-layout="content-2col"] .grid       { top: 200px; bottom: 110px; align-content: center; }
-.slide[data-layout="stats"]        .grid       { top: 220px; align-content: center; }
+.slide[data-layout="stats"]        .grid       { top: 220px; bottom: 200px; align-content: center; }
 .slide[data-layout="stats"]        .footnote   { bottom: 96px; }
 .slide[data-layout="table"]        .table-wrap { top: 200px; bottom: 110px; }
 /* Timeline opts OUT of L2 vertical centering. .axis is absolutely positioned

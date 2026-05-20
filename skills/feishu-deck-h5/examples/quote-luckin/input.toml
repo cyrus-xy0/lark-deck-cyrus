@@ -4,10 +4,11 @@
 #   python3 ../../assets/render.py quote input.toml runs/<ts>/output/
 
 title       = "瑞幸营建 · 客户原话"
-brand       = "飞书企业 AI · Customer Voice"
 attribution = "瑞幸咖啡 · 营建团队负责人 · 2026"
 
 # Optional defaults: pageno = "01", decor = "blue-glow"
+# NOTE 2026-05-20: `brand` field removed — footer chrome retired 2026-05,
+# the field is not consumed by quote.html template. See deck-json/MIGRATION-REPORT.md.
 
 # The quote — split into lead / accent / tail so the accent phrase
 # is highlighted in teal in the rendered output.

@@ -43,6 +43,7 @@ OUT_INLINE="$ROOT/examples/sample-deck-inline.html"
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="fs-language" content="zh-en">
 <title>先进团队的工作方式 · 飞书 2026 客户提案</title>
 <link rel="stylesheet" href="../assets/feishu-deck.css">
 <link rel="preload" as="image" href="../assets/lark-cover-bg.jpg">
@@ -82,6 +83,7 @@ print(out)
     echo '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
     echo '<title>先进团队的工作方式 · 飞书 2026 客户提案 (inline)</title>'
     echo '<meta name="fs-deck-mode" content="inline">'
+    echo '<meta name="fs-language" content="zh-en">'
     echo '<style>'
     cat "$ROOT/assets/feishu-deck.css"
     echo
@@ -100,6 +102,7 @@ fi
 {
   echo '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
   echo '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+  echo '<meta name="fs-language" content="zh-en">'
   echo '<title>Slide recipes · feishu-deck-h5</title>'
   echo '<link rel="stylesheet" href="../assets/feishu-deck.css">'
   echo '</head><body>'

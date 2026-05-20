@@ -25,7 +25,7 @@ Before reading anything else in this file, decide which mode the user is in:
 | Mode | Trigger phrases / signals | What to do |
 |---|---|---|
 | **CHECK-ONLY** | "帮我检查这份 HTML/deck" · "看看这个 deck 合不合规" · "审一下这个 HTML" · "validate this" · "check the deck" · "扫一遍合规问题" · "这个 HTML 哪里不对" · user hands over a path to an existing `.html` and asks for review WITHOUT asking to generate / modify content | **Jump to "CHECK-ONLY MODE" section below.** SKIP PREFLIGHT, SKIP `new-run.sh`, SKIP `copy-assets`, SKIP everything else in this file. |
-| **GENERATION** *(default)* | "做一份飞书 deck" · "把这个 PDF 转成 HTML" · "客户提案" · "周会汇报材料" · "改一下第 N 页" · anything where output is a new or edited HTML deck | Follow the rest of this file starting at PREFLIGHT. |
+| **GENERATION** *(default)* | "做一份飞书 deck" · "把这个 PDF 转成 HTML" · "客户提案" · "周会汇报材料" · "改一下第 N 页" · anything where output is a new or edited HTML deck | Follow the rest of this file starting at PREFLIGHT, **then read DECK GENERATION POLICY** to pick DeckJSON-first (default) vs raw HTML authoring (escape hatch). |
 
 If a request is genuinely ambiguous ("can you look at this HTML and improve it?"
 — check or rewrite?), ask the user once to clarify before branching.
@@ -331,6 +331,173 @@ gate.
 
 The skill treats "ephemeral outputs only" the same as "no mount" — both
 are non-persistent and equally broken for this skill's purpose.
+
+---
+
+## DECK GENERATION POLICY (mandatory) — DeckJSON-first by default
+
+**After PREFLIGHT passes, decide HOW you'll author the deck. Two paths:**
+
+| Path | When | What you write | What renders |
+|---|---|---|---|
+| **A · DeckJSON-first** *(RECOMMENDED, default)* | The deck fits one of the 12 layouts in `deck-json/deck-schema.json` (10 base + 2 specials) — covers ~95% of real decks | `runs/<ts>/output/deck.json` per schema | `python3 deck-json/render-deck.py deck.json runs/<ts>/output/` → produces `index.html + texts.md + assets/` automatically |
+| **B · Raw HTML authoring** *(legacy / escape hatch)* | A pattern genuinely doesn't fit any schema layout AND can't be expressed as `raw` block embed | Hand-author `index.html` per the R02 / R06 / R20 / L1-L4 / BF1-BF12 rules below | Skill's existing `validate.py` HARD GATE before delivery |
+
+**Why Path A is the default**:
+- **Stability**: ~95% of HTML/CSS bugs Path B hits (R20 off-tier font, R06 floors, R12 drop shadows, BF1-BF12 layout traps, R-CSSVAR undefined tokens) are eliminated because you write data, not CSS. Renderer + framework CSS handle them.
+- **Editability**: Auto-generated `texts.md` sidecar lets the user (or downstream sales / customer) edit copy without touching markup.
+- **Versionability**: deck.json diffs cleanly in git. Compare two pitch versions by JSON diff, not 1500-line HTML diff.
+- **Composability**: Reorder / insert / delete slides = JSON array mutation. No more regex-eating-`</div>` (R-DOM defense exists for a reason).
+- **Future**: Phase 3 CLI editor + Phase 4 visual editor edit the SAME deck.json. Path A future-proofs the work.
+
+**Quick start**:
+
+```bash
+# 1. After PREFLIGHT + WORKSPACE creation, write deck.json (see inline
+#    minimal example below — copy it verbatim and edit fields)
+$EDITOR runs/<ts>/output/deck.json    # full templates in deck-json/examples/
+
+# 2. Render — produces index.html + texts.md + (optionally) assets/
+python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
+
+# 3. (optional) single-file delivery for email attachment / Slack drop
+python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/ --inline
+```
+
+The renderer does triple-gate: DeckJSON schema → HTML render → existing `validate.py` (R02/R06/R20/L1-L4/BF1-12/R-CSSVAR/R-WHITE-TEXT/all). Any error = render fails. **Same bar as Path B's manual gate, but enforced for you**.
+
+**After the initial render, iterating on the deck — 3 options ordered by ergonomics**:
+
+```bash
+# Option A · Direct JSON edit (best for batch / structural rewrites)
+$EDITOR runs/<ts>/output/deck.json
+python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
+
+# Option B · Atomic CLI ops (best for one-shot changes; auto-backup + validate + rollback)
+python3 deck-json/deck-cli.py runs/<ts>/output/deck.json set slides.3.data.title "新标题"
+python3 deck-json/deck-cli.py runs/<ts>/output/deck.json clone three-pillars three-pillars-v2
+python3 deck-json/deck-cli.py runs/<ts>/output/deck.json reorder 5 2
+python3 deck-json/deck-cli.py runs/<ts>/output/deck.json set-variant kpi-4up hero
+# 13 subcommands total — see deck-json/DECK-CLI-README.md
+
+# Option C · Visual editor (best for hand-off to non-technical user / iterative tweaks)
+python3 deck-json/deck-editor.py runs/<ts>/output/deck.json
+# Browser opens · in-place text edit · drag reorder · slide list · inspector w/
+# array editors (cards/cols/nodes/bars/branches/quadrants/body_blocks) · image
+# drag-upload · PDF→replica import · multi-deck switcher · `?` for shortcuts
+# See deck-json/EDITOR-QUICKSTART.md for teammate-friendly setup
+```
+
+**Inline minimal example** (4 slides, every required field). Copy this verbatim, then iterate:
+
+```jsonc
+{
+  "version": "1.0",
+  "deck":  { "title": "Q2 OKR 复盘", "author": "团队 A", "date": "2026-05" },
+  "slides": [
+    { "key": "cover",  "layout": "cover",   "accent": "blue",
+      "data": { "title": "Q2 OKR 复盘\n5 个关键判断" } },
+    { "key": "agenda", "layout": "agenda",  "accent": "blue",
+      "data": { "items": [
+        { "title_zh": "目标回顾" },
+        { "title_zh": "完成度评估" },
+        { "title_zh": "关键经验" },
+        { "title_zh": "Q3 重点" } ] } },
+    { "key": "outcomes", "layout": "content", "variant": "3up", "accent": "teal",
+      "data": { "title": "三个关键结论",
+        "cards": [
+          { "num": "01", "title_zh": "结论一", "body": "..." },
+          { "num": "02", "title_zh": "结论二", "body": "..." },
+          { "num": "03", "title_zh": "结论三", "body": "..." } ] } },
+    { "key": "end",    "layout": "end",     "accent": "blue",
+      "data": { "title": "下一步", "contact": "team-a@example.com" } }
+  ]
+}
+```
+
+Then `python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/`. The renderer fills in everything else — wordmark, page numbers, `data-text-id`, present-mode UI, all typography ladders. You only describe **what**, not **how**.
+
+### When Path A is the right choice
+
+Use DeckJSON whenever the deck consists of slides matching any of:
+
+| Layout | Variants | Use for |
+|---|---|---|
+| `cover` | — | Title page |
+| `agenda` | — | TOC, pill stack |
+| `section` | — | Chapter divider with big numeral |
+| `content` | `3up` / `2col` / `story-case` / `blocks` / `matrix` | 3 cards / 左文右图 / 一页纸案例 / 全宽 body / 2×2 矩阵 |
+| `stats` | `row` / `hero` / `waterfall` | 3-4 KPI row / 1 hero number / 桥图 |
+| `quote` | — | Single customer quote |
+| `image-text` | — | Full-bleed photo + overlay text |
+| `table` | — | Comparison matrix |
+| `flow` | `timeline` / `process` / `tree` | Roadmap / steps / MECE issue tree |
+| `end` | — | Closing slide |
+| `replica` | — | PDF page-as-image (for PDF→HTML conversion) |
+| `raw` | — | Escape hatch for one-off custom slides |
+
+Plus 7 embeddable blocks (pullquote / cta-box / kpi-strip / data-panel / principle-band / verdict-grid / phone-iframe) that compose inside `content/3up` / `content/2col` / `content/blocks`.
+
+**Full schema + field reference**: `deck-json/deck-schema.json`
+**Worked examples**: `deck-json/examples/sample-deck.json` (14 slides, every layout)
+**Migration notes**: `deck-json/MIGRATION-REPORT.md`
+
+### When to escape to Path B (raw HTML)
+
+Reach for raw HTML authoring **only** when:
+
+1. **No schema layout fits the structural shape** — e.g. the "two-hand-architecture" with crown/SVG-arches/base requires highly specific 4-tier vertical DOM that doesn't map cleanly to any layout. Use `layout: "raw"` first; only fall back to full Path B if even `raw` won't suffice.
+2. **One-off design experiment** — you're prototyping a brand-new visual pattern that may or may not become a recurring layout. Path B lets you iterate freely. **If the pattern recurs ≥ 2 decks, propose a schema extension** (see deck-json/MIGRATION-REPORT.md Phase 0.2 process) instead of building 5 raw slides.
+3. **Replica mode (PDF→HTML conversion)** — actually use `layout: "replica"` per-slide (still Path A); only escape to Path B if the page-image approach isn't acceptable to the user.
+
+**Anti-patterns** (do NOT escape to Path B for these):
+- "I want this title 18 px instead of 24" → that's R20 drift, not a schema gap. Fix the content or accept the tier.
+- "The schema has `content/3up` but I want 4 cards" → ask: is this `content/3up` with denser cards, or `content/blocks` with a custom 4-card grid? Either fits.
+- "I'm not sure which layout matches" → read `deck-json/MIGRATION-REPORT.md` Phase 0.2 — the 4-proposal evaluation shows the decision process.
+
+### How Path A turns existing R-rules into "no-ops you don't think about"
+
+Most of the rules later in this file (R02 missing data-layout, R06 font floor, R20 type ladder, R10 hex palette, R12 drop shadows, R-CSSVAR undefined tokens, L1 logo default, L2 stage balance, L4 attrs density, BF1-12 layout defenses, R47 variant discipline, R48 default centering, R49 cyan accent, R56 header minimal, UI1 ui-mocks-as-HTML, T01-T03 texts.md, P50-55 perf budget) **are about correct HTML/CSS output**. The renderer enforces all of them automatically because:
+
+- Templates are hand-tuned (4-tier ladder, brand tokens, correct alignment defaults)
+- Enrichers fill optional fields safely (no missing-attr crashes)
+- HTML validator runs as a HARD GATE on every render
+- `texts.md` is auto-generated (T03 satisfied by default)
+
+**If you're going Path A, you don't read those rules unless you're modifying a template** — the framework already implements them. The rules below are critical for Path B authors and for skill maintainers extending the templates.
+
+### Troubleshooting Path A (when render fails)
+
+The renderer's triple-gate is loud about failures — read the error message before trying to "fix" anything. Common failure modes:
+
+| Symptom | What it means | What to do |
+|---|---|---|
+| `validate-deck: ...` (Step 1) | DeckJSON schema violation (missing required field, wrong enum value, wrong shape) | Read the path the error reports; fix in `deck.json`; re-run |
+| `render-deck: missing field {{{ X }}}` (Step 3) | Template references a data field that's missing or null | Some optional fields' templates expect them when present — check the `optional` annotation in `deck-schema.json`; either fill the field or use a different layout |
+| `validate.py: ✗ Rxx ...` (Step 6, HARD GATE) | Generated HTML failed framework rule. **Almost never your fault** if you went Path A — it's a renderer / framework bug | Capture full error; report at `https://github.com/<repo>/issues` with the deck.json and the validate.py output. Workaround: comment out the offending slide with `_disabled: true` (renderer skips), keep going, fix it offline |
+| `texts.md: out of sync` | Auto-generated sidecar diverged from deck (you hand-edited HTML after render) | Re-render — the sidecar regenerates from deck.json. Don't hand-edit `index.html`; edit deck.json |
+| Render OK but visual looks wrong | Renderer succeeded but the slide design has a problem (overflow, text too small, wrong color) | Run `bash skills/feishu-deck-h5/assets/check-only.sh runs/<ts>/output/index.html --visual` for visual audits (R-OVERFLOW / R-VIS-TIER / etc.) — they catch what static validate.py can't |
+
+**When you must escape mid-deck**:
+
+If 1-2 specific slides won't fit the schema but everything else does:
+
+```json
+{ "key": "weird-layout", "layout": "raw", "data": {
+    "html": "<div class=\"slide\" data-layout=\"raw\" ...>...</div>" } }
+```
+
+`layout: raw` lets you hand-author one slide while keeping all OTHER slides on Path A. The HTML you write is escape-hatched into the deck shell as-is. **Don't** abandon Path A wholesale for one weird slide.
+
+### Editor / CLI quick reference (cross-link)
+
+| Tool | Use case | Doc |
+|---|---|---|
+| `deck-json/render-deck.py` | Render deck.json → HTML (always runs first) | inline help: `--help` |
+| `deck-json/deck-cli.py` | 13 atomic ops on deck.json (set / clone / reorder / set-variant / delete / etc.) — for scripted / one-shot mutations | `deck-json/DECK-CLI-README.md` |
+| `deck-json/deck-editor.py` | Visual editor (HTTP server + browser UI). Drag-reorder slides, in-place text editing, image upload, PDF import, multi-deck switching | `deck-json/EDITOR-QUICKSTART.md` |
+| `deck-json/validate-deck.py` | Standalone schema lint of deck.json (called by render-deck.py + deck-cli.py automatically) | inline help |
+| `assets/check-only.sh` | Audit an EXISTING `.html` deck (Path A or B output) against all framework rules | see CHECK-ONLY MODE section above |
 
 ---
 

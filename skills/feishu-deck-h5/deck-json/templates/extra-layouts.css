@@ -1,0 +1,262 @@
+/* ============================================================================
+   extra-layouts.css — Phase 1.c layouts not yet in framework feishu-deck.css
+   Source: examples/_layout-proposal.html · already 4-tier ladder compliant.
+   Linked from deck-json/templates/_shell.html.
+   ============================================================================ */
+
+/* ===== content/matrix — data-layout="matrix-2x2" ===== */
+.slide[data-layout="matrix-2x2"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 100px;
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr;
+  grid-template-rows: 1fr 1fr 60px;
+  gap: 6px;
+}
+.slide[data-layout="matrix-2x2"] .y-axis {
+  grid-row: 1 / 3; grid-column: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: space-between;
+  padding: 24px 0;
+}
+.slide[data-layout="matrix-2x2"] .y-axis .label {
+  font: italic 600 16px/1 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.06em;
+}
+.slide[data-layout="matrix-2x2"] .y-axis .name {
+  /* allow:body-floor — axis NAME is chrome (an axis label), not body. */
+  writing-mode: vertical-rl;
+  font: 500 16px/1 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.4em;
+}
+.slide[data-layout="matrix-2x2"] .x-axis {
+  grid-row: 3; grid-column: 2 / 4;
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 16px;
+  padding: 24px 30px 0;
+}
+.slide[data-layout="matrix-2x2"] .x-axis .label {
+  font: italic 600 16px/1 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.06em;
+}
+.slide[data-layout="matrix-2x2"] .x-axis .name {
+  /* allow:body-floor — axis NAME is chrome. */
+  font: 500 16px/1 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+.slide[data-layout="matrix-2x2"] .quad {
+  border-radius: 16px;
+  padding: 26px 30px;
+  display: flex; flex-direction: column; gap: 14px;
+  border: 1.5px solid rgba(255,255,255,0.10);
+  background: rgba(8,14,40,0.45);
+  min-width: 0; min-height: 0;
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tl {
+  border-color: rgba(51,214,192,0.70);
+  background: rgba(51,214,192,0.08);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tr {
+  border-color: rgba(60,127,255,0.70);
+  background: rgba(60,127,255,0.08);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-bl {
+  border-color: rgba(255,255,255,0.20);
+  background: rgba(255,255,255,0.03);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-br {
+  border-color: rgba(254,127,0,0.50);
+  background: rgba(254,127,0,0.05);
+}
+.slide[data-layout="matrix-2x2"] .quad h3 {
+  display: flex; align-items: baseline; gap: 12px;
+  font: 600 24px/1.2 var(--fs-font-cjk);
+  color: #fff;
+}
+.slide[data-layout="matrix-2x2"] .quad h3 .ord {
+  font: italic 700 28px/1 var(--fs-font-latin);
+  color: var(--fs-blue);
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tl h3 .ord { color: var(--fs-teal); }
+.slide[data-layout="matrix-2x2"] .quad.q-br h3 .ord { color: var(--fs-orange); }
+.slide[data-layout="matrix-2x2"] .quad.q-bl h3 .ord { color: rgba(255,255,255,0.55); }
+.slide[data-layout="matrix-2x2"] .quad ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.slide[data-layout="matrix-2x2"] .quad li {
+  display: flex; align-items: baseline; gap: 12px;
+  font: 500 24px/1.4 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.92);
+}
+.slide[data-layout="matrix-2x2"] .quad li::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--fs-blue);
+  align-self: center;
+}
+.slide[data-layout="matrix-2x2"] .quad.q-tl li::before { background: var(--fs-teal); }
+.slide[data-layout="matrix-2x2"] .quad.q-br li::before { background: var(--fs-orange); }
+.slide[data-layout="matrix-2x2"] .quad.q-bl li::before { background: rgba(255,255,255,0.55); }
+
+
+/* ===== stats/waterfall — data-layout="waterfall" ===== */
+.slide[data-layout="waterfall"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 130px;
+}
+.slide[data-layout="waterfall"] .chart {
+  position: relative; width: 100%; height: 100%;
+  display: grid;
+  /* --cols set inline by enricher (3-8 bars). Default 5 for safety. */
+  grid-template-columns: repeat(var(--cols, 5), 1fr);
+  gap: 32px;
+  align-items: end;
+  padding-bottom: 80px;
+}
+.slide[data-layout="waterfall"] .chart::after {
+  content: ''; position: absolute;
+  left: 0; right: 0; bottom: 80px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(60,127,255,0.55), rgba(60,127,255,0.10));
+}
+.slide[data-layout="waterfall"] .connectors {
+  position: absolute; inset: 0; pointer-events: none;
+}
+.slide[data-layout="waterfall"] .connectors line {
+  stroke: rgba(255,255,255,0.32);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+}
+.slide[data-layout="waterfall"] .bar {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 12px;
+  position: relative;
+}
+.slide[data-layout="waterfall"] .bar .value {
+  font: 700 48px/1 var(--fs-font-latin); color: #fff;
+  letter-spacing: -0.01em;
+}
+.slide[data-layout="waterfall"] .bar .delta {
+  font: 700 16px/1 var(--fs-font-latin);
+  color: var(--fs-teal);
+}
+.slide[data-layout="waterfall"] .bar.is-neg .delta { color: var(--fs-orange); }
+.slide[data-layout="waterfall"] .bar.is-base .delta,
+.slide[data-layout="waterfall"] .bar.is-end .delta { color: rgba(255,255,255,0.50); font-weight: 500; }
+.slide[data-layout="waterfall"] .bar .col {
+  width: 100%; max-width: 180px;
+  border-radius: 8px 8px 0 0;
+}
+.slide[data-layout="waterfall"] .bar.is-base .col {
+  background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.10));
+}
+.slide[data-layout="waterfall"] .bar.is-pos .col {
+  background: linear-gradient(180deg, var(--fs-blue), rgba(60,127,255,0.40));
+}
+.slide[data-layout="waterfall"] .bar.is-neg .col {
+  background: linear-gradient(180deg, var(--fs-orange), rgba(254,127,0,0.40));
+}
+.slide[data-layout="waterfall"] .bar.is-end .col {
+  background: linear-gradient(180deg, var(--fs-teal), rgba(51,214,192,0.40));
+}
+.slide[data-layout="waterfall"] .bar .label {
+  font: 600 24px/1.3 var(--fs-font-cjk); color: rgba(255,255,255,0.92);
+  text-align: center; margin-top: 8px;
+}
+.slide[data-layout="waterfall"] .bar .sublabel {
+  font: 500 16px/1.3 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+
+/* ===== flow/tree — data-layout="issue-tree" ===== */
+.slide[data-layout="issue-tree"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: grid;
+  grid-template-columns: 320px 100px 1fr;
+  align-items: center;
+  gap: 0;
+}
+.slide[data-layout="issue-tree"] .root {
+  padding: 32px 28px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(60,127,255,0.30), rgba(92,63,251,0.22));
+  border: 2px solid rgba(60,127,255,0.85);
+  box-shadow: 0 0 0 4px rgba(60,127,255,0.15);
+}
+.slide[data-layout="issue-tree"] .root .q {
+  font: 700 28px/1.3 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="issue-tree"] .root .why {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.18);
+  font: 600 24px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.85);
+}
+.slide[data-layout="issue-tree"] .root .why em {
+  font-style: normal; color: var(--fs-teal); font-weight: 700;
+}
+.slide[data-layout="issue-tree"] .connector {
+  height: 100%; position: relative;
+}
+.slide[data-layout="issue-tree"] .connector svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+.slide[data-layout="issue-tree"] .branches {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.slide[data-layout="issue-tree"] .branch {
+  display: grid;
+  grid-template-columns: 340px 80px 1fr;
+  align-items: center; gap: 0;
+}
+.slide[data-layout="issue-tree"] .branch .b1 {
+  padding: 16px 22px;
+  border-radius: 12px;
+  background: rgba(8,14,40,0.55);
+  border: 1.5px solid rgba(60,127,255,0.45);
+}
+.slide[data-layout="issue-tree"] .branch .b1 .ord {
+  display: inline-block;
+  font: italic 700 24px/1 var(--fs-font-latin);
+  color: var(--fs-blue); margin-right: 10px;
+}
+.slide[data-layout="issue-tree"] .branch .b1 .t {
+  font: 600 24px/1.2 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="issue-tree"] .branch .leaves {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.slide[data-layout="issue-tree"] .branch .leaf {
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border-left: 3px solid var(--fs-teal);
+  font: 500 24px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.88);
+}
+.slide[data-layout="issue-tree"] .branch .b1-conn {
+  height: 100%; position: relative;
+}
+.slide[data-layout="issue-tree"] .branch .b1-conn svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+
+
+/* ===== replica — full-bleed page image ===== */
+.slide.page-replica {
+  background-color: #000 !important;
+  background-position: center center !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+}
+.slide.page-replica .wordmark { display: none; }

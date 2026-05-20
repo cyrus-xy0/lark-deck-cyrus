@@ -2371,9 +2371,11 @@ _VISUAL_AUDIT_JS = r"""
   ]);
   // Hero layouts — any text element on these slides can use HERO_SIZES.
   // The whole layout is a "hero zone" by design (cover, section divider,
-  // big-stat, end-slogan, quote with big blockquote).
+  // big-stat, end-slogan, quote with big blockquote, image-text cinematic).
+  // 2026-05-20 · added 'image-text' — title is master-spec 88 px (hero),
+  // sits over a full-bleed image. Documented in SKILL.md "Hero exception".
   const HERO_LAYOUTS = new Set([
-    'cover', 'section', 'big-stat', 'end', 'quote'
+    'cover', 'section', 'big-stat', 'end', 'quote', 'image-text'
   ]);
 
   // Meta class hints (lowercase, matched against className.toLowerCase())
