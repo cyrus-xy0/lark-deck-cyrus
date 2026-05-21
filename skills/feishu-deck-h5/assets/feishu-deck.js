@@ -404,3 +404,133 @@
     window.feishuDeck = { init };
   }
 })();
+
+/* ============================================================================
+   Mobile UX patch (≤900px) — tap-to-enlarge + swipe nav (2026-05-21)
+   ----------------------------------------------------------------------------
+   Issue: on mobile, the framework auto-switches to scroll mode where each
+   slide-frame is 100vw × 9/16 (~393×220 on a 393w phone). The 1920×1080
+   design canvas scales to ~0.2× → 22px body text becomes ~4.5px → unreadable.
+   User reported "手机端打开就是错乱的".
+
+   Fix: keep scroll mode as the overview but make each frame a tap target —
+   tap any slide → switch to present mode showing that one slide filling the
+   viewport. Left/right swipe paginates. Tap "← 返回列表" returns to scroll.
+
+   Paired with the CSS block at the bottom of feishu-deck.css (same date stamp).
+   Runs as a separate IIFE after the main init, so existing init logic stays
+   untouched. Mobile-only — does nothing on viewports > 900px.
+   ============================================================================ */
+(function () {
+  if (typeof window === 'undefined') return;
+  if (!window.matchMedia('(max-width: 900px)').matches) return;
+
+  function wire() {
+    const deck = document.querySelector('.deck');
+    if (!deck) return;
+    const frames = Array.from(deck.querySelectorAll('.slide-frame'));
+    if (!frames.length) return;
+    if (document.querySelector('.fs-mobile-back')) return;  // idempotent
+
+    const backBtn = document.createElement('div');
+    backBtn.className = 'fs-mobile-back';
+    backBtn.textContent = '← 返回列表';
+    backBtn.setAttribute('role', 'button');
+    backBtn.setAttribute('aria-label', '返回 slide 列表');
+    document.body.appendChild(backBtn);
+
+    const pageNo = document.createElement('div');
+    pageNo.className = 'fs-mobile-pageno';
+    document.body.appendChild(pageNo);
+
+    function curIdx() {
+      for (let i = 0; i < frames.length; i++) {
+        if (frames[i].classList.contains('is-current')) return i;
+      }
+      return 0;
+    }
+    function updatePageNo() {
+      pageNo.textContent = (curIdx() + 1) + ' / ' + frames.length;
+    }
+    // MANUAL scale computation. The framework's ResizeObserver only watches
+    // documentElement and does NOT fire on data-mode flips (the viewport
+    // doesn't change). So after switching mode, --fs-scale stays at the
+    // previous mode's value and the slide visibly fails to scale up.
+    // Measure clientWidth/Height ourselves after layout settles.
+    function scaleNow(idx) {
+      const frame = frames[idx];
+      const slide = frame && frame.querySelector('.slide');
+      if (!slide) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const w = frame.clientWidth, h = frame.clientHeight;
+          if (!w || !h) return;
+          const scale = Math.min(w / 1920, h / 1080);
+          slide.style.setProperty('--fs-scale', String(scale));
+        });
+      });
+    }
+    function setMode(mode, idx) {
+      deck.dataset.mode = mode;
+      try { localStorage.setItem('fs-deck-mode', mode); } catch (e) {}
+      if (mode === 'present' && typeof idx === 'number') {
+        frames.forEach((f, i) => f.classList.toggle('is-current', i === idx));
+        scaleNow(idx);
+      } else if (mode === 'scroll') {
+        frames.forEach((_, i) => scaleNow(i));
+      }
+      updatePageNo();
+    }
+    function go(delta) {
+      const cur = curIdx();
+      const next = Math.max(0, Math.min(frames.length - 1, cur + delta));
+      if (next !== cur) {
+        frames.forEach((f, i) => f.classList.toggle('is-current', i === next));
+        scaleNow(next);
+        updatePageNo();
+      }
+    }
+
+    frames.forEach((frame, i) => {
+      frame.addEventListener('click', (e) => {
+        if (deck.dataset.mode !== 'scroll') return;
+        if (e.target && e.target.closest('a, button, iframe, [role="button"], .probe-tab')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setMode('present', i);
+      }, true);
+    });
+
+    backBtn.addEventListener('click', () => {
+      const cur = curIdx();
+      setMode('scroll');
+      if (cur >= 0) setTimeout(() => frames[cur].scrollIntoView({ block: 'center' }), 50);
+    });
+
+    let sx = null, sy = null, st = 0;
+    document.addEventListener('touchstart', (e) => {
+      if (deck.dataset.mode !== 'present') return;
+      const t0 = e.touches[0]; sx = t0.clientX; sy = t0.clientY; st = Date.now();
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      if (deck.dataset.mode !== 'present' || sx === null) return;
+      const t1 = e.changedTouches[0];
+      const dx = t1.clientX - sx, dy = t1.clientY - sy, dt = Date.now() - st;
+      sx = sy = null;
+      if (dt > 600) return;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        if (e.target && e.target.closest('iframe')) return;
+        e.preventDefault();
+        go(dx < 0 ? +1 : -1);
+      }
+    }, { passive: false });
+
+    updatePageNo();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire, { once: true });
+  } else {
+    setTimeout(wire, 100);
+  }
+})();

@@ -3250,3 +3250,63 @@ body {
   .deck { display: block !important; }
   .slide-frame { page-break-after: always; }
 }
+
+/* ============================================================================
+   Mobile UX (≤900px) — tap-to-enlarge + swipe nav
+   ----------------------------------------------------------------------------
+   Root cause this fixes: on mobile, auto mode = 'scroll' → each slide-frame is
+   100% viewport width with aspect-ratio 16/9. On a 393×852 phone that's
+   ~393×220 — design canvas 1920×1080 scales to ~0.2×, so 22px body text
+   becomes ~4.5px on screen. User-reported symptom: "手机端打开就是错乱的".
+
+   Fix philosophy: scroll mode stays as the overview, but tapping any slide
+   switches to present mode (slide fills viewport) for that one frame. From
+   there a left/right swipe paginates; tap "← 返回列表" returns to scroll.
+   Pair with the .js handlers (init() bottom block).
+   ============================================================================ */
+@media (max-width: 900px) {
+  /* Hint on each scroll-mode frame that tapping enlarges it. */
+  .deck[data-mode="scroll"] .slide-frame { cursor: pointer; }
+  .deck[data-mode="scroll"] .slide-frame::after {
+    content: "点击放大";
+    position: absolute; right: 10px; bottom: 10px;
+    z-index: 50;
+    background: rgba(60,127,255,0.92); color: #fff;
+    font: 700 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    padding: 5px 10px; border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    pointer-events: none;
+    letter-spacing: 0.04em;
+  }
+  /* Mobile present-mode chrome: back button + page indicator. */
+  .fs-mobile-back {
+    position: fixed; top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    z-index: 1001;
+    background: rgba(8,12,24,0.85); color: #fff;
+    font: 700 13px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    padding: 9px 14px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.20);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fs-mobile-pageno {
+    position: fixed; bottom: max(14px, env(safe-area-inset-bottom));
+    left: 50%; transform: translateX(-50%);
+    z-index: 1001;
+    background: rgba(8,12,24,0.85); color: #fff;
+    font: 700 13px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    padding: 8px 16px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.20);
+    backdrop-filter: blur(8px);
+    display: none;
+    pointer-events: none;
+    letter-spacing: 0.05em;
+  }
+  .deck[data-mode="present"] ~ .fs-mobile-back,
+  .deck[data-mode="present"] ~ .fs-mobile-pageno { display: block; }
+}
