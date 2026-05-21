@@ -141,6 +141,7 @@
         { "if": { "properties": { "layout": { "const": "end" } },        "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_end" } } } },
         { "if": { "properties": { "layout": { "const": "replica" } },    "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_replica" } },    "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "raw" } },        "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_raw" } },        "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "iframe-embed" } }, "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_iframe_embed" } }, "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "logo-wall" } },  "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_logo_wall" } },  "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "arch-stack" } }, "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_arch_stack" } }, "required": ["data"] } },
 
@@ -285,10 +286,11 @@
         "content", "stats", "flow",
         "quote", "image-text", "table",
         "logo-wall", "arch-stack",
+        "iframe-embed",
         "end",
         "replica", "raw"
       ],
-      "description": "12 base layouts (content/stats/flow are multi-variant) + 2 specials (replica/raw)."
+      "description": "13 base layouts (content/stats/flow are multi-variant) + 2 specials (replica/raw). iframe-embed wraps an external HTML page (prototype / live demo / report) as a slide."
     },
 
     "accent_enum": {
@@ -1090,6 +1092,20 @@
       "properties": {
         "html":  { "type": "string", "minLength": 10 },
         "title": { "type": "string", "description": "For screen_label only." }
+      }
+    },
+
+    "data_iframe_embed": {
+      "description": "iframe-embed layout — standard title + 飞书 logo at top, an <iframe> fills the rest of the slide to the bottom. Use for embedding live prototypes, demos, HTML reports, dashboards, or any external HTML page as a slide.",
+      "type": "object",
+      "required": ["title", "src"],
+      "additionalProperties": false,
+      "properties": {
+        "title":        { "type": "string", "minLength": 1, "description": "Header title (top-left)." },
+        "src":          { "type": "string", "minLength": 1, "description": "Path to the embedded HTML, relative to the deck's output directory (e.g. 'prototypes/foo.html')." },
+        "iframe_title": { "type": "string", "description": "iframe `title` attr for a11y. Defaults to data.title when omitted." },
+        "hint":         { "type": "string", "description": "Bottom-right pill caption, e.g. '报告可滚动查阅'. Omit / empty to hide the pill." },
+        "zoom":         { "type": "number", "minimum": 0.5, "maximum": 2.5, "description": "Optional content scaling. 1.0 = native (default); >1 enlarges (use when embedded text is hard to read at slide scale); <1 shrinks (use when prototype is wider than the iframe). Implemented via CSS transform + width/height compensation, so the iframe always fills its container regardless of zoom." }
       }
     }
   }

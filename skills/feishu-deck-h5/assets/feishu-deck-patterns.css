@@ -60,12 +60,13 @@
 .slide.story-case .industry-tag {
   display: inline-flex; align-items: center; gap: 10px;
   align-self: flex-start;
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: 1px solid rgba(60, 127, 255, 0.45);
   border-radius: 999px;
   background: rgba(60, 127, 255, 0.10);
-  /* 2026-05-20 · 18 → 16 (chrome pill, snap to 4-tier ladder). */
-  font: 600 16px/1 var(--fs-font-cjk);
+  /* 2026-05-21 · 16 → 24 (Body tier). industry-tag is content (case
+     category), not chrome. Hero-context label floor rule. */
+  font: 600 24px/1 var(--fs-font-cjk);
   color: var(--fs-blue);
   letter-spacing: 0.06em;
 }
@@ -91,17 +92,18 @@
 }
 .slide.story-case .story-arc .row {
   display: grid;
-  grid-template-columns: 88px 1fr;
-  column-gap: 20px;
+  grid-template-columns: 120px 1fr;
+  column-gap: 24px;
   align-items: baseline;
 }
 .slide.story-case .story-arc .lbl {
-  /* allow:body-floor — row labels (痛点/冲突/解法/价值) are short chrome
-     labels, like table row headers, not body content. */
-  display: inline-flex; align-items: center; justify-content: center;
+  /* 2026-05-21 · 16 → 24 (Body tier). Row labels are content
+     differentiation, not chrome — same case-content card as p (24).
+     Hierarchy preserved via bold weight + brand color. */
+  display: inline-flex; align-items: center;
   padding: 4px 0 4px 14px;
-  font: 700 16px/1 var(--fs-font-cjk);
-  letter-spacing: 0.16em;
+  font: 700 24px/1 var(--fs-font-cjk);
+  letter-spacing: 0.12em;
   color: var(--fs-blue);
   border-left: 3px solid var(--fs-blue);
 }

@@ -1220,6 +1220,38 @@ def _enrich_replica(ctx, slide):
         ctx["alt"] = ""
 
 
+def _enrich_iframe_embed(ctx, slide):
+    # iframe_title defaults to data.title for a11y
+    if not ctx.get("iframe_title"):
+        ctx["iframe_title"] = ctx.get("title", "")
+    # hint pill is optional — omit / empty → no pill
+    hint = (ctx.get("hint") or "").strip()
+    if hint:
+        ctx["hint_html"] = (
+            '            <div class="iframe-hint">'
+            '<span class="dot"></span>'
+            f'<span>{_esc_br(hint)}</span>'
+            '</div>'
+        )
+    else:
+        ctx["hint_html"] = ""
+    # Optional zoom: scale iframe content while keeping it filling the container.
+    # transform-origin: top-left + inverse width/height keeps the iframe flush
+    # to the wrap's edges so the hint pill stays correctly positioned.
+    # `+ 2px` overcompensation hides sub-pixel rounding seams on right/bottom
+    # edges (otherwise the wrap's bg shows through a thin gap); the wrap's
+    # overflow: hidden clips the overshoot.
+    zoom = ctx.get("zoom")
+    if zoom and zoom != 1.0:
+        inv = 100.0 / float(zoom)
+        ctx["iframe_inline_style"] = (
+            f' style="transform: scale({zoom}); transform-origin: top left; '
+            f'width: calc({inv:.4f}% + 2px); height: calc({inv:.4f}% + 2px);"'
+        )
+    else:
+        ctx["iframe_inline_style"] = ""
+
+
 def _enrich_raw(ctx, slide):
     # Verbatim html — template uses {{{ html }}}, no processing.
     # `_orig_layout` lets a raw slide claim a layout name so the framework
@@ -1253,6 +1285,7 @@ ENRICHERS = {
     ("end",     None):           _enrich_end,
     ("replica", None):           _enrich_replica,
     ("raw",     None):           _enrich_raw,
+    ("iframe-embed", None):      _enrich_iframe_embed,
 }
 
 
@@ -1326,6 +1359,10 @@ def main(argv=None) -> int:
     ap.add_argument("--inline", action="store_true",
                     help="single-file delivery mode — base64-inline all CSS/JS/images. "
                          "Mutually exclusive with copy-assets (auto-skips it).")
+    ap.add_argument("--visual", action="store_true",
+                    help="run Playwright visual audits after render (R-VIS-OVERFLOW / "
+                         "R-VIS-OVERLAP / R-VIS-TIER / R-VIS-LABEL-FLOOR). Adds ~5-10s. "
+                         "Requires `pip install playwright && python -m playwright install chromium`.")
     args = ap.parse_args(argv)
 
     if args.inline and not args.skip_copy_assets:
@@ -1441,10 +1478,13 @@ def main(argv=None) -> int:
 
     # 6. HTML validator gate
     if not args.skip_validate_html:
-        rc = subprocess.run(
-            [sys.executable, str(VALIDATE_HTML), str(out_html), "--no-visual"],
-            capture_output=True, text=True,
-        )
+        # If --visual, run validate.py WITHOUT --no-visual so Playwright audits
+        # (R-VIS-OVERFLOW / R-VIS-OVERLAP / R-VIS-TIER / R-VIS-LABEL-FLOOR) fire.
+        # Otherwise default behaviour: static checks only.
+        validate_cmd = [sys.executable, str(VALIDATE_HTML), str(out_html)]
+        if not args.visual:
+            validate_cmd.append("--no-visual")
+        rc = subprocess.run(validate_cmd, capture_output=True, text=True)
         # Always show validator output (digest is helpful)
         print(rc.stdout)
         if rc.returncode != 0:

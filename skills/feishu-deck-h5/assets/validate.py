@@ -2302,6 +2302,16 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             'grids the cards should be equal-height; check `flex: 1` is '
             'applied or `align-items: stretch` is set on the container.')
 
+    for entry in report.get('card_overflow', [])[:20]:
+        iss.err('R-VIS-CARD-OVERFLOW',
+            f'slide {entry["slide_idx"]} · `{entry["selector"]}` has '
+            f'`overflow:hidden` but content ({entry["content_h"]} px) is '
+            f'{entry["overflow_px"]} px taller than the container '
+            f'({entry["card_h"]} px) — text is being clipped silently. '
+            'Fix: shorten body copy, drop a row/item, shrink padding/gap, '
+            'increase card height (more stage space), OR drop overflow:hidden '
+            'so the issue is at least visible.')
+
     for entry in report.get('overlap', [])[:20]:
         iss.err('R-OVERLAP',
             f'slide {entry["slide_idx"]} · siblings inside `{entry["container_sel"]}` '
@@ -2443,7 +2453,7 @@ _VISUAL_AUDIT_JS = r"""
     return false;
   };
 
-  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [] };
+  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [], card_overflow: [] };
   const slides = document.querySelectorAll('.slide');
   slides.forEach((slide, idx) => {
     const slide_idx = idx + 1;
@@ -2458,6 +2468,33 @@ _VISUAL_AUDIT_JS = r"""
         h: slide.scrollHeight, w: slide.scrollWidth,
       });
     }
+
+    // ---- Card-content overflow (added 2026-05-22) ----
+    // Inner element has `overflow: hidden` + content taller than container =
+    // content clipped invisibly. Slide-level R-OVERFLOW doesn't catch it
+    // because the card itself fits in canvas. Common in dense 3-up narrative
+    // cards. Skip .slide / .slide-frame themselves (intentional canvas clip).
+    const overflowCandidates = slide.querySelectorAll('.stage *');
+    overflowCandidates.forEach(el => {
+      if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+      const cs = window.getComputedStyle(el);
+      const overflowY = cs.overflowY;
+      const overflow = cs.overflow;
+      const clips = (overflowY === 'hidden' || overflowY === 'clip' ||
+                     overflow === 'hidden' || overflow === 'clip');
+      if (!clips) return;
+      // 4 px tolerance for sub-pixel rounding
+      const delta = el.scrollHeight - el.clientHeight;
+      if (delta > 4) {
+        out.card_overflow.push({
+          slide_idx,
+          selector: shortSel(el),
+          content_h: el.scrollHeight,
+          card_h: el.clientHeight,
+          overflow_px: delta,
+        });
+      }
+    });
 
     // ---- Tier: every text-bearing element ----
     // Mock container classes whose internals are exempt from R-VIS-TIER
@@ -2554,24 +2591,39 @@ _VISUAL_AUDIT_JS = r"""
         });
       }
 
-      // --- LABEL FLOOR: hero anchor (>=48) + 16px non-chrome label = error ---
+      // --- LABEL FLOOR: hero anchor (>=48) + < 24px label = error ---
       // R-VIS-LABEL-FLOOR codifies the 2026-05-17 hero-context-label-floor
       // rule in SKILL.md. When a card has a hero anchor, every content
-      // label inside it must be >= 24; 16 is reserved for true page chrome.
+      // label inside it must be >= 24; 16/18 is reserved for true page chrome.
+      //
+      // 2026-05-22 · fix: previously chrome-class elements (.eyebrow, .pill,
+      // .tag, .chip, .badge) bypassed this audit unconditionally. That let
+      // hero-context cards use 16px .eyebrow chrome at the top, defeating the
+      // rule. Now we only bypass when the chrome class is ALSO inside a
+      // page-level chrome ancestor (.header / .footer / .source-footer /
+      // .pageno) — chrome usage inside a content card is treated as a
+      // misnamed content label and gets flagged.
       const sizes = allTextEls.map(
         e => Math.round(parseFloat(window.getComputedStyle(e).fontSize)));
       const hasHeroAnchor = sizes.some(s => s >= 48);
+      const PAGE_CHROME_ANCESTORS = ['header', 'footer', 'source-footer',
+        'pageno', 'wordmark', 'deck-progress', 'deck-controls'];
       if (hasHeroAnchor) {
         allTextEls.forEach(el => {
           const px = Math.round(parseFloat(window.getComputedStyle(el).fontSize));
-          if (px > 18) return;                          // ok body / sub / title
-          if (hasAnyClass(el, CHROME_WHITELIST)) return; // true chrome OK
-          // Walk ancestors to see if any are whitelisted chrome containers
-          let chromeAncestor = false;
-          for (let n = el.parentElement; n && n !== card; n = n.parentElement) {
-            if (hasAnyClass(n, CHROME_WHITELIST)) { chromeAncestor = true; break; }
+          if (px >= 24) return;  // Body tier or above is OK
+          // Only exempt if element's chrome class is INSIDE a page-chrome
+          // ancestor (slide header, footer, etc.) — chrome inside a content
+          // card means class is misnamed; flag it.
+          if (hasAnyClass(el, CHROME_WHITELIST)) {
+            let pageChromeAncestor = false;
+            for (let n = el.parentElement; n && n !== card; n = n.parentElement) {
+              if (hasAnyClass(n, PAGE_CHROME_ANCESTORS)) {
+                pageChromeAncestor = true; break;
+              }
+            }
+            if (pageChromeAncestor) return;
           }
-          if (chromeAncestor) return;
           const sel = shortSel(el);
           const key = `${slide_idx}::${sel}::${px}`;
           if (seenLabelFloor.has(key)) return;
