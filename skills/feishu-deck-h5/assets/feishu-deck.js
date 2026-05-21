@@ -86,9 +86,15 @@
       if (deck.dataset.mode !== 'present') return;
       const cur = currentIdx(frames);
       switch (e.key) {
-        case 'ArrowRight': case 'PageDown': case ' ': case 'Spacebar':
+        // Next-slide aliases. Covers standard keyboards + most presentation
+        // clickers, including Windows-market models that emit ArrowDown/Up
+        // (Targus / Kensington Expert / DinoFire / 一拓 / Aibatu) and ones
+        // that map "advance" to Enter.
+        case 'ArrowRight': case 'ArrowDown': case 'PageDown':
+        case ' ': case 'Spacebar': case 'Enter':
           e.preventDefault(); goTo(deck, frames, Math.min(cur + 1, frames.length - 1)); break;
-        case 'ArrowLeft':  case 'PageUp':
+        case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+        case 'Backspace':
           e.preventDefault(); goTo(deck, frames, Math.max(cur - 1, 0)); break;
         case 'Home':
           e.preventDefault(); goTo(deck, frames, 0); break;
