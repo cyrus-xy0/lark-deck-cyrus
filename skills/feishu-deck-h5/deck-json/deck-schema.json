@@ -142,13 +142,14 @@
         { "if": { "properties": { "layout": { "const": "replica" } },    "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_replica" } },    "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "raw" } },        "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_raw" } },        "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "logo-wall" } },  "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_logo_wall" } },  "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "arch-stack" } }, "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_arch_stack" } }, "required": ["data"] } },
 
         { "if": { "properties": { "layout": { "const": "content" } }, "required": ["layout"] },
           "then": { "required": ["variant"], "properties": { "variant": { "enum": ["3up", "2col", "story-case", "blocks", "matrix", "before-after"] } } } },
         { "if": { "properties": { "layout": { "const": "stats" } }, "required": ["layout"] },
           "then": { "required": ["variant"], "properties": { "variant": { "enum": ["row", "hero", "waterfall"] } } } },
         { "if": { "properties": { "layout": { "const": "flow" } }, "required": ["layout"] },
-          "then": { "required": ["variant"], "properties": { "variant": { "enum": ["timeline", "process", "tree"] } } } },
+          "then": { "required": ["variant"], "properties": { "variant": { "enum": ["timeline", "process", "tree", "swim"] } } } },
 
         { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "3up" } },         "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_3up" } },         "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "2col" } },        "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_2col" } },        "required": ["data"] } },
@@ -161,8 +162,91 @@
         { "if": { "properties": { "layout": { "const": "stats" }, "variant": { "const": "row" } },           "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_stats_row" } },            "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "stats" }, "variant": { "const": "hero" } },          "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_stats_hero" } },           "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "timeline" } },       "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_timeline" } },        "required": ["data"] } },
-        { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "process" } },        "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_process" } },         "required": ["data"] } }
+        { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "process" } },        "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_process" } },         "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "swim" } },           "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_swim" } },            "required": ["data"] } }
       ]
+    },
+
+    "data_flow_swim": {
+      "description": "flow/swim — multi-lane roadmap (time axis × product lines). Each lane has its own accent + milestones placed on the time grid. quarter index is 1-based.",
+      "type": "object",
+      "required": ["title", "time_axis", "lanes"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "time_axis": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 6,
+          "items": { "type": "string", "minLength": 1, "description": "Time period label, e.g. 'Q1' or '2026 H1'." }
+        },
+        "lanes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["name", "milestones"],
+            "additionalProperties": false,
+            "properties": {
+              "name":   { "type": "string", "minLength": 1, "description": "Lane name, e.g. '飞书 AI 助手'." },
+              "sub":    { "type": "string", "description": "Optional Latin tagline, e.g. 'AI ASSISTANT'." },
+              "accent": { "enum": ["blue", "teal", "violet", "orange"], "default": "blue", "description": "Lane color tone." },
+              "milestones": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["quarter", "title"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "quarter": { "type": "integer", "minimum": 1, "maximum": 6, "description": "1-indexed into time_axis." },
+                    "title":   { "type": "string", "minLength": 1 },
+                    "desc":    { "type": "string", "description": "Optional sub-text on the milestone tile." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "data_arch_stack": {
+      "description": "arch-stack layout — 2-5 horizontal layers (e.g. apps / platform / AI engines / data foundation). Each layer has a name + modules pills.",
+      "type": "object",
+      "required": ["title", "layers"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "layers": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["name", "modules"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "object",
+                "required": ["title"],
+                "additionalProperties": false,
+                "properties": {
+                  "title": { "type": "string", "minLength": 1, "description": "Layer title, e.g. '应用层'." },
+                  "sub":   { "type": "string", "description": "Layer subtitle, e.g. 'APPS · 面向终端用户'." }
+                }
+              },
+              "modules": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 8,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
     },
 
     "data_logo_wall": {
@@ -200,11 +284,11 @@
         "cover", "agenda", "section",
         "content", "stats", "flow",
         "quote", "image-text", "table",
-        "logo-wall",
+        "logo-wall", "arch-stack",
         "end",
         "replica", "raw"
       ],
-      "description": "11 base layouts (content/stats/flow are multi-variant) + 2 specials (replica/raw)."
+      "description": "12 base layouts (content/stats/flow are multi-variant) + 2 specials (replica/raw)."
     },
 
     "accent_enum": {
@@ -262,8 +346,24 @@
         { "$ref": "#/$defs/block_principle_band" },
         { "$ref": "#/$defs/block_data_panel" },
         { "$ref": "#/$defs/block_verdict_grid" },
-        { "$ref": "#/$defs/block_phone_iframe" }
+        { "$ref": "#/$defs/block_phone_iframe" },
+        { "$ref": "#/$defs/block_testimonial_card" }
       ]
+    },
+
+    "block_testimonial_card": {
+      "description": "Customer testimonial — name + title + quote + optional portrait + company logo. PPT pattern slide 89-90.",
+      "type": "object",
+      "required": ["type", "name", "title", "quote"],
+      "additionalProperties": false,
+      "properties": {
+        "type":     { "const": "testimonial-card" },
+        "name":     { "type": "string", "minLength": 1, "description": "Person name, e.g. '李明'." },
+        "title":    { "type": "string", "minLength": 1, "description": "Job title + company, e.g. 'CIO · XX 集团'." },
+        "quote":    { "type": "string", "minLength": 4, "description": "Testimonial body. \\n supported." },
+        "portrait": { "type": "string", "description": "Optional headshot image src (relative to deck.json dir)." },
+        "company_logo": { "type": "string", "description": "Optional company logo path/key. If looks like a logical key, resolves to assets/shared/clientlogo/<key>.png; if has slash/extension, used as-is." }
+      }
     },
 
     "block_pullquote": {

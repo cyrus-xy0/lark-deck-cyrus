@@ -298,19 +298,58 @@ def _enrich_principle_band(block):
     block["principles_html"] = "\n".join(parts)
 
 
+def _enrich_testimonial_card(block):
+    """testimonial-card — customer testimonial with name/title/quote + optional
+    portrait + company_logo. block.get("_block_path") is used by render_slide
+    to build data-text-id prefix; we just precompute the snake-case fields.
+
+    company_logo resolution:
+      - if it contains '/' or '.' (looks like a path), use as-is
+      - else treat as logical key → resolve to <asset_path>/shared/clientlogo/<key>.png
+    portrait: always treated as a path (relative to deck.json dir).
+    """
+    portrait = block.get("portrait")
+    block["portrait_html"] = (
+        f'              <div class="portrait" style="background-image:url(\'{portrait}\')"></div>'
+        if portrait else ""
+    )
+    logo = block.get("company_logo")
+    if logo:
+        if "/" in logo or "." in logo:
+            src = logo
+        else:
+            # Logical key — enricher resolves via asset_path. Sanitize.
+            safe = re.sub(r"[/\\.]+", "_", str(logo)).lstrip("_") or "missing"
+            # Note: we don't have direct access to asset_path here (block enricher);
+            # use a sentinel that gets substituted at slide render time via {{ asset_path }}.
+            src = f"{{ASSET_PATH}}/shared/clientlogo/{safe}.png"
+        block["company_logo_html"] = (
+            f'              <div class="company-logo" style="background-image:url(\'{src}\')"></div>'
+        )
+    else:
+        block["company_logo_html"] = ""
+
+
 BLOCK_ENRICHERS = {
-    "pullquote":      _enrich_pullquote,
-    "cta-box":        _enrich_cta_box,
-    "kpi-strip":      _enrich_kpi_strip,
-    "data-panel":     _enrich_data_panel,
-    "verdict-grid":   _enrich_verdict_grid,
-    "phone-iframe":   _enrich_phone_iframe,
+    "pullquote":        _enrich_pullquote,
+    "cta-box":          _enrich_cta_box,
+    "kpi-strip":        _enrich_kpi_strip,
+    "data-panel":       _enrich_data_panel,
+    "verdict-grid":     _enrich_verdict_grid,
+    "phone-iframe":     _enrich_phone_iframe,
+    "testimonial-card": _enrich_testimonial_card,
     "principle-band": _enrich_principle_band,
 }
 
 
-def render_block(block: dict) -> str:
-    """Render an embeddable block by its type field."""
+def render_block(block: dict, asset_path: str = "..") -> str:
+    """Render an embeddable block by its type field.
+
+    asset_path: passed through so blocks that resolve framework-shared assets
+    (e.g. testimonial-card's company_logo logical key) can compute correct
+    relative paths. Block enrichers leave a `{ASSET_PATH}` sentinel and we
+    substitute here after rendering.
+    """
     block_type = block.get("type")
     if not block_type:
         raise SystemExit(f"render-deck: block missing 'type' field: {block!r}")
@@ -318,14 +357,17 @@ def render_block(block: dict) -> str:
     if not tpl_path.exists():
         raise SystemExit(
             f"render-deck: no template for block type='{block_type}' (expected {tpl_path}). "
-            f"Phase 1.a covers: pullquote, kpi-strip, cta-box, data-panel."
+            f"Known types: pullquote, kpi-strip, cta-box, data-panel, "
+            f"verdict-grid, phone-iframe, principle-band, testimonial-card."
         )
-    # Run enricher to populate _html / _modifier fields
     enricher = BLOCK_ENRICHERS.get(block_type)
-    block_ctx = dict(block)  # don't mutate caller's dict
+    block_ctx = dict(block)
     if enricher:
         enricher(block_ctx)
-    return render_template(tpl_path.read_text(encoding="utf-8"), block_ctx)
+    rendered = render_template(tpl_path.read_text(encoding="utf-8"), block_ctx)
+    # Substitute asset_path sentinel left by block enrichers (e.g. for
+    # company_logo logical-key resolution in testimonial-card)
+    return rendered.replace("{ASSET_PATH}", asset_path)
 
 
 def _resolve_template_path(layout: str, variant: str | None) -> Path:
@@ -751,6 +793,38 @@ def _enrich_logo_wall(ctx, slide):
     ctx["industries_html"] = "\n".join(industry_blocks)
 
 
+def _enrich_arch_stack(ctx, slide):
+    """arch-stack — N horizontal layers, each layer has a name (title+sub) and
+    a row of module pills. Layer color coding cycles l1/l2/l3/l4 by index.
+    Schema enforces 2-5 layers + 3-8 modules per layer."""
+    snp = ctx["slide_no_padded"]
+    layers = ctx.get("layers") or []
+    blocks = []
+    for li, layer in enumerate(layers, start=1):
+        ln = f"{li:02d}"
+        name = layer.get("name") or {}
+        title = _esc_br(name.get("title", ""))
+        sub = name.get("sub")
+        sub_html = (f'              <div class="sub" data-text-id="slide-{snp}.layer-{ln}.name.sub">{_esc_br(sub)}</div>'
+                    if sub else "")
+        modules = layer.get("modules") or []
+        modules_html = "\n".join(
+            f'              <span class="m" data-text-id="slide-{snp}.layer-{ln}.module-{mi:02d}">'
+            f'{_esc_br(m)}</span>'
+            for mi, m in enumerate(modules, start=1)
+        )
+        blocks.append(
+            f'          <div class="layer is-l{li}">\n'
+            f'            <div class="name">\n'
+            f'              <div class="title" data-text-id="slide-{snp}.layer-{ln}.name.title">{title}</div>\n'
+            f'{sub_html}\n'
+            f'            </div>\n'
+            f'            <div class="modules">\n{modules_html}\n            </div>\n'
+            f'          </div>'
+        )
+    ctx["layers_html"] = "\n".join(blocks)
+
+
 def _enrich_flow_timeline(ctx, slide):
     snp = ctx["slide_no_padded"]
     nodes = ctx.get("nodes") or []
@@ -1016,6 +1090,65 @@ def _enrich_flow_tree(ctx, slide):
     ctx["branches_html"] = "\n".join(parts)
 
 
+def _enrich_flow_swim(ctx, slide):
+    """flow/swim — multi-lane roadmap. CSS grid:
+       row 1 (60px) = empty | time1 | time2 | ... timeN
+       rows 2..N+1 (1fr each) = lane-name | <milestones placed by quarter>
+       milestones with no quarter slot → empty cell.
+    The template's `.stage` declares grid-template-rows/cols dynamically via
+    inline style; this enricher populates each cell.
+    """
+    snp = ctx["slide_no_padded"]
+    time_axis = ctx.get("time_axis") or []
+    lanes = ctx.get("lanes") or []
+    ctx["time_axis_count"] = len(time_axis)
+    ctx["lanes_count"]     = len(lanes)
+
+    cells = []
+    # Row 1: empty corner + time headers
+    cells.append(f'          <div class="time-cell empty"></div>')
+    for ti, tlabel in enumerate(time_axis, start=1):
+        cells.append(
+            f'          <div class="time-cell" '
+            f'data-text-id="slide-{snp}.time-{ti:02d}">{_esc_br(tlabel)}</div>'
+        )
+    # Each lane: lane-name + N cells (one per quarter; empty if no milestone)
+    for li, lane in enumerate(lanes, start=1):
+        ln = f"{li:02d}"
+        accent = lane.get("accent", "blue")
+        sub = lane.get("sub")
+        sub_html = (f'<span class="sub" data-text-id="slide-{snp}.lane-{ln}.sub">{_esc_br(sub)}</span>'
+                    if sub else "")
+        cells.append(
+            f'          <div class="lane-name is-{accent}" '
+            f'data-text-id="slide-{snp}.lane-{ln}.name">'
+            f'{_esc_br(lane.get("name", ""))}{sub_html}'
+            f'</div>'
+        )
+        # Build column cells, placing milestones by quarter index
+        milestones_by_q = {}
+        for mi, ms in enumerate(lane.get("milestones") or [], start=1):
+            q = ms.get("quarter")
+            if isinstance(q, int) and 1 <= q <= len(time_axis):
+                milestones_by_q[q] = (mi, ms)
+        for qi in range(1, len(time_axis) + 1):
+            entry = milestones_by_q.get(qi)
+            if entry:
+                mi, ms = entry
+                mn = f"{mi:02d}"
+                desc = ms.get("desc")
+                desc_html = (f'<div class="d" data-text-id="slide-{snp}.lane-{ln}.ms-{mn}.desc">'
+                             f'{_esc_br(desc)}</div>' if desc else "")
+                cells.append(
+                    f'          <div><div class="ms is-{accent}">'
+                    f'<div class="t" data-text-id="slide-{snp}.lane-{ln}.ms-{mn}.title">{_esc_br(ms.get("title", ""))}</div>'
+                    f'{desc_html}</div></div>'
+                )
+            else:
+                cells.append(f'          <div></div>')
+    ctx["grid_html"] = "\n".join(cells)
+
+
 def _enrich_replica(ctx, slide):
     # Just pass page_image as-is + escape alt
     if "alt" not in ctx or not ctx.get("alt"):
@@ -1047,9 +1180,11 @@ ENRICHERS = {
     ("image-text", None):        _enrich_image_text,
     ("table",   None):           _enrich_table,
     ("logo-wall", None):         _enrich_logo_wall,
+    ("arch-stack", None):        _enrich_arch_stack,
     ("flow",    "timeline"):     _enrich_flow_timeline,
     ("flow",    "process"):      _enrich_flow_process,
     ("flow",    "tree"):         _enrich_flow_tree,
+    ("flow",    "swim"):         _enrich_flow_swim,
     ("end",     None):           _enrich_end,
     ("replica", None):           _enrich_replica,
     ("raw",     None):           _enrich_raw,
@@ -1080,7 +1215,7 @@ def render_slide(slide: dict, slide_index: int, total: int, asset_path: str, dec
     # Render top-level embeddable blocks
     blocks = ctx.get("body_blocks") or []
     ctx["body_blocks_html"] = (
-        "\n".join(render_block(b) for b in blocks) if blocks else ""
+        "\n".join(render_block(b, asset_path) for b in blocks) if blocks else ""
     )
 
     # content/2col: text.body_blocks rendering
@@ -1088,7 +1223,7 @@ def render_slide(slide: dict, slide_index: int, total: int, asset_path: str, dec
     if isinstance(text, dict):
         text_blocks = text.get("body_blocks") or []
         ctx["text_body_blocks_html"] = (
-            "\n".join(render_block(b) for b in text_blocks) if text_blocks else ""
+            "\n".join(render_block(b, asset_path) for b in text_blocks) if text_blocks else ""
         )
         ctx["text_feature_list_html"] = _render_feature_list(text.get("feature_list"))
         ctx["text_lede"] = text.get("lede", "")

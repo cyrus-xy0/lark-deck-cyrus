@@ -458,3 +458,183 @@
 /* Note: the actual customer-logo element rendering is responsibility of
    each layout enricher / template. This attr just signals INTENT to CSS;
    future enrichers can branch on it. */
+
+
+/* ===== arch-stack — 4-layer architecture diagram ===== */
+.slide[data-layout="arch-stack"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.slide[data-layout="arch-stack"] .layer {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 280px 1fr;
+  align-items: center; gap: 32px;
+  padding: 20px 32px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255,255,255,0.10);
+}
+.slide[data-layout="arch-stack"] .layer.is-l1 {
+  background: linear-gradient(90deg, rgba(60,127,255,0.18), rgba(60,127,255,0.04));
+  border-color: rgba(60,127,255,0.60);
+}
+.slide[data-layout="arch-stack"] .layer.is-l2 {
+  background: linear-gradient(90deg, rgba(51,214,192,0.16), rgba(51,214,192,0.03));
+  border-color: rgba(51,214,192,0.55);
+}
+.slide[data-layout="arch-stack"] .layer.is-l3 {
+  background: linear-gradient(90deg, rgba(92,63,251,0.18), rgba(92,63,251,0.04));
+  border-color: rgba(92,63,251,0.55);
+}
+.slide[data-layout="arch-stack"] .layer.is-l4 {
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  border-color: rgba(255,255,255,0.25);
+}
+.slide[data-layout="arch-stack"] .layer.is-l5 {
+  background: linear-gradient(90deg, rgba(254,127,0,0.16), rgba(254,127,0,0.03));
+  border-color: rgba(254,127,0,0.55);
+}
+.slide[data-layout="arch-stack"] .layer .name {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.slide[data-layout="arch-stack"] .layer .name .title {
+  font: 700 28px/1.2 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="arch-stack"] .layer .name .sub {
+  /* allow:body-floor — layer subtitle is chrome (Latin label), not body. */
+  font: 500 16px/1.3 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55); letter-spacing: 0.06em;
+}
+.slide[data-layout="arch-stack"] .layer .modules {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  align-items: center;
+}
+.slide[data-layout="arch-stack"] .layer .m {
+  font: 500 24px/1 var(--fs-font-cjk);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,255,255,0.20);
+}
+.slide[data-layout="arch-stack"] .layer.is-l1 .m { border-color: rgba(60,127,255,0.55); }
+.slide[data-layout="arch-stack"] .layer.is-l2 .m { border-color: rgba(51,214,192,0.55); }
+.slide[data-layout="arch-stack"] .layer.is-l3 .m { border-color: rgba(92,63,251,0.55); }
+.slide[data-layout="arch-stack"] .layer.is-l5 .m { border-color: rgba(254,127,0,0.55); }
+
+
+/* ===== flow/swim — multi-lane roadmap ===== */
+.slide[data-layout="flow-swim"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: grid;
+  /* grid-template-columns/rows set via inline style in template */
+  gap: 4px;
+}
+.slide[data-layout="flow-swim"] .time-cell {
+  display: flex; align-items: center; justify-content: center;
+  font: 700 24px/1 var(--fs-font-cjk); color: #fff;
+  letter-spacing: 0.06em;
+  background: rgba(60,127,255,0.10);
+  border-bottom: 2px solid rgba(60,127,255,0.55);
+}
+.slide[data-layout="flow-swim"] .time-cell.empty {
+  background: transparent; border-bottom: none;
+}
+.slide[data-layout="flow-swim"] .lane-name {
+  display: flex; align-items: center; padding: 0 18px;
+  font: 700 24px/1.2 var(--fs-font-cjk); color: #fff;
+  background: rgba(8,14,40,0.55);
+  border-left: 4px solid;
+  border-radius: 8px;
+}
+.slide[data-layout="flow-swim"] .lane-name.is-blue   { border-left-color: var(--fs-blue); }
+.slide[data-layout="flow-swim"] .lane-name.is-teal   { border-left-color: var(--fs-teal); }
+.slide[data-layout="flow-swim"] .lane-name.is-violet { border-left-color: var(--fs-violet); }
+.slide[data-layout="flow-swim"] .lane-name.is-orange { border-left-color: var(--fs-orange); }
+.slide[data-layout="flow-swim"] .lane-name .sub {
+  /* allow:body-floor — lane Latin tagline is chrome */
+  display: block; margin-top: 4px;
+  font: 500 16px/1 var(--fs-font-latin);
+  color: rgba(255,255,255,0.55); letter-spacing: 0.06em;
+}
+.slide[data-layout="flow-swim"] .ms {
+  margin: 8px 6px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(8,14,40,0.55);
+  border: 1.5px solid;
+  display: flex; flex-direction: column; gap: 4px;
+  align-self: center;
+}
+.slide[data-layout="flow-swim"] .ms.is-blue   { border-color: rgba(60,127,255,0.70);  background: rgba(60,127,255,0.10); }
+.slide[data-layout="flow-swim"] .ms.is-teal   { border-color: rgba(51,214,192,0.70);  background: rgba(51,214,192,0.10); }
+.slide[data-layout="flow-swim"] .ms.is-violet { border-color: rgba(92,63,251,0.70);   background: rgba(92,63,251,0.10); }
+.slide[data-layout="flow-swim"] .ms.is-orange { border-color: rgba(254,127,0,0.70);   background: rgba(254,127,0,0.10); }
+.slide[data-layout="flow-swim"] .ms .t {
+  font: 700 24px/1.2 var(--fs-font-cjk); color: #fff;
+}
+.slide[data-layout="flow-swim"] .ms .d {
+  font: 500 24px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.78);
+}
+
+
+/* ===== block · testimonial-card · 客户证言卡 ===== */
+.testimonial-card {
+  margin: 0;
+  padding: 24px 28px;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: 96px 1fr 120px;
+  gap: 22px;
+  align-items: center;
+}
+.testimonial-card:not(:has(.portrait)) { grid-template-columns: 1fr 120px; }
+.testimonial-card:not(:has(.company-logo)) { grid-template-columns: 96px 1fr; }
+.testimonial-card:not(:has(.portrait)):not(:has(.company-logo)) { grid-template-columns: 1fr; }
+.testimonial-card .portrait {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  background-position: center;
+  background-size: cover;
+  background-color: rgba(60,127,255,0.18);
+  border: 2px solid rgba(60,127,255,0.45);
+}
+.testimonial-card .content { min-width: 0; }
+.testimonial-card .quote {
+  margin: 0 0 12px 0;
+  font: 500 24px/1.5 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.92);
+  /* Leading curly quote via :before for visual marker. */
+  position: relative;
+  padding-left: 18px;
+}
+.testimonial-card .quote::before {
+  content: "“";
+  position: absolute; left: -2px; top: -4px;
+  font: 700 32px/1 var(--fs-font-latin);
+  color: var(--fs-blue);
+}
+.testimonial-card .cite {
+  display: flex; flex-direction: column; gap: 2px;
+  font-style: normal;
+}
+.testimonial-card .cite .name {
+  font: 700 24px/1.2 var(--fs-font-cjk);
+  color: #fff;
+}
+.testimonial-card .cite .title {
+  /* allow:body-floor — short job title, chrome label not body */
+  font: 500 16px/1.3 var(--fs-font-cjk);
+  color: rgba(255,255,255,0.55);
+}
+.testimonial-card .company-logo {
+  width: 120px; height: 64px;
+  background-color: rgba(255,255,255,0.95);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  border-radius: 8px;
+  padding: 6px;
+}
