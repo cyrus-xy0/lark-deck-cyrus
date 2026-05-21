@@ -260,3 +260,201 @@
   background-repeat: no-repeat !important;
 }
 .slide.page-replica .wordmark { display: none; }
+
+
+/* ===== content/before-after — 痛点 vs 飞书后 双列对比 ===== */
+.slide[data-layout="content-before-after"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: grid;
+  grid-template-columns: 1fr 220px 1fr;
+  align-items: stretch;
+  gap: 0;
+}
+.slide[data-layout="content-before-after"] .side {
+  padding: 32px 36px;
+  border-radius: 18px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.slide[data-layout="content-before-after"] .side.before {
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.15);
+}
+.slide[data-layout="content-before-after"] .side.after {
+  background: rgba(51,214,192,0.06);
+  border: 2px solid rgba(51,214,192,0.70);
+}
+.slide[data-layout="content-before-after"] .side .tag {
+  align-self: flex-start;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font: 700 16px/1 var(--fs-font-cjk);
+  letter-spacing: 0.08em;
+}
+.slide[data-layout="content-before-after"] .side.before .tag {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.72);
+}
+.slide[data-layout="content-before-after"] .side.after .tag {
+  background: rgba(51,214,192,0.18);
+  color: var(--fs-teal);
+}
+.slide[data-layout="content-before-after"] .side ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.slide[data-layout="content-before-after"] .side li {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.08);
+  font: 500 24px/1.4 var(--fs-font-cjk);
+}
+.slide[data-layout="content-before-after"] .side.before li {
+  color: rgba(255,255,255,0.72);
+}
+.slide[data-layout="content-before-after"] .side.after li {
+  color: #fff;
+}
+.slide[data-layout="content-before-after"] .side .icon {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.slide[data-layout="content-before-after"] .side.before .icon {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.55);
+}
+.slide[data-layout="content-before-after"] .side.after .icon {
+  background: rgba(51,214,192,0.25);
+  color: var(--fs-teal);
+}
+.slide[data-layout="content-before-after"] .pivot {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+}
+.slide[data-layout="content-before-after"] .pivot .arrow {
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--fs-blue), var(--fs-teal));
+  display: flex; align-items: center; justify-content: center;
+  font: 700 48px/1 var(--fs-font-latin);
+  color: #fff;
+}
+.slide[data-layout="content-before-after"] .pivot .caption {
+  /* allow:body-floor — 1-line chrome pill below the arrow,
+     not body content. */
+  font: 700 16px/1.3 var(--fs-font-cjk);
+  color: #fff;
+  text-align: center;
+  padding: 8px 16px;
+  background: rgba(60,127,255,0.18);
+  border-radius: 999px;
+  border: 1px solid rgba(60,127,255,0.45);
+}
+
+
+/* ===== logo-wall — N industries × M client logos ===== */
+.slide[data-layout="logo-wall"] .stage {
+  position: absolute; top: 200px; left: 96px; right: 96px; bottom: 110px;
+  display: flex; flex-direction: column; gap: 28px;
+}
+.slide[data-layout="logo-wall"] .lede {
+  font: 600 24px/1.4 var(--fs-font-cjk);
+  color: #fff;
+  padding: 16px 28px;
+  border-left: 4px solid var(--fs-blue);
+  background: rgba(60,127,255,0.06);
+  border-radius: 0 8px 8px 0;
+}
+.slide[data-layout="logo-wall"] .industries {
+  display: flex; flex-direction: column; gap: 20px;
+  flex: 1; min-height: 0;
+}
+.slide[data-layout="logo-wall"] .industry {
+  display: grid; grid-template-columns: 200px 1fr; align-items: center;
+  gap: 24px;
+}
+.slide[data-layout="logo-wall"] .ind-name {
+  font: 600 16px/1.3 var(--fs-font-cjk);
+  /* allow:body-floor — pill label, 1 line, chrome */
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.05em;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(60,127,255,0.10);
+  border: 1px solid rgba(60,127,255,0.30);
+  text-align: center;
+}
+.slide[data-layout="logo-wall"] .logos {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px;
+}
+.slide[data-layout="logo-wall"] .logo {
+  height: 64px;
+  background-color: rgba(255,255,255,0.95);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+
+/* ===== Deck-level title_style · 4 PPT-master variants ===== */
+/* CSS engages via .deck[data-title-style="X"] from deck.json deck.title_style,
+   or via .slide[data-title-style="X"] for per-slide overrides.
+   Default (no attr) = left-double (matches existing framework layout). */
+
+/* center-single: 标题在 stage 中部居中, 1 行高字 */
+.deck[data-title-style="center-single"] .slide:not([data-layout="cover"]):not([data-layout="end"]) .header,
+.slide[data-title-style="center-single"]:not([data-layout="cover"]):not([data-layout="end"]) .header {
+  text-align: center;
+}
+.deck[data-title-style="center-single"] .slide:not([data-layout="cover"]):not([data-layout="end"]) .header .title-zh,
+.slide[data-title-style="center-single"]:not([data-layout="cover"]):not([data-layout="end"]) .header .title-zh {
+  text-align: center;
+  white-space: nowrap;
+  font-size: 48px;
+}
+
+/* center-double: 标题在 stage 上部居中, 允许 2 行 */
+.deck[data-title-style="center-double"] .slide:not([data-layout="cover"]):not([data-layout="end"]) .header,
+.slide[data-title-style="center-double"]:not([data-layout="cover"]):not([data-layout="end"]) .header {
+  text-align: center;
+}
+.deck[data-title-style="center-double"] .slide:not([data-layout="cover"]):not([data-layout="end"]) .header .title-zh,
+.slide[data-title-style="center-double"]:not([data-layout="cover"]):not([data-layout="end"]) .header .title-zh {
+  text-align: center;
+  font-size: 48px;
+}
+
+/* left-double: 标题在 stage 上部居左, 允许 2 行 — DEFAULT, no special override */
+/* left: 标题在 stage 中部居左 — vertically center the header band */
+.deck[data-title-style="left"] .slide:not([data-layout="cover"]):not([data-layout="end"]) .header,
+.slide[data-title-style="left"]:not([data-layout="cover"]):not([data-layout="end"]) .header {
+  position: absolute;
+  top: 0; bottom: 0; left: 96px;
+  display: flex; align-items: center;
+}
+
+
+/* ===== Deck-level logo_position · feishu × customer 联名顺序 ===== */
+/* Implementation: framework's wordmark "飞书" is always top-right; this
+   attr controls where the customer logo lives relative to it. The actual
+   customer logo element placement is done by the deck author (via
+   data-customer-logo in raw HTML or via image-text slides). This CSS
+   adjusts the wordmark's left/right padding to leave room. */
+
+.deck[data-logo-position="front"] .slide .wordmark,
+.slide[data-logo-position="front"] .wordmark {
+  /* customer logo goes LEFT of feishu wordmark — reserve 200px on right
+     for feishu, push wordmark inward */
+  right: 96px;
+}
+.deck[data-logo-position="back"] .slide .wordmark,
+.slide[data-logo-position="back"] .wordmark {
+  /* customer logo goes RIGHT of feishu wordmark — feishu stays put */
+  right: 96px;
+}
+/* Note: the actual customer-logo element rendering is responsibility of
+   each layout enricher / template. This attr just signals INTENT to CSS;
+   future enrichers can branch on it. */

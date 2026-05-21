@@ -162,15 +162,22 @@ def _derive_screen_label(slide: dict) -> str:
 
 
 def _build_data_attrs(slide: dict) -> str:
-    """Compose data-accent + data-decor + data-variant attribute strings.
+    """Compose data-accent + data-decor + per-slide title-style / logo-position
+    overrides for the .slide element.
     Variant is NOT emitted on .slide (production decks use class modifiers,
-    per Phase 0.1 survey); it's only used JSON-side for template dispatch."""
+    per Phase 0.1 survey); it's only used JSON-side for template dispatch.
+    title_style + logo_position are deck-level defaults (on .deck) — only
+    emitted on .slide when overridden per-slide."""
     parts = []
     if slide.get("accent"):
         parts.append(f'data-accent="{_esc_br(slide["accent"])}"')
     decor = slide.get("decor", [])
     if decor:
         parts.append(f'data-decor="{_esc_br(" ".join(decor))}"')
+    if slide.get("title_style"):
+        parts.append(f'data-title-style="{_esc_br(slide["title_style"])}"')
+    if slide.get("logo_position"):
+        parts.append(f'data-logo-position="{_esc_br(slide["logo_position"])}"')
     return " ".join(parts)
 
 
@@ -701,6 +708,49 @@ def _enrich_table(ctx, slide):
         ctx.get("footnote"), snp, "footnote", classes="footnote", indent="        ")
 
 
+def _enrich_logo_wall(ctx, slide):
+    """logo-wall — N industries × M client logos. Logo entries are logical
+    keys (e.g. '瑞幸咖啡'); enricher resolves to skill-shared assets path.
+
+    Path resolution: uses ctx['asset_path'] (computed by main as the
+    output→skill assets relative path) + '/shared/clientlogo/<key>.png'.
+    Missing logo files render as empty boxes — designer responsibility to
+    populate assets/shared/clientlogo/ ahead of time. We do NOT warn at
+    render time (would spam stderr); a future R-LOGO-MISSING rule could.
+    """
+    snp = ctx["slide_no_padded"]
+    asset_path = ctx.get("asset_path", "..")
+    ctx["lede_html"] = _optional_text_node(
+        ctx.get("lede"), snp, "lede", classes="lede", indent="          ")
+
+    industries = ctx.get("industries") or []
+    industry_blocks = []
+    for ii, ind in enumerate(industries, start=1):
+        i_padded = f"{ii:02d}"
+        name = _esc_br(ind.get("name", ""))
+        logos = ind.get("logos") or []
+        logo_divs = []
+        for li, key in enumerate(logos, start=1):
+            # Sanitize: key is user-supplied. Forbid `/` `..` here so
+            # `data.logos = ["../../etc/passwd"]` can't escape clientlogo/.
+            safe_key = re.sub(r"[/\\.]+", "_", str(key)).lstrip("_") or "missing"
+            src = f"{asset_path}/shared/clientlogo/{safe_key}.png"
+            logo_divs.append(
+                f'              <div class="logo" '
+                f'data-text-id="slide-{snp}.industry-{i_padded}.logo-{li:02d}" '
+                f'style="background-image:url(\'{src}\')"></div>'
+            )
+        logos_html = "\n".join(logo_divs)
+        industry_blocks.append(
+            f'            <div class="industry">\n'
+            f'              <span class="ind-name" '
+            f'data-text-id="slide-{snp}.industry-{i_padded}.name">{name}</span>\n'
+            f'              <div class="logos">\n{logos_html}\n              </div>\n'
+            f'            </div>'
+        )
+    ctx["industries_html"] = "\n".join(industry_blocks)
+
+
 def _enrich_flow_timeline(ctx, slide):
     snp = ctx["slide_no_padded"]
     nodes = ctx.get("nodes") or []
@@ -802,6 +852,34 @@ def _enrich_content_matrix(ctx, slide):
             f'          </div>'
         )
     ctx["quadrants_html"] = "\n".join(parts)
+
+
+def _enrich_content_before_after(ctx, slide):
+    """before-after variant — 痛点 vs 飞书后,中间一个 pivot 箭头。
+    Schema 保证 before.items.length === after.items.length (or close);
+    if not, we still render both sides and let visual review catch it."""
+    snp = ctx["slide_no_padded"]
+
+    def _items_html(items, side: str) -> str:
+        lines = []
+        for i, txt in enumerate(items or [], start=1):
+            ii = f"{i:02d}"
+            icon = "✕" if side == "before" else "✓"
+            lines.append(
+                f'              <li data-text-id="slide-{snp}.{side}.item-{ii}">'
+                f'<span class="icon">{icon}</span>{_esc_br(str(txt))}</li>'
+            )
+        return "\n".join(lines)
+
+    before = ctx.get("before", {}) or {}
+    after  = ctx.get("after",  {}) or {}
+    ctx["before_items_html"] = _items_html(before.get("items"), "before")
+    ctx["after_items_html"]  = _items_html(after.get("items"),  "after")
+
+    pivot = ctx.get("pivot", {}) or {}
+    ctx["pivot_caption_html"] = _optional_text_node(
+        pivot.get("caption"), snp, "pivot.caption",
+        tag="div", classes="caption", indent="            ")
 
 
 def _enrich_content_story_case(ctx, slide):
@@ -961,12 +1039,14 @@ ENRICHERS = {
     ("content", "2col"):         _enrich_content_2col,
     ("content", "blocks"):       _enrich_content_blocks,
     ("content", "matrix"):       _enrich_content_matrix,
+    ("content", "before-after"): _enrich_content_before_after,
     ("content", "story-case"):   _enrich_content_story_case,
     ("stats",   "row"):          _enrich_stats_row,
     ("stats",   "hero"):         _enrich_stats_hero,
     ("stats",   "waterfall"):    _enrich_stats_waterfall,
     ("image-text", None):        _enrich_image_text,
     ("table",   None):           _enrich_table,
+    ("logo-wall", None):         _enrich_logo_wall,
     ("flow",    "timeline"):     _enrich_flow_timeline,
     ("flow",    "process"):      _enrich_flow_process,
     ("flow",    "tree"):         _enrich_flow_tree,
@@ -1123,6 +1203,17 @@ def main(argv=None) -> int:
         if needs_patterns else ""
     )
 
+    # Compose data-* attrs for the <div class="deck"> element. title_style /
+    # logo_position are deck-wide defaults; CSS scopes engage via
+    # .deck[data-title-style="X"] / .deck[data-logo-position="Y"]. Per-slide
+    # overrides emit on the .slide element instead (handled in render_slide).
+    deck_data_attrs_parts = []
+    if deck["deck"].get("title_style"):
+        deck_data_attrs_parts.append(f' data-title-style="{deck["deck"]["title_style"]}"')
+    if deck["deck"].get("logo_position"):
+        deck_data_attrs_parts.append(f' data-logo-position="{deck["deck"]["logo_position"]}"')
+    deck_data_attrs = "".join(deck_data_attrs_parts)
+
     final = render_template(shell_tpl.read_text(encoding="utf-8"), {
         "title":                      deck["deck"]["title"],
         "asset_path":                 asset_path,
@@ -1130,6 +1221,7 @@ def main(argv=None) -> int:
         "patterns_css_link":          patterns_css_link,
         "language":                   deck["deck"].get("language", "zh-only"),
         "slides_html":                "\n".join(slides_html),
+        "deck_data_attrs":            deck_data_attrs,
     })
 
     out_html = args.output_dir / "index.html"

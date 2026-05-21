@@ -59,6 +59,16 @@
           "enum": ["rewrite", "replica"],
           "default": "rewrite",
           "description": "rewrite = full HTML composition via layouts; replica = each slide is a page-as-image."
+        },
+        "title_style": {
+          "enum": ["center-single", "center-double", "left-double", "left"],
+          "default": "left-double",
+          "description": "Deck-wide default for content / stats / flow / etc. titles. Mirrors PPT master '内容页-标题…' variants. Per-slide overrides via slide.title_style."
+        },
+        "logo_position": {
+          "enum": ["front", "back"],
+          "default": "front",
+          "description": "Deck-wide default for customer × feishu logo arrangement on content slides. 'front' = customer logo before feishu; 'back' = after. Mirrors PPT '内容页-飞书联名在前/后'."
         }
       }
     },
@@ -103,6 +113,14 @@
           "type": "string",
           "description": "Presenter notes / authoring intent. Not rendered."
         },
+        "title_style": {
+          "enum": ["center-single", "center-double", "left-double", "left"],
+          "description": "Per-slide override of deck.title_style. See deck_meta.title_style."
+        },
+        "logo_position": {
+          "enum": ["front", "back"],
+          "description": "Per-slide override of deck.logo_position. See deck_meta.logo_position."
+        },
         "_disabled": {
           "type": "boolean",
           "description": "If true, renderer skips this slide entirely. Escape hatch for 'this slide errors, let the rest render'. SKILL.md Troubleshooting section."
@@ -123,9 +141,10 @@
         { "if": { "properties": { "layout": { "const": "end" } },        "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_end" } } } },
         { "if": { "properties": { "layout": { "const": "replica" } },    "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_replica" } },    "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "raw" } },        "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_raw" } },        "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "logo-wall" } },  "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_logo_wall" } },  "required": ["data"] } },
 
         { "if": { "properties": { "layout": { "const": "content" } }, "required": ["layout"] },
-          "then": { "required": ["variant"], "properties": { "variant": { "enum": ["3up", "2col", "story-case", "blocks", "matrix"] } } } },
+          "then": { "required": ["variant"], "properties": { "variant": { "enum": ["3up", "2col", "story-case", "blocks", "matrix", "before-after"] } } } },
         { "if": { "properties": { "layout": { "const": "stats" } }, "required": ["layout"] },
           "then": { "required": ["variant"], "properties": { "variant": { "enum": ["row", "hero", "waterfall"] } } } },
         { "if": { "properties": { "layout": { "const": "flow" } }, "required": ["layout"] },
@@ -136,6 +155,7 @@
         { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "story-case" } }, "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_story_case" } }, "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "blocks" } },     "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_blocks" } },     "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "matrix" } },     "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_matrix" } },     "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "content" }, "variant": { "const": "before-after" } }, "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_content_before_after" } }, "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "stats" }, "variant": { "const": "waterfall" } },    "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_stats_waterfall" } },    "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "flow" }, "variant": { "const": "tree" } },          "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_flow_tree" } },          "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "stats" }, "variant": { "const": "row" } },           "required": ["layout", "variant"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_stats_row" } },            "required": ["data"] } },
@@ -145,15 +165,46 @@
       ]
     },
 
+    "data_logo_wall": {
+      "description": "logo-wall layout — N industries × M client logos. Logo entries are LOGICAL keys (e.g. '瑞幸咖啡'); enricher resolves to assets/shared/clientlogo/<key>.png.",
+      "type": "object",
+      "required": ["title", "industries"],
+      "additionalProperties": false,
+      "properties": {
+        "title":  { "type": "string", "minLength": 1 },
+        "lede":   { "type": "string", "description": "Optional intro paragraph above the industries grid." },
+        "industries": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["name", "logos"],
+            "additionalProperties": false,
+            "properties": {
+              "name":  { "type": "string", "minLength": 1, "description": "Industry pill label, e.g. '新茶饮 / 餐饮连锁'." },
+              "logos": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 12,
+                "items": { "type": "string", "minLength": 1, "description": "Logo logical key — corresponds to assets/shared/clientlogo/<key>.png." }
+              }
+            }
+          }
+        }
+      }
+    },
+
     "layout_enum": {
       "enum": [
         "cover", "agenda", "section",
         "content", "stats", "flow",
         "quote", "image-text", "table",
+        "logo-wall",
         "end",
         "replica", "raw"
       ],
-      "description": "10 base layouts (content/stats/flow are multi-variant) + 2 specials (replica/raw)."
+      "description": "11 base layouts (content/stats/flow are multi-variant) + 2 specials (replica/raw)."
     },
 
     "accent_enum": {
@@ -571,6 +622,41 @@
           "items": { "$ref": "#/$defs/embeddable_block" }
         },
         "source_footer": { "type": "string", "description": "Inline data citation, e.g. '数据来源 · 行业访谈 N=24'. Optional." }
+      }
+    },
+
+    "data_content_before_after": {
+      "description": "content layout · variant before-after — two-column comparison (痛点 vs 飞书后), with a center pivot. Symmetry required: before.items.length === after.items.length.",
+      "type": "object",
+      "required": ["title", "before", "after"],
+      "additionalProperties": false,
+      "properties": {
+        "title":  { "type": "string", "minLength": 1 },
+        "before": {
+          "type": "object",
+          "required": ["tag", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "tag":   { "type": "string", "minLength": 1, "description": "Left-column header label, e.g. '现状 · 痛点'." },
+            "items": { "type": "array", "minItems": 3, "maxItems": 6, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "pivot": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "caption": { "type": "string", "description": "Center-column caption, e.g. '用飞书 12 周后'." }
+          }
+        },
+        "after": {
+          "type": "object",
+          "required": ["tag", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "tag":   { "type": "string", "minLength": 1, "description": "Right-column header label, e.g. '飞书 · 现在'." },
+            "items": { "type": "array", "minItems": 3, "maxItems": 6, "items": { "type": "string", "minLength": 1 } }
+          }
+        }
       }
     },
 
