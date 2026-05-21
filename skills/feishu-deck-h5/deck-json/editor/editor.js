@@ -869,6 +869,35 @@ function renderArraySection(slide, slideIdx, fieldName, cfg, items) {
   `;
 }
 
+// Render a single editor control (input / textarea / select) for an array
+// sub-field. Shared between (a) string-array items, (b) object-array fields,
+// (c) polymorphic-block fields, (d) nested subStringArray items.
+//
+// `spec` shape:
+//   {key, label?, multi?: true|false, select?: ["opt", ...]}
+//   — key is informational here; the consumer already computed setPath.
+// `valStr` is the string-form current value.
+// `setPath` is the deck-relative path (e.g. "slides.3.data.cards.0.title_zh").
+//
+// All produced elements carry `data-set-path` + `data-orig` so the single
+// blur-listener in bindArraySectionListeners (querying .array-field) can
+// dispatch saves uniformly without knowing the spec shape.
+function renderFieldEditor(spec, valStr, setPath) {
+  const ATTRS = `class="value-edit array-field" `
+              + `data-set-path="${escapeAttr(setPath)}" `
+              + `data-orig="${escapeAttr(valStr)}"`;
+  if (spec.select) {
+    const opts = spec.select.map(opt =>
+      `<option value="${escapeAttr(opt)}"${opt === valStr ? " selected" : ""}>${escapeHtml(opt)}</option>`
+    ).join("");
+    return `<select ${ATTRS}>${opts}</select>`;
+  }
+  if (spec.multi) {
+    return `<textarea ${ATTRS} rows="2">${escapeHtml(valStr)}</textarea>`;
+  }
+  return `<input ${ATTRS} value="${escapeAttr(valStr)}">`;
+}
+
 function renderArrayItem(slide, slideIdx, fieldName, cfg, idx, item, total) {
   // For polymorphic items, switch to block-type's fields
   let effectiveFields = cfg.fields;
@@ -897,44 +926,21 @@ function renderArrayItem(slide, slideIdx, fieldName, cfg, idx, item, total) {
   const downDisabled   = idx === total - 1  ? " disabled" : "";
   const removeDisabled = total <= (cfg.minItems || 0) ? " disabled" : "";
 
-  // Body — fields editor
+  // Body — field editors built via renderFieldEditor helper
   let body;
   if (cfg.isStringArray) {
     const path = `slides.${slideIdx}.data.${fieldName}.${idx}`;
-    const val = String(item);
-    body = `<input class="value-edit array-field"
-              data-set-path="${escapeAttr(path)}"
-              data-orig="${escapeAttr(val)}"
-              value="${escapeAttr(val)}">`;
+    body = renderFieldEditor({}, String(item), path);
   } else {
     body = (effectiveFields || []).map((f) => {
       // f.key may be dotted for polymorphic blocks (e.g. "left.title")
       const val = getNestedField(item, f.key);
       const valStr = val != null ? String(val) : "";
       const path = `slides.${slideIdx}.data.${fieldName}.${idx}.${f.key}`;
-      let editor;
-      if (f.select) {
-        editor = `<select class="value-edit array-field"
-                    data-set-path="${escapeAttr(path)}"
-                    data-orig="${escapeAttr(valStr)}">
-                    ${f.select.map(opt =>
-                      `<option value="${escapeAttr(opt)}"${opt === valStr ? " selected" : ""}>${escapeHtml(opt)}</option>`).join("")}
-                  </select>`;
-      } else if (f.multi) {
-        editor = `<textarea class="value-edit array-field"
-                    data-set-path="${escapeAttr(path)}"
-                    data-orig="${escapeAttr(valStr)}"
-                    rows="2">${escapeHtml(valStr)}</textarea>`;
-      } else {
-        editor = `<input class="value-edit array-field"
-                    data-set-path="${escapeAttr(path)}"
-                    data-orig="${escapeAttr(valStr)}"
-                    value="${escapeAttr(valStr)}">`;
-      }
       return `
         <div class="array-sub-field">
           <span class="array-sub-label">${escapeHtml(f.label)}</span>
-          ${editor}
+          ${renderFieldEditor(f, valStr, path)}
         </div>`;
     }).join("");
 
@@ -956,14 +962,12 @@ function renderArrayItem(slide, slideIdx, fieldName, cfg, idx, item, total) {
       const canAdd = sub.maxItems == null || subItems.length < sub.maxItems;
       const itemsHtml = subItems.map((s, j) => {
         const p = `slides.${slideIdx}.data.${subPath}.${j}`;
-        const v = String(s);
         const upDis  = j === 0                  ? " disabled" : "";
         const dnDis  = j === subItems.length-1  ? " disabled" : "";
         const rmDis  = subItems.length <= (sub.minItems || 0) ? " disabled" : "";
         return `
           <div class="sub-string-row">
-            <input class="value-edit array-field"
-                   data-set-path="${escapeAttr(p)}" data-orig="${escapeAttr(v)}" value="${escapeAttr(v)}">
+            ${renderFieldEditor({}, String(s), p)}
             <button class="btn-mini" data-sub-action="up"     data-sub-path="${escapeAttr(subPath)}" data-sub-idx="${j}"${upDis}>↑</button>
             <button class="btn-mini" data-sub-action="down"   data-sub-path="${escapeAttr(subPath)}" data-sub-idx="${j}"${dnDis}>↓</button>
             <button class="btn-mini" data-sub-action="remove" data-sub-path="${escapeAttr(subPath)}" data-sub-idx="${j}"${rmDis}>✕</button>

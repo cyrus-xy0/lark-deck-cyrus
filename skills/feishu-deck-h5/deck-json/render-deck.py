@@ -62,6 +62,31 @@ COPY_ASSETS   = ASSETS_DIR / "copy-assets.py"
 # itself built trusted HTML (e.g. enricher-composed `cards_html`).
 
 
+def _optional_text_node(value, slide_no_padded: str, text_id_suffix: str,
+                        tag: str = "p", classes: str = "", indent: str = "          ") -> str:
+    """Render an optional text node (returns "" if value is falsy).
+
+    Used by ~10 enrichers for fields like subtitle/lede/footnote/source/
+    attribution — the boilerplate "if X: ctx[X_html] = '<tag class=... data-
+    text-id=slide-NN.X>{escaped}</tag>' else ''" pattern.
+
+    Args:
+      value:            the source string (None / "" → returns "")
+      slide_no_padded:  ctx['slide_no_padded'] for the data-text-id prefix
+      text_id_suffix:   tail of data-text-id (e.g. "lede", "footnote")
+      tag:              wrapping element ("p", "h2", "span", "div", ...)
+      classes:          CSS classes for the wrapper
+      indent:           leading whitespace for output (templates expect it)
+
+    Returns the HTML string ready to interpolate into a `{{{ X_html }}}` slot.
+    """
+    if not value:
+        return ""
+    cls_attr = f' class="{classes}"' if classes else ""
+    return (f'{indent}<{tag}{cls_attr} data-text-id="slide-{slide_no_padded}.{text_id_suffix}">'
+            f'{_esc_br(value)}</{tag}>')
+
+
 def _esc_br(s):
     """HTML-escape AND convert \\n → <br>. The single path for converting
     user-typed text into HTML-safe markup with line breaks preserved.
@@ -440,55 +465,39 @@ def render_3up_cards(cards: list, slide_no_padded: str) -> str:
 # These map (layout, variant) → ctx mutator.
 
 def _enrich_cover(ctx, slide):
-    subtitle = ctx.get("subtitle")
-    if subtitle:
-        ctx["subtitle_html"] = (
-            f'          <p class="subtitle" data-text-id="slide-{ctx["slide_no_padded"]}.subtitle">'
-            f'{_esc_br(subtitle)}</p>'
-        )
-    else:
-        ctx["subtitle_html"] = ""
+    snp = ctx["slide_no_padded"]
+    ctx["subtitle_html"] = _optional_text_node(
+        ctx.get("subtitle"), snp, "subtitle", classes="subtitle")
 
 
 def _enrich_agenda(ctx, slide):
+    snp = ctx["slide_no_padded"]
     items = ctx.get("items", [])
-    ctx["agenda_items_html"] = render_agenda_items(items, ctx["slide_no_padded"])
+    ctx["agenda_items_html"] = render_agenda_items(items, snp)
     # header is optional (v2 default hides header — pills speak for themselves)
     title = ctx.get("title")
     if title:
-        ctx["header_html"] = (
-            f'        <div class="header">\n'
-            f'          <h2 class="title-zh" data-text-id="slide-{ctx["slide_no_padded"]}.title">'
-            f'{_esc_br(title)}</h2>\n'
-            f'        </div>'
-        )
+        title_node = _optional_text_node(title, snp, "title",
+                                         tag="h2", classes="title-zh",
+                                         indent="          ")
+        ctx["header_html"] = f'        <div class="header">\n{title_node}\n        </div>'
     else:
         ctx["header_html"] = ""
 
 
 def _enrich_content_3up(ctx, slide):
-    cards = ctx.get("cards", [])
-    ctx["cards_html"] = render_3up_cards(cards, ctx["slide_no_padded"])
-    lede = ctx.get("lede")
-    if lede:
-        ctx["lede_html"] = (
-            f'          <p class="lede" data-text-id="slide-{ctx["slide_no_padded"]}.lede">'
-            f'{_esc_br(lede)}</p>'
-        )
-    else:
-        ctx["lede_html"] = ""
+    snp = ctx["slide_no_padded"]
+    ctx["cards_html"] = render_3up_cards(ctx.get("cards", []), snp)
+    ctx["lede_html"] = _optional_text_node(
+        ctx.get("lede"), snp, "lede", classes="lede")
 
 
 def _enrich_content_2col(ctx, slide):
+    snp = ctx["slide_no_padded"]
     text = ctx.get("text", {}) or {}
-    text_lede = text.get("lede")
-    if text_lede:
-        ctx["text_lede_html"] = (
-            f'              <p class="lede" data-text-id="slide-{ctx["slide_no_padded"]}.text.lede">'
-            f'{_esc_br(text_lede)}</p>'
-        )
-    else:
-        ctx["text_lede_html"] = ""
+    ctx["text_lede_html"] = _optional_text_node(
+        text.get("lede"), snp, "text.lede", classes="lede",
+        indent="              ")
 
     ctx["text_feature_list_html"] = _render_feature_list_v2(
         text.get("feature_list"), ctx["slide_no_padded"]
@@ -543,37 +552,24 @@ def _render_visual(visual, slide_no_padded):
 
 
 def _enrich_end(ctx, slide):
-    contact = ctx.get("contact")
-    if contact:
-        ctx["contact_html"] = (
-            f'        <div class="contact" data-text-id="slide-{ctx["slide_no_padded"]}.contact">'
-            f'{_esc_br(contact)}</div>'
-        )
-    else:
-        ctx["contact_html"] = ""
+    ctx["contact_html"] = _optional_text_node(
+        ctx.get("contact"), ctx["slide_no_padded"], "contact",
+        tag="div", classes="contact", indent="        ")
 
 
 def _enrich_section(ctx, slide):
-    lede = ctx.get("lede")
-    if lede:
-        ctx["lede_html"] = (
-            f'        <p class="lede" data-text-id="slide-{ctx["slide_no_padded"]}.lede">'
-            f'{_esc_br(lede)}</p>'
-        )
-    else:
-        ctx["lede_html"] = ""
+    snp = ctx["slide_no_padded"]
+    ctx["lede_html"] = _optional_text_node(
+        ctx.get("lede"), snp, "lede", classes="lede", indent="        ")
 
     pills = ctx.get("pills") or []
     if pills:
         items = "\n".join(
-            f'          <span class="pill" data-text-id="slide-{ctx["slide_no_padded"]}.pill-{i+1:02d}">'
+            f'          <span class="pill" data-text-id="slide-{snp}.pill-{i+1:02d}">'
             f'{_esc_br(p)}</span>'
             for i, p in enumerate(pills)
         )
-        ctx["pills_html"] = (
-            f'        <div class="pills">\n'
-            f'{items}\n        </div>'
-        )
+        ctx["pills_html"] = f'        <div class="pills">\n{items}\n        </div>'
     else:
         ctx["pills_html"] = ""
 
@@ -622,13 +618,8 @@ def _enrich_stats_row(ctx, slide):
             f'          </div>'
         )
     ctx["cols_html"] = "\n".join(rendered)
-
-    footnote = ctx.get("footnote")
-    ctx["footnote_html"] = (
-        f'        <p class="footnote" data-text-id="slide-{snp}.footnote">'
-        f'{_esc_br(footnote)}</p>'
-        if footnote else ""
-    )
+    ctx["footnote_html"] = _optional_text_node(
+        ctx.get("footnote"), snp, "footnote", classes="footnote", indent="        ")
 
 
 def _enrich_stats_hero(ctx, slide):
@@ -684,12 +675,8 @@ def _enrich_image_text(ctx, slide):
             "background-color:#000;"
         )
 
-    lede = ctx.get("lede")
-    ctx["lede_html"] = (
-        f'          <p class="lede" data-text-id="slide-{snp}.lede">'
-        f'{_esc_br(lede)}</p>'
-        if lede else ""
-    )
+    ctx["lede_html"] = _optional_text_node(
+        ctx.get("lede"), snp, "lede", classes="lede")
 
 
 def _enrich_table(ctx, slide):
@@ -710,12 +697,8 @@ def _enrich_table(ctx, slide):
         )
         row_html.append(f'              <tr>{cells}</tr>')
     ctx["rows_html"] = "\n".join(row_html)
-    footnote = ctx.get("footnote")
-    ctx["footnote_html"] = (
-        f'        <p class="footnote" data-text-id="slide-{snp}.footnote">'
-        f'{_esc_br(footnote)}</p>'
-        if footnote else ""
-    )
+    ctx["footnote_html"] = _optional_text_node(
+        ctx.get("footnote"), snp, "footnote", classes="footnote", indent="        ")
 
 
 def _enrich_flow_timeline(ctx, slide):
@@ -770,11 +753,10 @@ def _enrich_flow_process(ctx, slide):
 def _enrich_content_blocks(ctx, slide):
     snp = ctx["slide_no_padded"]
     lede = ctx.get("lede")
-    ctx["lede_html"] = (
-        f'          <p class="lede" data-text-id="slide-{snp}.lede">'
-        f'{_esc_br(lede)}</p>'
-        if lede else ""
-    )
+    ctx["lede_html"] = _optional_text_node(lede, snp, "lede", classes="lede")
+    # source-footer keeps a special inline style block (designer intent)
+    # because the schema's "caption" class doesn't carry the right typography
+    # for the muted footer treatment. Migrate to a real class in a future pass.
     footer = ctx.get("source_footer")
     ctx["source_footer_html"] = (
         f'          <p class="caption" style="margin-top:16px;font:500 16px/1.4 var(--fs-font-cjk);'
@@ -912,13 +894,8 @@ def _enrich_stats_waterfall(ctx, slide):
             f'            </div>'
         )
     ctx["bars_html"] = "\n".join(parts)
-
-    footnote = ctx.get("footnote")
-    ctx["footnote_html"] = (
-        f'        <p class="footnote" data-text-id="slide-{snp}.footnote">'
-        f'{_esc_br(footnote)}</p>'
-        if footnote else ""
-    )
+    ctx["footnote_html"] = _optional_text_node(
+        ctx.get("footnote"), snp, "footnote", classes="footnote", indent="        ")
 
 
 def _enrich_flow_tree(ctx, slide):
