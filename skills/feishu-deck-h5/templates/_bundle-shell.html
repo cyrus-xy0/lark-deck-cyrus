@@ -6,6 +6,7 @@
   <title>{{ title }} · 飞书企业 AI</title>
   <link rel="stylesheet" href="{{ asset_path }}/feishu-deck.css">
   <link rel="stylesheet" href="{{ asset_path }}/feishu-deck-patterns.css">
+  <link rel="stylesheet" href="{{ asset_path }}/edit-mode/deck-edit-mode.css">
   <style>
     /* Defensive R48 re-assertions — validator audits each <style> block
        independently. No-op visually. */
@@ -17,10 +18,11 @@
     .slide[data-layout="quote"] .stack { justify-content: center; }
   </style>
 </head>
-<body>
+<body class="deck-edit-mode">
   <div class="deck">
 {{{ slides_html }}}
   </div>
   <script src="{{ asset_path }}/feishu-deck.js"></script>
+  <script src="{{ asset_path }}/edit-mode/deck-edit-mode.js" defer></script>
 </body>
 </html>

@@ -381,8 +381,10 @@ python3 deck-json/deck-cli.py runs/<ts>/output/deck.json set-variant kpi-4up her
 # 14 subcommands total — see deck-json/DECK-CLI-README.md
 
 # Option C · WYSIWYG · edit the rendered HTML directly in your browser
-# (separate client-side editor — opens the index.html and edits in-place.
-# Not part of this skill; lives in user's own tooling.)
+# (default-on since 2026-05-21: every rendered deck auto-loads
+# assets/edit-mode/deck-edit-mode.{css,js}. Press E to enter edit mode,
+# Esc to exit, Cmd/Ctrl+S to save. Zero deps, runs from file:// or
+# https://.)
 ```
 
 **Inline minimal example** (4 slides, every required field). Copy this verbatim, then iterate:
@@ -501,11 +503,26 @@ If 1-2 specific slides won't fit the schema but everything else does:
 | `deck-json/validate-deck.py` | Standalone schema lint of deck.json (called by render-deck.py + deck-cli.py automatically) | inline help |
 | `assets/check-only.sh` | Audit an EXISTING `.html` deck (Path A or B output) against all framework rules | see CHECK-ONLY MODE section above |
 
-> *Visual editing*: the previous server-side editor (`deck-editor.py` + browser
-> UI) was retired 2026-05-21. WYSIWYG editing now happens in a separate
-> client-side editor (lives outside this skill). The flow: render deck.json
-> → HTML → open that HTML in the client-side editor → edit in place. Schema
-> + renderer + CLI continue to handle generation, structural ops, validation.
+> *Visual editing — default on since 2026-05-21*. Every rendered deck
+> ships with a zero-dep client-side editor (`assets/edit-mode/deck-edit-
+> mode.{css,js}`, ~663 LoC). The shell templates (`_shell.html`,
+> `_bundle-shell.html`, `big-stat.html`, `one-pager-case.html`,
+> `quote.html`) inject the `<link>` + `<script>` + `<body class="deck-
+> edit-mode">` by default, and copy-assets.py automatically copies the
+> editor into `output/assets/edit-mode/` because the HTML references
+> it. Press **E** to enter edit mode, **Esc** to exit, **Cmd/Ctrl+S**
+> to save (File System Access API → in-place on Chromium-based
+> browsers; download fallback elsewhere). Drag a slide-frame to
+> reorder; click any text leaf to edit it directly. Runs from file://
+> or https:// — works for `feishusolution`-style GitHub Pages
+> deployments. To opt out for a specific deck (e.g. delivery zip
+> destined for read-only viewers), strip the two edit-mode lines + the
+> body class — the deck still renders normally without them.
+>
+> The pre-2026-05-21 server-side editor (`deck-editor.py` + Python
+> server + browser UI) was retired in favor of this client-side
+> approach (no server to run; works on static hosts; one file flip
+> to enable/disable).
 
 ---
 
@@ -2122,6 +2139,9 @@ feishu-deck-h5/
 ├── assets/                     ← TWO layers: framework (top) + shared content pool (shared/)
 │   ├── feishu-deck.css         ← all design tokens + 13 slide layouts (single source of truth)
 │   ├── feishu-deck.js          ← scale-to-fit + present/scroll modes + keyboard nav
+│   ├── edit-mode/              ← client-side WYSIWYG editor (auto-injected by shell templates, default-on since 2026-05-21)
+│   │   ├── deck-edit-mode.css  ← edit-mode chrome (toolbar, drag affordances)
+│   │   └── deck-edit-mode.js   ← contenteditable text leaves + drag-reorder + Cmd/Ctrl+S save
 │   ├── validate.py             ← programmatic self-check (HARD GATE before delivery)
 │   ├── apply-texts.py          ← patch HTML from edited texts.md (text-edit sidecar)
 │   ├── extract-texts.py        ← bootstrap texts.md from a deck (annotate or dump)

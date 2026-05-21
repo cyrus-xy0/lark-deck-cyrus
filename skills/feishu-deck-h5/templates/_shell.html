@@ -11,10 +11,14 @@
        Default path assumes the deck lives at  <repo>/runs/<ts>/output/index.html
        per WORKSPACE LAYOUT. Adjust if you put the deck somewhere else. -->
   <link rel="stylesheet" href="../../../skills/feishu-deck-h5/assets/feishu-deck.css">
+  <!-- Client-side edit mode (default on since 2026-05-21):
+       press E to enter, Esc to exit, Cmd/Ctrl+S to save. Zero deps,
+       runs from file:// — see assets/edit-mode/deck-edit-mode.js. -->
+  <link rel="stylesheet" href="../../../skills/feishu-deck-h5/assets/edit-mode/deck-edit-mode.css">
   <!-- Option B (recommended for delivery): inline the contents of feishu-deck.css here -->
   <!-- <style>/* paste feishu-deck.css */</style> -->
 </head>
-<body>
+<body class="deck-edit-mode">
 
   <div class="deck">
 
@@ -56,6 +60,7 @@
 
   <!-- Option A: link the runtime (path matches the CSS link above) -->
   <script src="../../../skills/feishu-deck-h5/assets/feishu-deck.js"></script>
+  <script src="../../../skills/feishu-deck-h5/assets/edit-mode/deck-edit-mode.js" defer></script>
   <!-- Option B (recommended): inline the contents of feishu-deck.js here -->
   <!-- <script>/* paste feishu-deck.js */</script> -->
 </body>

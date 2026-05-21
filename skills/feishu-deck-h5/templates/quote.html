@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{{ title }} · 客户原话</title>
   <link rel="stylesheet" href="{{ asset_path }}/feishu-deck.css">
+  <link rel="stylesheet" href="{{ asset_path }}/edit-mode/deck-edit-mode.css">
   <style>
     /* Defensive R48 re-assertions — validator audits each <style> block
        independently. No-op visually. */
@@ -16,7 +17,7 @@
     .slide[data-layout="quote"] .stack { justify-content: center; }
   </style>
 </head>
-<body>
+<body class="deck-edit-mode">
   <div class="deck">
     <div class="slide-frame">
       <div class="slide" data-layout="quote" data-accent="blue" data-decor="{{ decor }}"
@@ -33,5 +34,6 @@
     </div>
   </div>
   <script src="{{ asset_path }}/feishu-deck.js"></script>
+  <script src="{{ asset_path }}/edit-mode/deck-edit-mode.js" defer></script>
 </body>
 </html>
