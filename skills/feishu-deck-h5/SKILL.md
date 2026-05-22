@@ -533,6 +533,308 @@ sections 描述 / 主题列表),**do NOT immediately create files**. First
 produce a per-page design plan in chat, get user confirmation, THEN
 generate.
 
+### 设计前预检 · 5 个问题(MANDATORY · 每张新 slide / per-page polish)
+
+**触发条件**:任何即将生成 HTML 的新单页 + 任何用户给文案让你重做的页。
+
+**强制规则**:**必须在 chat 里 EXPLICIT 写出 Q0-Q4 答案 + A 档 6 维 spec
++ design intent statement,再调用任何 Write / Edit 工具**。「在脑子里
+跑过了」不算。用户看不见你脑子里的思考。
+
+**当 prompt 信息不足以填完 Q0-Q4 时,你 MUST STOP**:用问句形式
+把空缺字段返还给用户,等用户回答再开工。**不要自己脑补答案**,因为
+脑补的会跟用户真实意图错位(slide 9 冰红茶就这么发生的)。
+
+#### 反模式 — 看到立刻拍醒
+
+| 用户 prompt | ❌ 错误响应 | ✓ 正确响应 |
+|---|---|---|
+| 「做一页 AI 重写消费品增长」(8 字标题) | 立刻 `Write` deck.json 加 slide | 先在 chat 输出: "这页的**角色**是?(现象/方法论/结论/对比/证据) **唯一要记住的具体一句话**是?**A 档元素**应该是什么?气质上是冷调科技还是暖调编辑?" 等用户回答再 generate |
+| 「加一页关于客户案例」(8 字) | 直接套 `content/story-case` schema | 先问: "案例是单客户(用 story-case)还是多客户矩阵(用 logo-wall + 案例)?痛冲解价值结构齐吗?有客户原话还是只有数据?" |
+| 「再做一页」(纯指令) | 沿着上一页 layout 复制 | 先问: "这页角色?跟前一页(方法论)什么关系?接续 / 转折 / 收束?" |
+
+#### 触发判定
+
+**判定 "prompt 信息足够"** —— 满足以下**至少 3 个**:
+
+- ✓ 用户写明了**页面角色**关键词(现象/方法论/结论/对比/证据 之一,
+  或同义词如"展示/讲解/收束/对比/数据支撑")
+- ✓ 用户写明了**这页要记住的具体内容**(slogan/数字/案例名/产品名等
+  具体的东西,不是抽象概念)
+- ✓ 用户列出了**至少 2-3 个具体元素**(列表项 / 卡片 / 数字 / 图标 等)
+- ✓ 用户暗示了**视觉气质**(科技/编辑/怀旧/工业/极简 等关键词)
+- ✓ 用户给了**参考样式**(URL / 截图 / 类比 "做成 BCG 报告风")
+
+**只满足 ≤ 2 项 = 信息不足 = 必须问问题再动手**。
+
+漏跑这 5 题的真实代价(2026-05-22 复盘 · slide 9 冰红茶 5 剧本墙):
+prompt 明写「现象呈现页 · 不下结论 · 话术是视觉焦点字号最大 · 引号视觉化」
+—— 我跳过预检,直接套了"通用 3 卡 + 锚定 banner"(=方法论页骨架),
+slogan 做成 28(Sub tier) 跟场景名同档不是"最大",引号 48 不是"视觉化"。
+prompt 字面 4 条要求,**1 条都没真做到**。根因:没跑 Q0-Q4 就动手。
+
+**这个反模式的根因不是用户 prompt 太短,是我自己跳过预检**。即使
+prompt 给得很详细(slide 9 那个 prompt 信息绝对足够),不在 chat 里
+explicit 跑 Q0-Q4,我还是会用熟悉的模板套上去。**强制 explicit chat
+输出是唯一防线**。
+
+#### Q0. 这页是什么角色?
+
+5 选 1:
+
+| 角色 | 视觉处理 | 反模式 |
+|---|---|---|
+| **现象呈现页** — 信号墙 / 剧本墙 / 案例矩阵 | 等权并列,不下结论 | 加锚定 banner / 加收束金句 / 强行 3up |
+| **方法论页** — 步骤 / 框架 / 原则 | 顺序+依赖,流程感 | 等权并列没顺序 / 没收束 |
+| **结论页** — 一句话收束 | 单 hero 句,记忆锚点 | 信息密度高,稀释结论 |
+| **对比页** — 痛 vs 解 / 旧 vs 新 | 2 列 + 中线 + 视觉重量差 | 3 列均权 / 没视觉对位 |
+| **证据页** — 数据 / 案例 / 引文 | 数字为主 + attribution | 抽象论述 / 无具体数据源 |
+
+**错读角色 = layout 全错**。现象页做成方法论页 = 锚定 banner 抢了剧本墙
+的戏 = 整页变 PPT 三段论。
+
+#### Q1. 这页最该被记住的唯一一件事是什么?
+
+**只准选 1 个**,不准选 2 个并列。写出来必须是 1 句具体话:
+
+> "我希望观众离开这页时记住 [X]"
+
+X 必须是**具体内容**(slogan / 数字 / 案例名),**不是抽象概念**:
+- ✓ "撸串没冰红茶等于火锅没毛肚" — 具体话术
+- ✓ "2 小时完成 335 人调研" — 具体数字
+- ✗ "3 个痛点" — 抽象,记不住
+- ✗ "AI 重构消费品逻辑" — 抽象口号
+
+错读 Q1 = "每个东西都同等重要" = 全均匀 = 没重点 = 灰泥。
+
+#### Q2. 把所有元素分 A/B/C/D 四档 + 强制 6 维 specification
+
+| 档 | 角色 | 数量 |
+|---|---|---|
+| **A** | 必赢 · 视觉最大 | **唯一** |
+| **B** | 辅助焦点 | 2-3 个 |
+| **C** | 解释信息 | 视情况 |
+| **D** | 注脚 | 视情况 |
+
+**A 一定就是 Q1 答案的载体**。
+
+**仅写「A 档 = slogan」是不够的** —— 这是断点。Q2 之前我写到这里就停,
+然后让 4-tier ladder 自动决定字号 → slogan 跟其他元素同档 → A 档没赢。
+
+**Q2 必须为每档输出 6 维 specification,不允许跳过任何一维**:
+
+```
+A 档 [元素名]
+├─ 字号 ____  (具体 px;允许 off-ladder + /* allow:typescale */)
+├─ 容器层级 ____  (1 级页 / 2 级卡 / 3 级浅 zone / 独立 box)
+├─ 装饰 ____  (装饰字符 / 大圆角 / 阴影 / 边框 / 渐变 / 无)
+├─ 对齐 ____  (左 / 中 / 右)
+├─ 字距 ____  (具体 em 值,默认 normal;tight tracking ≤ -0.04em)
+└─ 字重 ____  (400 / 500 / 600 / 700 / 800 / 900)
+
+B 档 [...] (同上 6 维)
+C 档 [...] (同上 6 维)
+D 档 [...] (同上 6 维)
+```
+
+**为什么 6 维强制**:
+
+vocab 库(知道哪些 move 可用)需要 5-10 个不同主题的设计积累,**1 个
+样本写不出来**(写出来就是 lock 死在那一种气质)。但**思考维度可以
+现在固定**:任何 element 处理,**至少这 6 件事都要想过**。
+
+不规定值,**强制必须填**。第一次跑可能填得很烂(没经验),但 explicit
+写出来,用户能 review,迭代后能积累成真 vocab。
+
+**反模式 — Q2 断点的具体形态**:
+
+- ❌ "A 档 = slogan" + 5 维全空 → ladder 自动填 28 → 没赢
+- ❌ "A 档 = slogan,字号 44" + 容器/装饰/对齐/字距/字重 全空 → 字大了但视觉无重量
+- ❌ "B 档 = 场景名,字号 28" + 其余全空 → 跟 A 档 28 同档,A 档没赢
+- ❌ 6 维填了但**没跟 Q4 内容气质对齐** → 上了冷调装饰跟主题不搭
+
+**正例 — slide 9 重做版应该这样写**:
+
+```
+A 档 = slogon (5 句话术)
+├─ 字号:44 (off-ladder · prompt 要求字号最大 · documented intent)
+├─ 容器:3 级浅 zone (页 → 卡 → 浅 zone) · 圆角 18
+├─ 装饰:80 serif 双引号(左上+右下绝对定位 · 品牌色 0.45 透)
+├─ 对齐:中央
+├─ 字距:-0.015em (tight tracking 增 editorial 感)
+└─ 字重:900
+
+B 档 = 场景名 + 头像 + 图标
+├─ 场景名 28 · 2 级卡内 · 顶部 tiny-caps eyebrow "剧本 01" · 左对齐 · -0.01em · 700
+├─ 头像 64 · 圆角 14 · 位置:卡顶右 · 品牌色 0.45 透 border · normal · -
+└─ 图标 40 · 圆角 14 · 位置:卡顶左 · 1px 白透 border · - · -
+
+C 档 = 人群标签 / 产品规格
+├─ 字号 16 · 容器 spec 用圆角 pill 边框, demo 文本无容器
+├─ tiny-caps eyebrow 上方("人群标签" / "产品规格")· 0.20em tracking
+├─ 字重 500 · normal tracking · 左对齐
+
+D 档 = 内容载体
+├─ 字号 16 · 卡底 · 上方虚线 hairline 分隔
+├─ 颜色 #fff 透 55% · italic · 左对齐 · normal · 500
+```
+
+每行 explicit · 总共 5-6 行 spec · 看完就知道每个元素长什么样。
+
+#### Q3. 我现在准备做黑白框架,还是直接上风格?
+
+**正确顺序**:
+1. 黑白框架 — 只看大小 / 位置 / 比例 / 是否成立(无色 / 无品牌色 / 无渐变)
+2. 风格 — 上色 / 字体 / 边框 / 阴影 / 渐变
+
+**直接上风格的后果**:`feishu skill 默认 = 深色 + 品牌冷调 + 4-tier ladder`
+变成隐形 KPI,prompt 意图被压在底层。我会先做风格再硬塞内容进去 ——
+反向工程。
+
+**眯眼测试(必跑)**:把黑白框架缩小到 1/3,眯眼看:
+- 重点还成立吗?
+- 5 列是不是均权(而不是某列突然轻 / 重)?
+- 标题 / 卡片 / A 档元素之间形成节奏了吗?
+
+眯眼看不出层次 = 框架没成立 = 上色也救不了。
+
+#### Q4. 内容自己长出来的气质,跟 feishu skill 默认冲突吗?
+
+| 内容气质 | 自然长出的 palette | feishu skill 默认 | 冲突? |
+|---|---|---|---|
+| 高科技 / AI 协同 / 数据指标 | 深蓝 / 青色 / 几何 | 深蓝 + 品牌冷调 | ✓ 一致 |
+| 客户故事 / 案例 / 编辑感 | 米白 / 纸感 / 编辑灰 | 深蓝 | ✗ 冲突 |
+| 食饮 / 怀旧 / 烟火气 | 茶色 / 琥珀 / 砖红 / 纸张 | 深蓝 + brand color | ✗ 强冲突 |
+| 节庆 / 文化 / 传统 | 中国红 / 墨黑 / 金 | 深蓝 | ✗ 冲突 |
+
+**冲突时怎么办**:
+- feishu skill 标准是**约束底线**(不准 cyan / 不准 drop shadow /
+  R10 brand hex / R12 / R13 / R56 等)
+- skill 默认的**配色 / 字体 / 渐变模式**是"出厂建议",不是强制起点
+- 内容气质优先 —— 即使 break ladder 或做 documented palette
+  exception,也比出图跟内容气质不搭好
+- 设计方案 chat 里 explicit 标:"⚠️ 这页内容气质要 [X],
+  跟 skill 默认 [Y] 冲突;打算 [打破 ladder / 用自定义 palette /
+  接受 R-VIS-TIER 报告 / 加 documented exception]"
+
+#### 通过 5 问的标志:写出 1 句 design intent statement
+
+跑完这 5 题应该能写出:
+
+> "这页是 [现象呈现页],唯一重点是 [5 句话术,让观众自己得出结论],
+>  A 档元素是 [slogan,44 hero + 80 装饰引号],
+>  气质上要 [editorial 杂志感],
+>  跟 skill 默认 [深蓝 + cool palette + 4-tier ladder 上限 48] 冲突,
+>  处理:[slogan 字号 off-ladder 到 44,引号 off-ladder 到 80,
+>  接受 R-VIS-TIER 报告作 documented intent;但保 skill 必守的
+>  R10 / R12 / R13 等约束底线]"
+
+**写不出这句话 = Q0-Q4 没答清 = 不要动手。**
+
+#### 实操:把 5 问写进 design pass table
+
+老版 design pass table 只列 layout 选型,加 1 列 "design intent" 写出 Q0-Q4
+关键判断:
+
+| # | 页 | 角色(Q0) | 唯一重点(Q1) | A 档元素(Q2) | 气质冲突?(Q4) | Layout |
+|---|---|---|---|---|---|---|
+| P0 | 冰红茶 5 剧本墙 | 现象页 | 5 句 slogan | slogan 44 + 引号 80 | ✗ 冲突 → 接受 R-VIS-TIER 作 documented intent | raw + content-3up base |
+
+用户看到 "现象页 + 5 句 slogan 是 A 档"就立刻明白方案对不对,比看 layout
+名更准。
+
+### Validator 报告响应纪律 · opt-out attribute 不是 silence button
+
+跑 `--visual` 之后 validator 会喊 R-VIS-BODY-FLOOR / R-VIS-TIER /
+R-WHITE-TEXT 等。**每条警告都给 3 个选项**,典型形态:
+
+> ✗ R-VIS-BODY-FLOOR · 16px 字太小
+> · **Bump to 24 (preferred)**
+> · OR rename to chrome class (.eyebrow / .footnote / .source / ...)
+> · OR set `data-allow-body-floor` for documented exception
+
+**默认必须选 Bump**。opt-out 是少数路径,仅在元素**真是 by-design 小字**
+(axis-label / legend / status-chip / chrome metadata) 时用,**不是**
+"warn 太多了批量哑掉"的方便键。
+
+#### 三大 opt-out 的合法 vs 滥用场景
+
+| Opt-out | 合法场景 | 滥用反模式 |
+|---|---|---|
+| `data-allow-body-floor` | Axis tick label / sparkline 数值 / status pill (在线/离线) / unit suffix | 整张卡片所有 li / desc 批量挂 → 静默承认字太小 |
+| `/* allow:typescale */` | Cover hero title / section chapter-num / big-stat 数字 / 一次性装饰字符(80+ serif quote) | 每个 28-44 px 标题都挂 → 让 ladder 失效 |
+| `/* allow:white-opacity */` | Subtle backdrop / decorative dim text / 真 chrome metadata | 整页 body 内容都用半透白 → 整页"褪色"感 |
+
+#### 反模式识别:统计学触发器
+
+**单张 slide 同一种 opt-out 出现 ≥ 5 次 = 几乎一定是 silence 反模式**,
+不是 documented intent。Documented exception 应该是 1-3 处,精确定位
+到真正的 by-design 元素。批量挂 = 在用 opt-out 做 mass-mute。
+
+2026-05-22 复盘实例(slide 10 content-pipeline):
+
+- validator 喊 10+ 条 16px R-VIS-BODY-FLOOR(li / track-body / proc-sub /
+  proc-output / r-name / hi-desc 等)
+- **我选了批量加 `data-allow-body-floor="diagram"`**,silence 12 个元素
+- 用户视觉看:"方框里字普遍偏小,显得方框很空"
+- **validator 全做对了 — 是我用 opt-out 哑了正确的警告**
+- 修法:撤掉错加的 opt-out,真 body 内容 bump 16 → 24,只保留真 chrome
+  (流 01 / 4R Strategy eyebrow / R1-R4 tag / 轨道 A/B badge / infra tag)
+
+#### 实操规则
+
+在 chat 里加 opt-out 之前,必须能回答:
+
+> "这个元素 [name] 我打算挂 [opt-out 名]。它是 documented [chrome /
+> by-design small / legend / axis / 装饰字符],因为 [具体设计理由,
+> 不是'字号方便']。"
+
+写不出 "因为"，就 bump 字号 / 选其他 fix,不要挂 opt-out。
+
+#### 长期 framework 改进(TODO)
+
+`R-VIS-OPT-OUT-ABUSE` 新审计 — 当单张 slide 上同种 opt-out attribute
+出现次数 > 阈值(建议 5)时报 warn,强迫作者写 design justification
+或减少 opt-out 数量。这是把"opt-out 必须是 documented intent"从
+软约定升级为硬检查的下一步。
+
+### Component utility classes (mandatory · framework 自带,不要自己复刻)
+
+写 raw layout / 自定义 slide 时,**写一行 CSS 之前先查 framework 有没有
+现成 component class**。Ad-hoc 重写不仅是冗余代码,而是**反 framework
+化** —— skill 的标准化收益被消耗掉,validator 也会漏掉 lint。
+
+| Pattern | 用 framework class | 不要 ad-hoc 写 |
+|---|---|---|
+| 列表项前面带 bullet | `<ul class="feature-list">` + `<li>...</li>` | ❌ `li::before { content:""; width:8px; height:1.5px; background:rgba(...) }` 自画横线 |
+| icon + 大字标 + 小字描述 横排 tile | `<div class="fs-claim-row is-teal"><span class="fs-claim-row__icon">✓</span><div class="fs-claim-row__text"><span class="fs-claim-row__label">...</span><span class="fs-claim-row__desc">...</span></div></div>` | ❌ `<div class="hi"><span class="icon">...</span><span class="text"><span class="label">...</span><span class="desc">...</span></span></div>` 自起类名 |
+| 强调短语 inline | `<span class="hl">关键词</span>`(框架 var --fs-cyan + 文本-黄/teal) | ❌ `<span style="color:#xxx">...</span>` |
+| 数字 hero | `big-stat` schema layout · 或 `<div class="hero-num">42</div>` | ❌ 写自己的 `font-size:120px` raw |
+| KPI 行 4 列 | `stats/row` schema layout | ❌ 4-col flex 自己写 |
+| 客户 logo wall | `logo-wall` schema layout | ❌ 自己 grid logos |
+| 引用文 + 引号装饰 | `quote` schema layout | ❌ 自己写 `<span class="quote-glyph">"</span>` |
+
+每个 utility class 都已包含:
+- 4-tier ladder 字号(`.fs-claim-row__label` 24 / `__desc` 20 already on ladder)
+- R10 brand palette tokens (`--fs-blue/teal/violet/purple/orange`)
+- R-WHITE-TEXT-safe color choices (solid hex 不靠 opacity 调灰)
+- R-VIS-LABEL-FLOOR-safe sizing
+- Master 行高 / letter-spacing / 字重
+
+**当你发现 framework 没有现成 component**(罕见):
+1. 不要 inline 写 ad-hoc — 写到 framework `feishu-deck.css` 里作为新
+   utility class
+2. 命名 `.fs-<pattern>` 表明它是 framework 提供
+3. 加注释 + 用法 example 写在 utility 定义上方
+4. 更新这张表 + 改 SKILL.md 这一节
+5. 触发条件:同样 pattern 在 2 个以上 deck 出现 → 该上 framework
+
+**反模式信号**:看到自己写的 CSS 里有
+- `.highlight` / `.callout` / `.kpi-tile` / `.hi` / `.fact-row` 等 ad-hoc
+  类名 → 几乎一定是该用 framework component 没用
+- `<ul>` 没 `class="feature-list"` → 几乎一定该加
+- `<span style="color:#XXX">` 真品牌色 inline → 该用 `.hl` 类
+
 ### Why design-first
 
 `feishu-deck-h5` 有 14 个 schema layouts + raw 逃生口。layout 选错的代价高:
@@ -4024,6 +4326,79 @@ Treat each violation as a delivery blocker. If you write 16 px because
 you think it fits, the rule still rejects — fix to 14 (chrome) or 18
 (pill) or 22 (body), not 16.
 
+### E5. Delete an element → rebalance the rest in the same pass (mandatory)
+
+When the user says "删 X" / "去掉 Y" / "Z 不要了",**the task is two
+operations, not one**: (1) remove the element, AND (2) rebalance the
+surrounding layout so the deleted slot doesn't leave a visible hole.
+Validator PASS ≠ visually balanced. Shipping a "successfully deleted"
+deck with a giant blank in the middle is failure, even if every R-rule
+passes.
+
+**Why this is mandatory** (user feedback 2026-05-22 · slide 15 after
+deleting the closing block + the flow-row + the subtitle):
+
+> "这么改完中间太空了,这个你不觉得难看么?为什么要这样设计,之后别这样了"
+
+The agent had treated "delete the closing 3-line block" as a textual
+removal and shipped without checking that the remaining `.ttl-block +
+.preface + .dept-grid` now top-aligned with a half-screen blank below.
+The `dept-grid { flex: 1 }` did fill the space, but each card's interior
+content (5 short children + `margin-top: auto` on `.card-stuck`) only
+filled ~60% of the now-taller card → ugly empty middles in every card.
+
+Three deletion symptoms that ALWAYS need rebalancing:
+
+| Symptom of recent deletion | Rebalance action |
+|---|---|
+| `.stage` flex-column lost a child → top-aligned remainder with bottom blank | Add `justify-content: center` (or `space-between`) on `.stage` so the remaining group sits visually centered, not stuck-top. Reference: R48 default centering. |
+| Grid row was occupied by deleted element → leftover row stretch grew the rest | Either shrink `grid-template-rows` to match the new row count, OR drop `flex: 1` on the grid so it sizes to content + center it in `.stage`. Reference: BF3 stretch overshoot. |
+| Card had N fields with `margin-top: auto` on one (pushing it to bottom); now N-1 fields | Drop `margin-top: auto`, change card to `justify-content: space-between`. The auto-margin trick assumes a specific child count; deleting breaks the assumption. Reference: BF9. |
+| Subtitle deleted, title now alone at top | Either bump title font (36→48), or increase `margin-top` on the title so it sits in the visual upper-third instead of pinned to the top edge. |
+| Removed 1-2 cards from a `repeat(N, 1fr)` grid | Drop N by 1 (`repeat(N-1, 1fr)`), don't leave the grid with one stretched orphan cell. |
+
+**Mechanical checklist** (run mentally after every Edit that removes
+DOM content):
+
+1. Squint at the slide at 1/3 zoom — is there a visible blank band
+   (top, middle, or bottom)?
+2. If yes, identify which container houses the blank (stage / grid /
+   card).
+3. Apply the matching fix from the table above.
+4. Re-render. Re-squint. If still blank, repeat.
+
+**Anti-pattern**: delete → render → "完成了 · PASS" → ship. This is the
+exact failure mode the user called out. Even if the validator is green,
+**you owe a visual rebalance pass**.
+
+**Trigger scope (mandatory — broader than "after delete")**: the squint
+check + rebalance flow above must run whenever you touch a slide for
+ANY of these reasons:
+
+- You **deleted** DOM content (the original trigger).
+- You **edited / fixed / restyled** a slide the user pointed at
+  ("这页有问题", "改一下 #NN", "看看 slide NN").
+- You **inherited** a slide from another flow / earlier in the session
+  / another deck and the user is now asking you to look at it.
+- You're about to **deliver / hand off** the deck or any specific page.
+
+Common failure pattern (2026-05-22 · slide 17 NPD-4-stage): a slide
+ships with `.acts { flex: 1 }` containing only 3 short act rows →
+container stretches, content top-aligns, bottom half empty. The slide
+was authored by another flow, not by my edit, so E5's "after delete"
+trigger never fired. The user catches "中间还是空着好多内容,刚加的
+规则怎么没实现" — they're right. The rule is about **the visual end
+state**, not just about who edited last. **If you're looking at a
+slide for any reason, you own the squint check**.
+
+The 30-second squint pass is cheap. Shipping a holed-out slide and
+being told "你不觉得难看么" is expensive.
+
+**Watch for the inverse trap too**: if the user ADDS content, check
+whether the now-fuller layout has the OPPOSITE problem (overflow,
+R-VIS-CARD-OVERFLOW, cards too tall to fit). Add and delete are symmetric
+— both shift the layout, both need a rebalance check.
+
 ---
 
 ## Operational notes (gotchas)
@@ -5621,6 +5996,104 @@ page. Reported repeatedly across multiple decks.
 multiple sentences with internal `。` (legitimate). Detecting "trailing
 period only" reliably requires a parsing pass we haven't bothered to
 write. The authoring rule + manual check on every quote slide is enough.
+
+---
+
+## Prototype / standalone-page embed modes (mandatory) — pick BEFORE you write any code
+
+When the user gives you a standalone HTML page (a prototype, a demo, a designer-built
+H5, a slide ported from another deck) and asks to "put it in the deck", there are
+exactly **THREE** correct ways. Pick by intent BEFORE touching deck.json — picking
+wrong here causes 30+ minutes of doom-loop ("乱了", "字小了", "重叠了", "再试试").
+
+| # | Mode | When the user wants this | Layout in deck.json | Deck chrome (title / wordmark) |
+|---|---|---|---|---|
+| **A** | **Full-bleed slide** · prototype IS the entire slide | "直接插入不改" · "原封不动一页" · "这页搬过来" · standalone H5/prototype that has its OWN internal title + logo + layout | `raw` (with `_orig_layout: "image-text"`) | **HIDDEN** — prototype carries its own; deck adds nothing |
+| **B** | **Framed embed** · deck adds title bar + 飞书 wordmark, prototype fills the area below | "嵌入到当前页面" · "做一页 demo,标题是 X" · standalone prototype that needs deck-level framing (a chapter title, a brand frame) | `iframe-embed` (schema-native) | **VISIBLE** — deck shows title + wordmark; iframe gets ~85% of slide height |
+| **C** | **Native HTML re-author** · rebuild the content using framework primitives | The page is simple (a card grid, a list, some text) and you want texts.md / data-text-id / brand tokens / 4-tier typography | `raw` (with `_orig_layout: "content-2col"` etc.) or schema `content/2col` etc. | VISIBLE per layout |
+
+### Mode A · Full-bleed slide (verbatim port)
+
+This is the "**original-deck slide-13 → my-deck slide-13**" case. The prototype HTML
+file is self-contained: it has its own `<title>`, internal logo, internal scale-to-fit
+JS, its own background. Deck framework chrome would **collide** with it. The correct
+move is to give the prototype the entire `1920×1080` canvas and tell the deck to add
+nothing.
+
+```json
+{
+  "key": "<prototype-slug>",
+  "layout": "raw",
+  "_orig_layout": "image-text",
+  "screen_label": "NN <topic>",
+  "data": {
+    "html": "<style>.slide[data-slide-key='<prototype-slug>'] { position: absolute; inset: 0; background: #080C18; overflow: hidden; }\n.slide[data-slide-key='<prototype-slug>'] iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; transform: scale(1.018); transform-origin: center center; }\n.slide[data-slide-key='<prototype-slug>'] .wordmark { display: none; }\n.slide[data-slide-key='<prototype-slug>'] .header { display: none; }</style><div class=\"wordmark\"></div><iframe src=\"prototypes/<prototype-slug>/index.html\" title=\"<demo title>\" loading=\"lazy\"></iframe>"
+  }
+}
+```
+
+Then `cp -r <source-deck>/prototypes/<slug> runs/<ts>/output/prototypes/` and you're done.
+
+**`transform: scale(1.018)` is intentional** — standalone prototypes commonly compute
+`min(window.innerWidth/W, window.innerHeight/H)` and cap at one axis, leaving 15px black
+gutters. The 1.018 scale-up nudges the prototype past the gutters to fill 1920 cleanly.
+Adjust per-prototype if needed.
+
+### Mode B · Framed embed (iframe-embed schema)
+
+This is the "**give me a demo slide titled X**" case. Deck contributes the chapter
+title + 飞书 logo, prototype lives in the body area:
+
+```json
+{
+  "key": "<demo-slug>",
+  "layout": "iframe-embed",
+  "screen_label": "NN <topic>",
+  "data": {
+    "title": "<deck-level chapter title>",
+    "src": "prototypes/<demo-slug>/index.html",
+    "iframe_title": "<a11y label>",
+    "hint": "<optional bottom-right caption>"
+  }
+}
+```
+
+### Mode C · Native HTML re-author
+
+Reserved for when the source is simple enough to redraw using framework primitives
+(`.card`, `.kpi-strip`, `.data-panel`, `.ui-*`, etc.) AND you want `texts.md` editing,
+brand tokens, 4-tier typography to apply. See "Re-render UI mocks as HTML, not
+screenshots" earlier in this file. **Do NOT use this mode for a complex
+standalone prototype** — its internal CSS (`:root` vars, absolute positioning,
+custom scale JS) will fight the framework's stage / header / wordmark. See
+anti-pattern below.
+
+### Anti-pattern (this is the doom loop) · don't try to inline a complex prototype
+
+Symptom: you start by copy-pasting prototype `<style>` + `<body>` into a raw slide's
+`data.html`, then spend an hour:
+
+- scoping every `:root { --x }` to `.slide[data-slide-key="..."] { --x }`
+- prefixing every selector to avoid leaking
+- rewriting the prototype's `window.innerWidth/W` scale logic to use slide dims
+- adding `/* allow:typescale */` to every minified rule body to silence R06
+- realizing the prototype's `position: absolute` children fight `.stage` / `.header`
+- being told it "全乱了" and asked "有这么麻烦么"
+
+**Yes, it's that hard, and it's the wrong tool.** When you catch yourself doing any
+of the above on a standalone prototype HTML, stop and switch to **Mode A** (or B if
+the deck needs a title overlay). The iframe boundary is what makes "verbatim port"
+actually verbatim — without it, you're rebuilding the prototype inside the slide's
+DOM tree and fighting every collision by hand.
+
+### Decision recipe (90% of cases)
+
+| User says | Mode |
+|---|---|
+| "把这一页搬过来" / "复制这页" / "原封不动" / "直接插入" / "什么都不改" | **A** |
+| "做一页 demo · 标题是 X" / "嵌入到当前页面" / "加个 demo,deck 给标题" | **B** |
+| "把这个文档/PDF/截图 重新用 native 组件画" / "用 .card / .kpi-strip 重做" | **C** |
+| User gives a URL/HTML file with no other instruction | **Ask**: "整页搬(A)还是 deck 加标题嵌入(B)?" — don't guess |
 
 ---
 

@@ -974,18 +974,20 @@
 
 
 /* ===== iframe-embed · 嵌入式 demo / 报告 layout =====
-   标准 title + 飞书 logo 在顶部 (top: 96 / right: 73),
-   .stage 从 top:220 起,iframe 填满下方至底端 (bottom:40),
+   标准 title + 飞书 logo 在顶部 (master spec: top: 61 / left: 73 / right: 320),
+   .stage 从 top:180 起,iframe 填满下方至底端 (bottom:40),
    可选右下角 hint pill.
-   Use for: 嵌入 prototype / live demo / HTML 报告 / 任何外部 HTML 页面 */
+   Use for: 嵌入 prototype / live demo / HTML 报告 / 任何外部 HTML 页面
+   2026-05-22 · header 从 top:96/left:96 调整到 master spec top:61/left:73,
+   跟其他所有 content-style layouts 一致;同步 stage top 220→180 */
 .slide[data-layout="iframe-embed"] .header {
-  position: absolute; top: 96px; left: 96px; right: 96px;
-  padding-bottom: 32px; border-bottom: 1px solid var(--fs-hairline);
-  display: grid; grid-template-columns: 1fr auto; align-items: end;
+  position: absolute; top: 61px; left: 73px; right: 320px;
+  padding-bottom: 0; border-bottom: 0;
+  display: block;
 }
 .slide[data-layout="iframe-embed"] .stage {
   position: absolute;
-  top: 220px; left: 60px; right: 60px; bottom: 40px;
+  top: 160px; left: 60px; right: 60px; bottom: 40px;
   padding: 0; display: block;
 }
 .slide[data-layout="iframe-embed"] .iframe-wrap {

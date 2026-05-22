@@ -602,6 +602,35 @@ def audit_undefined_css_vars(html: str, iss: Issues):
             hint)
 
 
+def audit_bullet_dash(html: str, iss: Issues):
+    """R-BULLET-DASH: catch ad-hoc dash-shaped li::before bullets (added 2026-05-22).
+
+    Framework supplies `.feature-list` with branded colored-dot bullets.
+    Ad-hoc dash bullets (`width: 8px; height: 1.5px`) are dim, off-brand,
+    and bypass the framework component library.
+
+    Detects rules matching `li::before { width: Npx; height: Mpx }` where
+    width > 4 × height (dash aspect ratio). Suggests `.feature-list` class.
+    """
+    for raw_css, _is_fw in _iter_style_blocks(html, include_framework=False):
+        css = _strip_nested_at_rules(raw_css)
+        for m in re.finditer(r'([^{}]*li(?:::?before|:before)[^{}]*)\{([^}]+)\}', css):
+            selector = m.group(1).strip()
+            block = m.group(2)
+            w_m = re.search(r'width:\s*([\d.]+)px', block)
+            h_m = re.search(r'height:\s*([\d.]+)px', block)
+            if not (w_m and h_m): continue
+            w, h = float(w_m.group(1)), float(h_m.group(1))
+            if w >= 4 and h <= 3 and w >= 3 * h:
+                iss.warn('R-BULLET-DASH',
+                    f'ad-hoc dash bullet on `{selector}` ({w}×{h}px). '
+                    'Framework supplies `.feature-list` with branded colored '
+                    'dot bullets (8×8 round + halo). Use `<ul class="feature-list">` '
+                    'instead — see SKILL.md "Component utility classes" section. '
+                    'For multi-color cards, override `.is-<color> li::before { '
+                    'background: var(--fs-<color>) }` per accent.')
+
+
 def audit_no_drop_shadows(html: str, iss: Issues):
     """R12: no DROP SHADOWS on slide content.
 
@@ -2302,15 +2331,54 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             'grids the cards should be equal-height; check `flex: 1` is '
             'applied or `align-items: stretch` is set on the container.')
 
+    for entry in report.get('title_position', [])[:20]:
+        iss.err('R-VIS-TITLE-POSITION',
+            f'slide {entry["slide_idx"]} (layout `{entry["layout"]}`) · '
+            f'`.header` rendered at top:{entry["actual_top"]}px, expected '
+            f'~{entry["expected_top"]}px (master spec). Likely cause: the '
+            f'layout is missing from the framework header-positioning '
+            'whitelist in `feishu-deck.css` / `extra-layouts.css`. Add '
+            f'`.slide[data-layout="{entry["layout"]}"] .header` to the '
+            'unified positioning rule (`position:absolute; top:61px; '
+            'left:73px; right:320px`) so title aligns with the master '
+            'spec across all layouts.')
+
+    for entry in report.get('opt_out_abuse', [])[:20]:
+        ex_str = (f' (e.g. {", ".join(entry["examples"])})'
+                  if entry.get('examples') else '')
+        iss.warn('R-VIS-OPT-OUT-ABUSE',
+            f'slide {entry["slide_idx"]} has {entry["count"]} occurrences of '
+            f'`{entry["type"]}` (threshold: {entry["threshold"]}){ex_str}. '
+            'opt-out attribute / comment is documented exception, NOT '
+            'silence button. Batch-muting validator warnings hides real '
+            'issues (text too small / chrome class abuse / palette drift). '
+            'Fix: revisit each opt-out — if it is true by-design chrome / '
+            'axis label / decorative element, KEEP it AND write a one-line '
+            'justification comment; if it is regular body content, REMOVE '
+            'the opt-out and bump to 24 (or use brand color, etc). '
+            'Documented exception is 1-3 per slide, not 6+.')
+
     for entry in report.get('card_overflow', [])[:20]:
-        iss.err('R-VIS-CARD-OVERFLOW',
-            f'slide {entry["slide_idx"]} · `{entry["selector"]}` has '
-            f'`overflow:hidden` but content ({entry["content_h"]} px) is '
-            f'{entry["overflow_px"]} px taller than the container '
-            f'({entry["card_h"]} px) — text is being clipped silently. '
-            'Fix: shorten body copy, drop a row/item, shrink padding/gap, '
-            'increase card height (more stage space), OR drop overflow:hidden '
-            'so the issue is at least visible.')
+        direction = entry.get('direction', 'vertical')
+        if direction == 'horizontal':
+            iss.err('R-VIS-CARD-OVERFLOW',
+                f'slide {entry["slide_idx"]} · `{entry["selector"]}` is a '
+                f'flex/grid container with nowrap children — total children '
+                f'width ({entry["content_h"]} px) exceeds container width '
+                f'({entry["card_h"]} px) by {entry["overflow_px"]} px. '
+                'Children are bleeding past the right edge (visible overflow) '
+                'or being silently clipped. Fix: shorten child text, move one '
+                'child to a separate line (display:block sibling), set '
+                '`flex-wrap: wrap`, or widen the container.')
+        else:
+            iss.err('R-VIS-CARD-OVERFLOW',
+                f'slide {entry["slide_idx"]} · `{entry["selector"]}` has '
+                f'`overflow:hidden` but content ({entry["content_h"]} px) is '
+                f'{entry["overflow_px"]} px taller than the container '
+                f'({entry["card_h"]} px) — text is being clipped silently. '
+                'Fix: shorten body copy, drop a row/item, shrink padding/gap, '
+                'increase card height (more stage space), OR drop overflow:hidden '
+                'so the issue is at least visible.')
 
     for entry in report.get('overlap', [])[:20]:
         iss.err('R-OVERLAP',
@@ -2453,7 +2521,7 @@ _VISUAL_AUDIT_JS = r"""
     return false;
   };
 
-  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [], card_overflow: [] };
+  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [], card_overflow: [], opt_out_abuse: [], title_position: [] };
   const slides = document.querySelectorAll('.slide');
   slides.forEach((slide, idx) => {
     const slide_idx = idx + 1;
@@ -2482,19 +2550,111 @@ _VISUAL_AUDIT_JS = r"""
       const overflow = cs.overflow;
       const clips = (overflowY === 'hidden' || overflowY === 'clip' ||
                      overflow === 'hidden' || overflow === 'clip');
-      if (!clips) return;
-      // 4 px tolerance for sub-pixel rounding
-      const delta = el.scrollHeight - el.clientHeight;
-      if (delta > 4) {
-        out.card_overflow.push({
-          slide_idx,
-          selector: shortSel(el),
-          content_h: el.scrollHeight,
-          card_h: el.clientHeight,
-          overflow_px: delta,
-        });
+      // (a) Vertical clip: overflow:hidden + content taller than container
+      if (clips) {
+        const dh = el.scrollHeight - el.clientHeight;
+        if (dh > 4) {
+          out.card_overflow.push({
+            slide_idx,
+            selector: shortSel(el),
+            content_h: el.scrollHeight,
+            card_h: el.clientHeight,
+            overflow_px: dh,
+            direction: 'vertical',
+          });
+        }
+      }
+      // (b) Horizontal overflow on flex/grid container with nowrap children
+      // (added 2026-05-22) — catches "flex row children too wide for parent,
+      // bleeding past right edge into adjacent column". scrollWidth >
+      // clientWidth means children exceed parent's box. Fires regardless of
+      // overflow:hidden (visible bleed AND silent clip both bad).
+      const isFlexGrid = ['flex','inline-flex','grid','inline-grid'].includes(cs.display);
+      const noWrap = cs.flexWrap === 'nowrap' || cs.display === 'grid' || cs.display === 'inline-grid';
+      if (isFlexGrid && noWrap) {
+        const dw = el.scrollWidth - el.clientWidth;
+        if (dw > 4) {
+          out.card_overflow.push({
+            slide_idx,
+            selector: shortSel(el),
+            content_h: el.scrollWidth,
+            card_h: el.clientWidth,
+            overflow_px: dw,
+            direction: 'horizontal',
+          });
+        }
       }
     });
+
+    // ---- Title position drift (added 2026-05-22) ----
+    // Master spec: content-style layouts have .header at top:61 / left:73.
+    // New layouts (Phase 1.c extras, iframe-embed, etc.) sometimes inherit
+    // different positioning if author forgot to add them to the master
+    // header positioning whitelist. Catches the "1 slide's title is way
+    // lower than all the others" inconsistency that's hard to eyeball
+    // until you flip through the deck.
+    //
+    // Skip cover / section / end / quote layouts where title is intentionally
+    // centered / repositioned (not top-aligned). Master master title for
+    // content-style layouts must be at top:61 ± 8px tolerance.
+    const TITLE_SKIP_LAYOUTS = new Set(['cover', 'section', 'end', 'quote',
+      'big-stat', 'replica', 'image-text']);
+    if (!TITLE_SKIP_LAYOUTS.has(layout)) {
+      const header = slide.querySelector(':scope > .header');
+      const titleEl = slide.querySelector(':scope > .header > .title-zh, :scope > .header > h1.title-zh, :scope > .header > h2.title-zh, :scope > .header h2.title-zh, :scope > .header h1.title-zh');
+      if (header && titleEl) {
+        const headerTop = Math.round(header.getBoundingClientRect().top - slide.getBoundingClientRect().top);
+        const expectedTop = 61;
+        const tolerance = 8;
+        if (Math.abs(headerTop - expectedTop) > tolerance) {
+          out.title_position.push({
+            slide_idx, layout, actual_top: headerTop, expected_top: expectedTop,
+          });
+        }
+      }
+    }
+
+    // ---- Opt-out abuse: count silence-button reflexes (added 2026-05-22) ----
+    // opt-out attributes/comments are documented exception, not mass-mute.
+    // ≥ 6 of the same kind on a single slide = silence anti-pattern.
+    // See SKILL.md "Validator 报告响应纪律 · opt-out attribute 不是 silence button"
+    const OPT_OUT_THRESHOLD = 5;
+    // (a) data-allow-body-floor attributes (DOM)
+    const dafEls = slide.querySelectorAll('[data-allow-body-floor]');
+    if (dafEls.length > OPT_OUT_THRESHOLD) {
+      out.opt_out_abuse.push({
+        slide_idx, type: 'data-allow-body-floor',
+        count: dafEls.length, threshold: OPT_OUT_THRESHOLD,
+        examples: [...dafEls].slice(0, 3).map(e => shortSel(e)),
+      });
+    }
+    // (b) CSS comment opt-outs in per-slide <style> blocks
+    const styleEls = slide.querySelectorAll('style');
+    let typescaleCount = 0, whiteOpacityCount = 0, bodyFloorCount = 0;
+    styleEls.forEach(s => {
+      const txt = s.textContent;
+      typescaleCount += (txt.match(/\/\*\s*allow:typescale[^*]*\*\//g) || []).length;
+      whiteOpacityCount += (txt.match(/\/\*\s*allow:white-opacity[^*]*\*\//g) || []).length;
+      bodyFloorCount += (txt.match(/\/\*\s*allow:body-floor[^*]*\*\//g) || []).length;
+    });
+    if (typescaleCount > OPT_OUT_THRESHOLD) {
+      out.opt_out_abuse.push({
+        slide_idx, type: '/* allow:typescale */',
+        count: typescaleCount, threshold: OPT_OUT_THRESHOLD, examples: [],
+      });
+    }
+    if (whiteOpacityCount > OPT_OUT_THRESHOLD) {
+      out.opt_out_abuse.push({
+        slide_idx, type: '/* allow:white-opacity */',
+        count: whiteOpacityCount, threshold: OPT_OUT_THRESHOLD, examples: [],
+      });
+    }
+    if (bodyFloorCount > OPT_OUT_THRESHOLD) {
+      out.opt_out_abuse.push({
+        slide_idx, type: '/* allow:body-floor */',
+        count: bodyFloorCount, threshold: OPT_OUT_THRESHOLD, examples: [],
+      });
+    }
 
     // ---- Tier: every text-bearing element ----
     // Mock container classes whose internals are exempt from R-VIS-TIER
@@ -2863,6 +3023,7 @@ def main():
     audit_no_drop_shadows(html, iss)
     audit_data_decor(slides, iss)
     audit_hex_palette(html, iss)
+    audit_bullet_dash(html, iss)
     audit_runtime_chrome(html, iss, path)
     audit_centering_pattern(html, iss)
     audit_layout_integrity(html, iss)
