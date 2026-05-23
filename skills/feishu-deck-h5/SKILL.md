@@ -191,7 +191,7 @@ Either dump it in the chat (default) or write to a file the user names.
 | 演示模式 / 运行时 | R29-32 | `.deck-progress`, `.deck-controls`, prev/next/fs buttons, `requestFullscreen`, `fullscreenchange`, idle fade |
 | texts.md 联动 | T00 / T01 / T02 / T03 | data-text-id present; valid `slide-NN.field` shape; unique; paired `texts.md` synced |
 | 性能预算 | P50-P55 | base64 budget; blur radius; single ResizeObserver; AbortController; GPU layers |
-| 视觉 (Playwright, default-on since 2026-05-18) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR / R-VIS-BODY-FLOOR / R-VIS-ALIGN | canvas overflow; **sibling bbox overlap** (catches "column bleeds into legend" — internal overlap within canvas); computed `fontSize` on ladder; meta ≤ body; **renderer-aware body-content < 24 px detection** (R-VIS-BODY-FLOOR · 2026-05-19 · catches ambiguous short class names like `.rt` / `.d` / `.ind-tag` that pass static R20/R06 because 16 is on the ladder and short class names match neither chrome nor body heuristic — checks actual rendered fontSize + ≥ 8 chars of direct text + not inside mockup containers; opt out per element with `data-allow-body-floor`); grid-children equal height. ~2 s overhead. Use `--no-visual` to skip (CI without Chromium); gracefully skips if playwright is not installed |
+| 视觉 (Playwright, default-on since 2026-05-18) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR / R-VIS-BODY-FLOOR / R-VIS-ALIGN / **R-VIS-ABSPOS-DUAL-ANCHOR** | canvas overflow; **sibling bbox overlap** (catches "column bleeds into legend" — internal overlap within canvas); computed `fontSize` on ladder; meta ≤ body; **renderer-aware body-content < 24 px detection** (R-VIS-BODY-FLOOR · 2026-05-19 · catches ambiguous short class names like `.rt` / `.d` / `.ind-tag` that pass static R20/R06 because 16 is on the ladder and short class names match neither chrome nor body heuristic — checks actual rendered fontSize + ≥ 8 chars of direct text + not inside mockup containers; opt out per element with `data-allow-body-floor`); grid-children equal height; **dual-anchor pill stretch** (R-VIS-ABSPOS-DUAL-ANCHOR · 2026-05-23 · catches the cascade footgun where an override declares `top:` on a `position: absolute` chrome element without resetting an inherited `bottom:`, so the pill / badge / hint stretches to most of the parent height — see BF14 below; mutation-tests every absolutely-positioned non-layout-container element by temporarily setting `style.bottom = 'auto'` and checking if height collapses; layout shells like `.stage / .stack / .iframe-wrap / .panel` are excluded by class denylist; opt-out per element with `data-allow-dual-anchor`). ~2 s overhead. Use `--no-visual` to skip (CI without Chromium); gracefully skips if playwright is not installed |
 | 交付物附件 | R-FEEDBACK | `FEEDBACK.md` sidecar present (relevant ONLY for new-run flow) |
 
 When the user asks "what does [Rxx] mean", look up the rule in `validate.py`
@@ -6561,6 +6561,108 @@ inside `validate.py`'s screenshot loop — only fixed screenshots, not
 the real browser experience. Root fix moved to framework: gate the
 CSS fallback behind `:not([data-js-ready])`. Validator workaround
 removed (commit after BF13 lands).
+
+### BF14 — abs-positioned chrome override must reset the OTHER anchor (2026-05-23)
+
+**Symptom**: a deck adds a local `<style>` override for a `position:
+absolute` chrome element (hint pill, badge, chip, icon) and sets ONLY
+ONE vertical anchor (`top: Xpx;` *or* `bottom: Ypx;`) without resetting
+the other. A less-specific framework rule already declared the OTHER
+anchor — both are now active. Browser computes height as
+`parent.height - top - bottom`, regardless of content. The chrome
+element silently stretches to ~80–95 % of the parent height.
+
+**Postmortem (2026-05-23)**: AI-consumer-growth deck slide 6 (and 8,
+30 — three iframe-embed slides). The deck's `<head> <style>` block
+had an obsolete override (predating the framework's 2026-05-22
+iframe-embed support):
+
+```css
+/* override (wrong — only declares top) */
+.slide[data-layout="iframe-embed"] .iframe-wrap > .iframe-hint {
+  position: absolute; top: 16px; right: 16px;
+  display: inline-flex; padding: 8px 14px;
+  /* no `bottom:` declared → inherited `bottom: 18px` still active */
+}
+```
+
+Framework rule still applied for `bottom`:
+
+```css
+/* framework (extra-layouts.css) */
+.slide[data-layout="iframe-embed"] .iframe-hint {
+  position: absolute;
+  bottom: 18px; right: 18px;
+  display: inline-flex; padding: 10px 18px;
+}
+```
+
+Result: hint pill rendered at **764 px tall** instead of ~32 px.
+User-visible: "进入页面，报告可滚动查阅这个的高有问题，非常大".
+
+**Two valid fixes**:
+
+1. **Delete the obsolete override entirely** — if the framework
+   already has the layout's rules covered (which is what we did
+   here, since the override predated framework iframe-embed support).
+2. **In the override, redeclare BOTH anchors** —
+   `top: 16px; bottom: auto;` (or use `inset:` shorthand to set all
+   four). This makes the override self-contained and immune to
+   future framework rule changes.
+
+```css
+/* fixed pattern (if you must override) */
+.slide[data-layout="iframe-embed"] .iframe-wrap > .iframe-hint {
+  position: absolute;
+  top: 16px;       bottom: auto;          /* MUST redeclare bottom */
+  right: 16px;     left: auto;            /* and left, for symmetry */
+  display: inline-flex; padding: 8px 14px;
+}
+```
+
+**Defense (validator)**: `R-VIS-ABSPOS-DUAL-ANCHOR` in `validate.py`
+visual audit catches this automatically. For every
+`position: absolute` non-layout element in the deck, the audit:
+1. measures rendered height (`h1`)
+2. temporarily sets `style.bottom = 'auto'` and re-measures (`h2`)
+3. restores the original `style.bottom`
+4. flags if `h1 - h2 >= 30 px` AND `h1 >= 2 × h2` (height collapsed
+   by ≥ 30 px AND ≥ 2× ratio when bottom was neutralized → CSS DID
+   declare `bottom` AND it was driving the height)
+
+Why mutation test: `getComputedStyle().bottom` returns the USED
+value (always px) for any positioned element, NOT the declared
+value. There is no static way to tell from JS whether `bottom`
+was declared in CSS or computed by the layout engine. Mutating
+inline `style.bottom = 'auto'` (max specificity) flips the resolver
+into the "bottom unset" path and exposes whether CSS had it set.
+
+**Excluded from the audit** (legitimate full-bleed by design):
+- Class denylist: `.stage / .stack / .toc / .flow / .nodes / .grid /
+  .table-wrap / .header / .footer / .col-text / .col-visual /
+  .iframe-wrap / .desktop-frame / .phone-frame / .phone-screen /
+  .arch-stack / .panel / .slide-frame / .deck / .two-hand-arch /
+  .pipeline / .steps` — these are layout shells; vertical span is
+  intentional.
+- Element opt-out: `data-allow-dual-anchor` attribute — set this
+  on a custom-class element that genuinely needs both top + bottom
+  active (e.g. a true full-height side-rail or a fill-parent overlay
+  drawing the entire canvas).
+
+**Authoring rule**: when you write a `<style>` override for an
+absolutely-positioned chrome element AND the same element is targeted
+by framework CSS (any `.slide[data-layout=...] .chrome-class` rule),
+either:
+- Drop the override (let the framework take over), OR
+- Redeclare all four anchors in the override (top + bottom + left +
+  right, using explicit `auto` for the ones you don't want active),
+  OR use `inset:` shorthand.
+
+Half-redeclared overrides on positioned elements are the same class
+of bug as R47 (variants that change `display` / `flex-direction`
+without redeclaring `align-items` + `justify-content`). The fix
+discipline is the same: **self-contained overrides, no partial
+property declarations on positioning / layout properties**.
 
 ---
 

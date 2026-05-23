@@ -2416,6 +2416,21 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             '`data-allow-body-floor` on the element for a documented '
             'exception (e.g. legend annotation by design).')
 
+    for entry in report.get('abspos_dual_anchor', [])[:20]:
+        iss.err('R-VIS-ABSPOS-DUAL-ANCHOR',
+            f'slide {entry["slide_idx"]} · `{entry["selector"]}` is '
+            f'`position: absolute` with BOTH `top: {entry["top"]}` AND '
+            f'`bottom: {entry["bottom"]}` declared — height stretched to '
+            f'{entry["actual_h"]} px; content-sized would be {entry["content_h"]} px. '
+            'Classic cascade footgun: an override added `top:` without '
+            'declaring `bottom: auto`, so an inherited `bottom:` from a '
+            'less-specific rule is still active and the element fills the '
+            'parent vertically. Fix: in the override block, add '
+            '`bottom: auto` (or `top: auto`) to neutralize the inherited '
+            'anchor; OR use `inset:` shorthand to redeclare all four; OR '
+            'set `data-allow-dual-anchor` on the element if it is a real '
+            'fill-parent overlay (rare for slide content).')
+
     # (screenshot archival happens inside the Playwright block above; no
     # post-step needed. The previous `if 'shots_dir' in dir(): pass` was
     # dead: `dir()` inside a function returns local names, not what one
@@ -2521,7 +2536,7 @@ _VISUAL_AUDIT_JS = r"""
     return false;
   };
 
-  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [], card_overflow: [], opt_out_abuse: [], title_position: [] };
+  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [], card_overflow: [], opt_out_abuse: [], title_position: [], abspos_dual_anchor: [] };
   const slides = document.querySelectorAll('.slide');
   slides.forEach((slide, idx) => {
     const slide_idx = idx + 1;
@@ -2926,6 +2941,101 @@ _VISUAL_AUDIT_JS = r"""
           }
         }
       }
+    });
+
+    // ---- R-VIS-ABSPOS-DUAL-ANCHOR ----
+    // An override that adds `top:` to a pill/badge WITHOUT resetting an
+    // inherited `bottom:` (or vice versa) leaves both anchors active. With
+    // both top + bottom set on `position: absolute` AND no explicit
+    // `height`, the element's height becomes (parent.height - top - bottom)
+    // regardless of content — a pill / badge / icon stretches to most of
+    // the parent. Classic silent-visual bug; static CSS analysis would miss
+    // it (each rule reads fine in isolation; the bug is in the cascade
+    // between override + framework).
+    //
+    // Detection — MUTATION TEST (the only reliable way):
+    //   getComputedStyle().bottom returns the USED value (always px when
+    //   position:absolute), not the DECLARED value, so we can't tell from
+    //   computed style alone whether `bottom` was set by CSS. Approach:
+    //   for every position:absolute element, temporarily set
+    //   `style.bottom = 'auto'` (highest specificity), re-measure height.
+    //   If height shrinks significantly → CSS DID declare `bottom` → the
+    //   dual-anchor was real → bug.
+    //
+    //   `display: inline-flex` on absolutely-positioned elements gets
+    //   blockified to `flex` per CSS spec — so we can't filter by display.
+    //   Instead skip elements where the dual-anchor is clearly intentional:
+    //     - left AND right both set (full-bleed overlay) → skip
+    //     - opt-out attribute `data-allow-dual-anchor` → skip
+    //
+    // Performance: only ~10–50 abs-positioned elements per slide;
+    // mutation/restore is cheap.
+    // Candidate set: position: absolute, no opt-out attribute, NOT a
+    // layout-container class. Framework layout shells (.stage, .stack,
+    // .iframe-wrap, etc.) legitimately use top+bottom dual-anchor to fill
+    // the parent for child layout — that's by design, not a bug. The
+    // bug pattern is on CHROME elements (pills, badges, hints, chips,
+    // icons) where the override forgot to neutralize an inherited bottom.
+    //
+    // CANNOT pre-filter by cs.top/bottom/left/right === 'auto' because
+    // getComputedStyle returns the USED (px) value for ALL positioned
+    // elements — `left` reads as e.g. '1547.52px' even when CSS only
+    // declared `right`. So we mutation-test every non-layout candidate.
+    const LAYOUT_CONTAINER_CLASSES = [
+      'stage', 'stack', 'toc', 'flow', 'nodes', 'grid', 'table-wrap',
+      'header', 'footer', 'col-text', 'col-visual',
+      'iframe-wrap', 'desktop-frame', 'phone-frame', 'phone-screen',
+      'arch-stack', 'arch-hands', 'arch-hand',
+      'slide-frame', 'deck', 'panel',
+      'two-hand-arch', 'pipeline', 'steps',
+    ];
+    const isLayoutContainer = (el) => {
+      const raw = el.className;
+      const cls = (raw && raw.baseVal !== undefined ? raw.baseVal : (raw || '')).toString().split(/\s+/);
+      return cls.some(c => LAYOUT_CONTAINER_CLASSES.includes(c));
+    };
+    const candidates = [];
+    slide.querySelectorAll('*').forEach(el => {
+      if (el.hasAttribute('data-allow-dual-anchor')) return;
+      if (isLayoutContainer(el)) return;
+      const cs = window.getComputedStyle(el);
+      if (cs.position !== 'absolute') return;
+      candidates.push(el);
+    });
+    candidates.forEach(el => {
+      const h1 = el.getBoundingClientRect().height;
+      // Skip elements that are 0×0 (display:none ancestors, etc.)
+      if (h1 < 4) return;
+      // Mutation test: neutralize the bottom anchor via inline style
+      // (max specificity, beats any CSS). If CSS had `bottom: <px>`
+      // declared, removing it collapses anchor-driven height. If CSS
+      // had `bottom: auto` already, the mutation is a no-op.
+      const orig = el.style.bottom;
+      el.style.bottom = 'auto';
+      const h2 = el.getBoundingClientRect().height;
+      // Restore
+      if (orig) el.style.bottom = orig;
+      else el.style.removeProperty('bottom');
+      // Bug signature: height shrank materially when bottom was neutralized.
+      //   ≥ 30 px shrink (filters out micro-fluctuations)
+      //   AND h1 ≥ 2× h2 (filters out cases where content nearly
+      //   filled the anchor-driven height — likely a content-driven
+      //   container, not a stretched pill).
+      const delta = h1 - h2;
+      if (delta < 30) return;
+      if (h1 < h2 * 2) return;
+      const cs = window.getComputedStyle(el);
+      const parent = el.offsetParent;
+      const parentH = parent ? parent.getBoundingClientRect().height : 1080;
+      out.abspos_dual_anchor.push({
+        slide_idx,
+        selector: shortSel(el),
+        top: cs.top,
+        bottom: cs.bottom,
+        actual_h: Math.round(h1),
+        content_h: Math.round(h2),
+        parent_h: Math.round(parentH),
+      });
     });
   });
 
