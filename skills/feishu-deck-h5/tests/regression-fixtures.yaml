@@ -1,0 +1,145 @@
+# Regression fixtures for the feishu-deck-h5 audit suite.
+#
+# Each entry is one historical case where a user complained about a visual
+# bug, mapped to the audit rule that should detect it. Two assertion modes:
+#
+#   - type: must_fire     audit MUST fire on the listed slide. Verifies the
+#                         audit catches the user-reported bug pattern. Used
+#                         for cases where the deck STILL has the bug.
+#   - type: must_not_fire audit must NOT fire on the listed slide. Verifies
+#                         the fix STAYS fixed. Used for cases where the
+#                         deck was repaired and we want regression coverage.
+#
+# Runner: tests/run-regression.py — runs validate.py --visual on each deck,
+# parses output, asserts. Exit code = failure count.
+#
+# Conventions:
+#   - id           kebab-case unique within file
+#   - deck         path relative to repo root
+#   - slide        1-based ordinal matching data-screen-label / URL #N
+#   - audit        rule code as printed in validator output (e.g. R-VIS-LABEL-FLOOR)
+#   - type         must_fire | must_not_fire
+#   - selector_hint  (optional) substring that should appear in the fired
+#                    audit message — narrows the assertion when multiple
+#                    elements on the slide could match.
+#   - source_prompt  (optional but recommended) user complaint quote
+#                    from PROMPTS.md — documents WHY this fixture exists.
+#   - prompt_ts    (optional) timestamp of the source complaint
+#   - notes        (optional) free-form context
+
+fixtures:
+
+  # ===== ai-consumer-growth · slide 9 · script-card chrome at 16 =====
+  # User complained 字小 on this deck multiple times. The R-VIS-LABEL-FLOOR
+  # broadening (2026-05-23 · ≥48 → ≥28 anchor) catches the .card-num.eyebrow
+  # at 16px inside the script-card. STILL UNFIXED in deck — type must_fire.
+  - id: acg-script-card-eyebrow-16
+    deck: runs/20260521-172032-ai-consumer-growth/output/index.html
+    slide: 9
+    audit: R-VIS-LABEL-FLOOR
+    type: must_fire
+    selector_hint: script-card
+    source_prompt: |
+      file:///Users/bytedance/Documents/Github/feishu-deck-h5/runs/20260521-172032-ai-consumer-growth/output/index.html#7,字小了，然后文字有重叠，这个如何通过校验的？
+    prompt_ts: 2026-05-21
+    notes: |
+      Original complaint references slide 7, but same chrome-floor pattern
+      lives in adjacent script-card on slide 9. Both share the same root
+      bug: card has 28+ content but eyebrow at 16. Audit fires on slide 9
+      (slide 7 was already manually fixed in iteration).
+
+  # ===== ai-consumer-growth · slide 15 · dept-card with 4+ chrome at 16 =====
+  - id: acg-dept-card-multiple-chrome
+    deck: runs/20260521-172032-ai-consumer-growth/output/index.html
+    slide: 15
+    audit: R-VIS-LABEL-FLOOR
+    type: must_fire
+    selector_hint: dept-card
+    source_prompt: |
+      康师傅新品 8 部门痛点 — multiple chrome labels (.card-system /
+      .card-doing / .stuck-label / .stuck-text / .card-by) all at 16px
+      inside content cards; user iteratively flagged "字小".
+    notes: |
+      Single slide has 5 R-VIS-LABEL-FLOOR hits, all in .dept-card
+      containers. Demonstrates the rule firing on a deck-specific
+      class name caught by CARD_SUFFIXES `-card` matching.
+
+  # ===== ai-consumer-growth · slide 31 · knife-card chrome at 14 =====
+  - id: acg-knife-card-chrome-14
+    deck: runs/20260521-172032-ai-consumer-growth/output/index.html
+    slide: 31
+    audit: R-VIS-LABEL-FLOOR
+    type: must_fire
+    selector_hint: knife-card
+    notes: |
+      knife-card has labels at 14px (below 16 chrome floor AND in a
+      content card). Demonstrates rule fires below the chrome tier
+      too, not just on 16/18.
+
+  # ===== ai-redefines-enterprise · slide 15 · org-card =====
+  # Cross-deck validation that the same rule fires on a different deck's
+  # naming pattern (.org-card vs .dept-card / .knife-card).
+  - id: aire-org-card-chrome
+    deck: runs/20260509-104931-ai-redefines-enterprise/output/index.html
+    slide: 15
+    audit: R-VIS-LABEL-FLOOR
+    type: must_fire
+    selector_hint: org-card
+    notes: |
+      Cross-deck regression: the broadened LABEL-FLOOR rule should
+      fire on org-card (matched by `-card` suffix), not just on the
+      decks where it was originally tuned.
+
+  # ===== ai-consumer-growth · slide 6 · TITLE-POSITION fixed =====
+  # The iframe-embed title was at top:96 (deck override), should be
+  # top:61 (master spec). Fixed 2026-05-23 by removing the obsolete
+  # override block. Audit MUST NOT fire on slide 6 — proves the fix
+  # is in place.
+  - id: acg-iframe-embed-title-fix-verified
+    deck: runs/20260521-172032-ai-consumer-growth/output/index.html
+    slide: 6
+    audit: R-VIS-TITLE-POSITION
+    type: must_not_fire
+    source_prompt: |
+      file:///Users/bytedance/Documents/Github/feishu-deck-h5/runs/20260521-172032-ai-consumer-growth/output/index.html#6，这页的标题位置靠下了，要走规范里的，没有检查么？
+    prompt_ts: 2026-05-23 10:39:18
+    notes: |
+      Fix landed in commit 324b96b. If anyone reintroduces an override
+      block on .slide[data-layout="iframe-embed"] .header that drifts
+      from master spec (top:61), this fixture fails.
+
+  # ===== ai-consumer-growth · slide 6 · ABSPOS-DUAL-ANCHOR fixed =====
+  # The iframe-hint pill stretched to 764px because override set top:16
+  # without resetting framework's bottom:18. Fixed same commit. Audit
+  # MUST NOT fire — proves the fix is in place.
+  - id: acg-iframe-hint-dual-anchor-fix-verified
+    deck: runs/20260521-172032-ai-consumer-growth/output/index.html
+    slide: 6
+    audit: R-VIS-ABSPOS-DUAL-ANCHOR
+    type: must_not_fire
+    source_prompt: |
+      然后进入页面，报告可滚动查阅这个的高有问题，非常大
+    prompt_ts: 2026-05-23 10:39:18
+    notes: |
+      Fix landed in commit 324b96b (also added the audit). If any
+      future iframe-hint override regresses to top:16 without
+      bottom:auto, this fixture fails.
+
+  # ===== ctg · big-deck visual audit unblock =====
+  # Before 2026-05-24, Playwright page.goto(networkidle, 10s) timed
+  # out on ctg's 53-slide deck → R-VISUAL warning, 0 R-VIS-* hits.
+  # After bumping to (load, 60s), all R-VIS-* audits run. Use ctg's
+  # LABEL-FLOOR count > 0 as a sentinel that the audit infra still
+  # works on big decks.
+  - id: ctg-visual-audit-runs-at-all
+    deck: runs/20260514-191808-ctg/output/index.html
+    slide: 4
+    audit: R-VIS-LABEL-FLOOR
+    type: must_fire
+    selector_hint: vs-cell
+    notes: |
+      If ctg returns 0 R-VIS-LABEL-FLOOR hits, the visual audit likely
+      timed out / failed silently (regression on the 2026-05-24
+      Playwright timeout fix). The audit infra is broken, not the
+      LABEL-FLOOR rule. Investigate page.goto / Playwright before
+      blaming the rule.
