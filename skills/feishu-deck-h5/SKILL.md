@@ -6982,6 +6982,71 @@ including `flow-grows-itself` which uses mix-glow same as 22). They may
 have the same "black zone" perception that just hadn't been spotted yet.
 Run validator → review → fix proactively before next demo.
 
+### BF15.1 — diagonal-glow decor + letterbox = visible edge at slide top (2026-05-24)
+
+**Symptom (follow-up to BF15)**: even after pulling `.stage` top to 61 to
+match framework anchor, slide 22 in fullscreen on a non-16:9 monitor
+**STILL** showed "上面有黑色的边" — a visible horizontal seam at the slide
+top boundary.
+
+**Why**: the decor `::before` pseudo-element (mix-glow / orange-spark / any
+decor with a glow source near the top) is bounded by `.slide` dimensions.
+The slide-frame's bg image (`lark-content-bg.jpg`) extends into the
+letterbox area on non-16:9 viewports, but the decor tinting does NOT.
+Result: a sharp luma jump where decor tinting begins at the slide top edge.
+
+Pixel proof at 1920×1200 viewport, col 1700 (right side, mix-glow purple
+zone):
+
+```
+y=58 (letterbox): RGB(47, 35, 74)  luma=43
+y=60 (slide top): RGB(69, 50,106)  luma=62   ← 19 luma jump
+```
+
+The 19-luma jump is the visible edge.
+
+**Fix pattern** (slide-specific, applied via per-page CSS using `:has()`):
+
+```css
+/* Move the decor from .slide ::before onto .slide-frame ::after so it
+   covers the letterbox + slide uniformly. */
+.slide-frame:has(> .slide[data-slide-key="K"])::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: /* same radial-gradient as the original decor */;
+  pointer-events: none; z-index: 0;
+}
+/* Suppress the slide's own ::before — otherwise it stacks ON TOP of the
+   frame::after inside the slide, doubling the tint and re-creating the
+   edge at the slide boundary. */
+.slide[data-slide-key="K"][data-decor~="mix-glow"]::before {
+  background-image: none;
+}
+```
+
+After applying: luma is uniform 40-44 across the y=60 boundary (no jump).
+The decor reads as a single continuous gradient from viewport edge to
+viewport edge.
+
+**When this matters**: only on viewports where letterbox is visible
+(non-16:9 monitor in fullscreen). On 16:9 monitor (slide fills viewport),
+the slide top edge IS the viewport top edge → no letterbox → no edge.
+
+**Affected decor list**: any decor whose `radial-gradient` has its bright
+zone near the slide top edge (`y <= ~20%`):
+- `mix-glow` (`at 92% 8%`) — explicitly seen on slide 22, 43
+- `orange-spark` (`at 88% 18%`) — likely affected, untested
+
+Not affected (glow at bottom or center): `violet-glow`, `teal-glow`,
+`blue-glow`.
+
+**Framework-level fix (deferred)**: the right long-term fix is to make
+`data-decor` apply to `.slide-frame::after` directly (via the same `:has()`
+selector pattern) rather than only `.slide::before`. That would make the
+decor uniformly cover the viewport for every slide automatically. Out of
+scope for this fix; tracked as a framework TODO. Until then, slides with
+top-bright decors need the per-slide `:has()` override above.
+
 ---
 
 ## Slide media auto-restart on enter (framework behavior, 2026-05-24)
