@@ -1655,6 +1655,78 @@ def audit_default_centering(html: str, iss: Issues):
             'exceptions that fill.')
 
 
+def audit_empty_header_zone(html: str, iss: Issues):
+    """R-EMPTY-HEADER-ZONE: when a slide hides framework .header in per-page
+    CSS, .stage must not leave an empty dark zone at slide top.
+
+    Framework convention: the unified `.slide[data-layout=...] .header` rule
+    positions the title at slide y=61, providing a visual anchor consistent
+    across all content slides. When a slide hides it via `display: none`
+    (usually to gain vertical space), the slide MUST compensate by either:
+      (a) restoring .header (drop the `display:none` rule),
+      (b) snapping .stage top to ≤32 (content sits at slide top edge),
+      (c) aligning .stage top to 61 (matches framework anchor — visual
+          consistency with sibling slides), or
+      (d) adding a visible top decoration inside .stage's first child.
+
+    Otherwise the gap between slide y=0 and the first content reads as
+    "missing background / black band at top" — especially on dark themes
+    with diagonal-glow decor (mix-glow) that don't tint the top corners.
+
+    Postmortem 2026-05-24: slide management-clone-flywheel had
+    `.header { display: none }` + `.stage { top: 50px }`. User reported
+    「上面有一条黑色,背景没有全」. Took 3 round-trips to localize and
+    fix; this rule formalizes the lesson so future hidden-header slides
+    catch it automatically.
+    """
+    for sm in re.finditer(r'<style[^>]*>(.*?)</style>', html, re.S):
+        css = re.sub(r'/\*.*?\*/', '', sm.group(1), flags=re.S)
+        # Find scoped slide-key (per-page styles are scoped via
+        # .slide[data-slide-key="K"] prefix; first occurrence wins)
+        key_m = re.search(r'\.slide\[data-slide-key="([^"]+)"\]', css)
+        if not key_m:
+            continue
+        key = key_m.group(1)
+
+        # Is .header hidden for this slide?
+        hide_pat = (
+            rf'\.slide\[data-slide-key="{re.escape(key)}"\]'
+            r'[^{]*\.header(?![\w-])[^{]*\{[^}]*display\s*:\s*none[^}]*\}'
+        )
+        if not re.search(hide_pat, css):
+            continue
+
+        # Find .stage top value
+        stage_pat = (
+            rf'\.slide\[data-slide-key="{re.escape(key)}"\]'
+            r'[^{]*\.stage(?![\w-])[^{]*\{([^}]*)\}'
+        )
+        sm2 = re.search(stage_pat, css)
+        if not sm2:
+            continue
+        top_m = re.search(r'(?<![\w-])top\s*:\s*(\d+)\s*px', sm2.group(1))
+        if not top_m:
+            continue
+        top_val = int(top_m.group(1))
+
+        # Allowed zones: ≤32 (snap-to-top) or ==61 (framework anchor)
+        if top_val <= 32 or top_val == 61:
+            continue
+
+        iss.warn(
+            'R-EMPTY-HEADER-ZONE',
+            f'slide-key="{key}": hides framework .header but .stage starts '
+            f'at top:{top_val}px — leaves empty dark zone at slide y=0..{top_val}, '
+            f'reads as "missing bg / black band" on dark theme (especially '
+            f'with diagonal-glow decor that doesn\'t tint top corners). '
+            f'Pick one: (a) restore .header (drop the `display:none` rule), '
+            f'(b) snap top ≤32 (content at slide edge), (c) align top:61 '
+            f'(matches framework anchor — visually consistent with sibling '
+            f'slides), or (d) add a visible top decoration as .stage\'s '
+            f'first child.'
+        )
+
+
 def audit_variant_discipline(html: str, iss: Issues):
     """R47: variant override discipline.
 
@@ -2559,6 +2631,7 @@ def main():
     audit_centering_pattern(html, iss)
     audit_layout_integrity(html, iss)
     audit_default_centering(html, iss)
+    audit_empty_header_zone(html, iss)
     audit_hierarchy(html, iss)
     audit_variant_discipline(html, iss)
     audit_ui_mocks_are_html(slides, iss)

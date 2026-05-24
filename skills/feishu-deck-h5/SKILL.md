@@ -6932,6 +6932,104 @@ without redeclaring `align-items` + `justify-content`). The fix
 discipline is the same: **self-contained overrides, no partial
 property declarations on positioning / layout properties**.
 
+### BF15 — hiding framework `.header` requires content rebalance (2026-05-24)
+
+**Symptom**: a slide hides `.header { display: none }` in per-page CSS to gain
+vertical space, AND sets `.stage` with a custom `top` value in the "danger
+zone" (typically `top: 40-60px`, neither close enough to slide edge to look
+like a deliberate "snap to top" nor matching the framework anchor at
+`top: 61px`). Result: an empty dark area at slide y=0..N appears as
+「上面一条黑色 · 背景没有全」 — especially with diagonal-glow decor
+(mix-glow's bright zones are at opposite corners, leaving the top edge
+darker).
+
+**Why this happens**: the framework's unified
+`.slide[data-layout=...] .header` rule positions title at slide y=61 — a
+deliberate visual anchor shared by every content slide. When you hide
+`.header`, the slide loses that anchor; if your content doesn't replace
+its visual function, the gap is perceived as missing background, not as
+intentional whitespace.
+
+**The rule**: when hiding framework `.header`, the slide MUST do ONE of:
+
+| Choice | When to use | Effect |
+|---|---|---|
+| (a) Restore `.header` (drop `display:none`) | Default safe path — you usually can keep `.header` AND tighten the rest | Title sits at framework anchor y=61; visually consistent with sibling slides |
+| (b) Snap `.stage { top: ≤32 }` | Hero / full-bleed feel — content extends near slide edge | Content sits at slide top edge; no perceived gap |
+| (c) Align `.stage { top: 61px }` | Most common — sibling consistency | First child of stage sits at the same y as other slides' titles |
+| (d) Add a visible top decoration as `.stage`'s first child (eyebrow / brand bar / decorative line) | Slide needs unique top treatment | Decoration occupies the would-be-gap |
+
+**Anti-pattern**: `.header { display: none }` + `.stage { top: 40-60 }`
+without a top decoration. Visual gap of 40-60 px reads as "missing bg".
+
+**Validator enforcement**: `audit_empty_header_zone` (rule
+**R-EMPTY-HEADER-ZONE**) fires `warn` when a per-page CSS block hides
+`.header` AND sets `.stage top` to a value > 32 AND ≠ 61 — i.e. NOT
+snapped-to-top AND NOT framework-anchored. The rule scans every `<style>`
+block scoped to a `data-slide-key`.
+
+**Postmortem (2026-05-24)**: slide `management-clone-flywheel` had
+`.header { display: none }` + `.stage { top: 50px }` + `mix-glow` decor
+(whose bright zones are at opposite corners, leaving the top edge dark).
+User reported 「上面有一条黑色,背景没有全」. Took 3 round-trips:
+50→16 "snap to top" overshot past framework anchor; 16→61 finally matched
+sibling slides. After codifying as R-EMPTY-HEADER-ZONE, validator surfaces
+the pattern up front so authors hit it once at lint time.
+
+Validator finding 2026-05-24: 8 other slides in the kangshifu deck (and
+~same in source) use the same pattern (mostly `top:50` + hidden header,
+including `flow-grows-itself` which uses mix-glow same as 22). They may
+have the same "black zone" perception that just hadn't been spotted yet.
+Run validator → review → fix proactively before next demo.
+
+---
+
+## Slide media auto-restart on enter (framework behavior, 2026-05-24)
+
+**Problem**: present mode keeps EVERY `.slide-frame` in the DOM at once
+(only `.is-current` toggles visibility). So a `<video autoplay loop>` on a
+non-first slide **starts playing on page load while its slide is still
+hidden**, and by the time the presenter navigates to it the clip is at
+some arbitrary point mid-loop — never from the start. Same class of bug
+hits CSS `@keyframes` animations (they run once on load and are finished
+before you arrive). Reported on slide 11 of the kangshifu deck
+(`<video ... autoplay muted loop>`); the same `<video autoplay>` pattern
+exists in ≥ 5 decks and `@keyframes`/`animation:` in ≥ 10.
+
+**Fix (in `feishu-deck.js`, automatic — no per-deck markup)**: a single
+`MutationObserver` watches every frame's `class` attribute. It catches
+EVERY navigation path (present-mode `goTo`, hash nav, prev/next buttons,
+and the separate mobile-patch IIFE's direct `.is-current` toggles).
+
+- **Enter** a frame → each `<video>` is reset to `currentTime = 0`, and
+  if it carries the `autoplay` attribute it is `.play()`ed (muted videos
+  are allowed to play programmatically; non-muted rejections are caught
+  and ignored).
+- **Leave** a frame → its `<video>`s are `.pause()`d (stops hidden
+  background looping).
+- On both transitions a `CustomEvent` is dispatched on the `.slide`:
+  **`fs-slide-enter`** / **`fs-slide-leave`** (bubbling). CSS-keyframe
+  decks that need to re-trigger an animation on revisit can listen for
+  `fs-slide-enter` and toggle a class, OR — simpler, no JS — scope the
+  animation to `.slide-frame.is-current .x { animation: … }` so re-adding
+  `.is-current` re-applies (and thus restarts) the animation.
+
+**Opt out** per element with `data-no-restart` (e.g. a video that should
+keep its position across slide visits — rare).
+
+**Authoring guidance**:
+- Want a video to play from the top each time the slide is shown → just
+  give it `autoplay muted` (keep `loop` if you want it to repeat while the
+  slide is on screen). The framework handles the reset.
+- Want a CSS animation to replay on revisit → scope it to
+  `.slide-frame.is-current` (preferred) or hook `fs-slide-enter`.
+
+**Caveat — existing decks**: this fix lives in the skill's
+`feishu-deck.js`. Decks that link to the skill copy get it on next load.
+Decks that shipped their OWN `output/assets/feishu-deck.js` (copy-assets
+snapshot) or are already published (e.g. `feishusolution/<deck>/assets/`)
+keep their old copy until re-run through `copy-assets.py` / re-deployed.
+
 ---
 
 ## Copy / numbering 规范
@@ -7268,6 +7366,7 @@ The validator covers programmable rules (last refreshed 2026-05-18):
 | Layout integrity | L1 / L2 / L4 | logo default, balanced stage with content centering, single-col `.process .attrs` (L3 is not currently shipped) |
 | Variants | R47 | structural-changing variants redeclare alignment |
 | Centering | R48 | fixed-shape layouts default-center vertically |
+| Empty header zone | R-EMPTY-HEADER-ZONE | hiding framework `.header` requires `.stage top ≤32` (snap to edge) OR `top:61` (framework anchor) OR a visible top decoration; otherwise the gap reads as "missing bg" — see BF15 |
 | Cyan | R49 | cyan is inline-highlight only, not slide accent |
 | Header | R56 | content-page `.header` has only `<h2>` (no eyebrow); matching is class-list aware (`class="header is-tall"` works) |
 | Decor | R38 | `data-decor` tokens are from ship list |
