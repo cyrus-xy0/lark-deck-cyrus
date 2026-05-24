@@ -2233,7 +2233,16 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             context = browser.new_context(
                 viewport={'width': 1920, 'height': 1080})
             page = context.new_page()
-            page.goto(url, wait_until='networkidle', timeout=10_000)
+            # 2026-05-24 · was `wait_until='networkidle' timeout=10_000`.
+            # Large decks (50+ slides with images/iframes) blew past 10s
+            # because `networkidle` waits for ALL pending requests to settle.
+            # The visual audit JS runs purely against the DOM and computed
+            # styles — it doesn't need network-quiet, just DOM-ready. Switch
+            # to `load` event (faster, fires when initial resources load),
+            # bump timeout to 60s as belt-and-braces for big-deck image
+            # decoding. Validated on ctg (53 slides) which previously
+            # silently failed → 0 R-VIS-* hits.
+            page.goto(url, wait_until='load', timeout=60_000)
             # Switch into present mode so each slide gets the full
             # 1920×1080 canvas (scroll mode would false-positive).
             page.evaluate("""
@@ -2395,13 +2404,14 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
     for entry in report.get('label_floor', [])[:20]:
         iss.err('R-VIS-LABEL-FLOOR',
             f'slide {entry["slide_idx"]} · card `{entry["card_sel"]}` '
-            f'has a hero anchor (≥48px) but label `{entry["label_sel"]}` '
-            f'is {entry["label_px"]}px — hero-context labels MUST be '
-            '≥ 24 (Body tier). 16/18 chrome is reserved for true page '
-            'metadata (.source / .pageno / .footnote / .attrib / etc.). '
-            'See SKILL.md "Hero-context label floor". Promote to 24 + '
-            'differentiate via font-weight or brand color, not by '
-            'shrinking the size.')
+            f'contains content-tier text (≥28px) but label '
+            f'`{entry["label_sel"]}` is {entry["label_px"]}px — '
+            'content-card labels MUST be ≥ 24 (Body tier). 16/18 chrome '
+            'is reserved for true page metadata (.source / .pageno / '
+            '.footnote / .attrib / etc., reached via .header / .footer '
+            'ancestor). See SKILL.md "Hero-context label floor". '
+            'Promote to 24 + differentiate via font-weight or brand '
+            'color, not by shrinking the size.')
 
     for entry in report.get('body_floor', [])[:20]:
         iss.err('R-VIS-BODY-FLOOR',
@@ -2483,12 +2493,24 @@ _VISUAL_AUDIT_JS = r"""
     'cc-body', 'card-body', 'td-body', 'nc-body', 'ov-desc',
     'dir-desc', 'mode-body', 'rule-text', 'arch-base', 'feat-body',
   ];
-  // Card / panel container hints — for grouping meta vs body
+  // Card / panel container hints — for grouping meta vs body.
+  // 2026-05-23 · added story-case + pain-card + script-card + ind-row +
+  // generic *-card suffix matching (via classified-or-suffix check below)
+  // after PROMPTS.md corpus surfaced 字小 complaints in story-case
+  // industry-tag, logo-wall ind-name, content-3up pain-card eyebrow,
+  // 5-script card-num — all card-like containers not previously in this
+  // list. Pattern check (any class ending in -card or containing -tile/
+  // -panel) lives in `hasAnyCard()` below.
   const CARD_KEYS = [
     'canonical-card', 'todo-card', 'news-card', 'overview-card',
     'mode-card', 'dir-card', 'scene-card', 'ns-card', 'verdict-card',
     'voice-card', 'cta-box', 'data-panel', 'arch-hand',
+    'story-case', 'pain-card', 'script-card', 'card-num',
+    'ind-row', 'logo-cell',
   ];
+  // Suffix patterns that also indicate a card-like container — broader
+  // catch than the explicit CARD_KEYS list.
+  const CARD_SUFFIXES = ['-card', '-tile', '-cell', '-panel', '-box'];
   // Grid containers whose children should be equal-height
   const GRID_KEYS = [
     'overview-grid', 'todo-grid', 'scene-grid', 'north-star-map',
@@ -2739,8 +2761,13 @@ _VISUAL_AUDIT_JS = r"""
     const cards = slide.querySelectorAll('*');
     const seenCards = new WeakSet();
     const seenLabelFloor = new Set();
+    const hasCardSuffix = (el) => {
+      const raw = el.className;
+      const cls = (raw && raw.baseVal !== undefined ? raw.baseVal : (raw || '')).toString().toLowerCase();
+      return CARD_SUFFIXES.some(suf => cls.split(/\s+/).some(c => c.endsWith(suf)));
+    };
     cards.forEach(card => {
-      if (!hasAnyClass(card, CARD_KEYS)) return;
+      if (!hasAnyClass(card, CARD_KEYS) && !hasCardSuffix(card)) return;
       if (seenCards.has(card)) return;
       seenCards.add(card);
       const allTextEls = [...card.querySelectorAll('*')].filter(hasOwnText);
@@ -2766,9 +2793,9 @@ _VISUAL_AUDIT_JS = r"""
         });
       }
 
-      // --- LABEL FLOOR: hero anchor (>=48) + < 24px label = error ---
+      // --- LABEL FLOOR: content card + < 24px label = error ---
       // R-VIS-LABEL-FLOOR codifies the 2026-05-17 hero-context-label-floor
-      // rule in SKILL.md. When a card has a hero anchor, every content
+      // rule in SKILL.md. When a card has content-tier text, every content
       // label inside it must be >= 24; 16/18 is reserved for true page chrome.
       //
       // 2026-05-22 · fix: previously chrome-class elements (.eyebrow, .pill,
@@ -2778,12 +2805,20 @@ _VISUAL_AUDIT_JS = r"""
       // page-level chrome ancestor (.header / .footer / .source-footer /
       // .pageno) — chrome usage inside a content card is treated as a
       // misnamed content label and gets flagged.
+      //
+      // 2026-05-23 · broaden: hero-anchor (≥48) requirement misses ~50% of
+      // user complaints — empirically, users say "字小" about chrome labels
+      // in cards WITHOUT a 48 hero, just a 28-44 Sub-tier anchor (e.g.
+      // story-case industry-tag, logo-wall ind-name, scripts card eyebrow).
+      // PROMPTS.md corpus shows 85 字小 hits / 8 decks; only ~20% had a
+      // hero anchor present. Lower the anchor threshold to ≥ 28 (Sub tier)
+      // — any card with content-tier text should bring chrome to ≥ 24.
       const sizes = allTextEls.map(
         e => Math.round(parseFloat(window.getComputedStyle(e).fontSize)));
-      const hasHeroAnchor = sizes.some(s => s >= 48);
+      const hasContentAnchor = sizes.some(s => s >= 28);
       const PAGE_CHROME_ANCESTORS = ['header', 'footer', 'source-footer',
         'pageno', 'wordmark', 'deck-progress', 'deck-controls'];
-      if (hasHeroAnchor) {
+      if (hasContentAnchor) {
         allTextEls.forEach(el => {
           const px = Math.round(parseFloat(window.getComputedStyle(el).fontSize));
           if (px >= 24) return;  // Body tier or above is OK

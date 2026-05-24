@@ -2514,6 +2514,117 @@ evolution.
 
 ---
 
+## RUN-PROMPTS LOG (Phase 1) — `PROMPTS.md` per run
+
+Goal: mine user prompts across many decks to surface **skill-gap
+signals** (audit rules / defaults / protocols the skill SHOULD have
+caught but didn't) and **workflow patterns** the user can improve on.
+Each `runs/<ts>/output/` ships a `PROMPTS.md` capturing every user
+prompt that touched the deck, verbatim + lightly tagged.
+
+Full format spec: **`assets/PROMPTS-format.md`** (canonical, all writers
+must conform).
+
+### Two writing paths
+
+| Path | When | Who runs it |
+|---|---|---|
+| **Realtime append** | The agent (any agent supporting it) appends to PROMPTS.md after each user message, before generating any artifact | Agent itself, per the contract in `PROMPTS-format.md` "Realtime-append contract" |
+| **Post-hoc extraction** | Backfill historical decks OR rebuild PROMPTS.md from an agent that didn't realtime-append | User runs `extract-from-<agent>.py` against the agent's transcript files |
+
+Both paths produce **the same canonical format**, so downstream analysis
+doesn't care which path was used. The two paths can coexist on one
+deck (e.g., realtime entries plus a backfill from before realtime
+support was added).
+
+### Shipped adapters (Phase 1)
+
+- **`assets/extract-from-claude-code.py`** — for Claude Code's
+  per-session JSONL transcripts at `~/.claude/projects/<encoded-cwd>/
+  <session-id>.jsonl`. Single-flag deck filter (`--filter-deck SLUG`),
+  session-level scoping (any prompt in a transcript mentioning the
+  slug → include all prompts from that transcript).
+- (other agent adapters: TBD — Codex / Mira / Cursor / Aider need
+  sample transcripts before adapters can be written; do NOT speculate-write
+  blind adapters)
+
+Use:
+```bash
+# one transcript
+python3 skills/feishu-deck-h5/assets/extract-from-claude-code.py \
+    ~/.claude/projects/-Users-bytedance/<session-id>.jsonl \
+    --out runs/<ts>/output/PROMPTS.md
+
+# many transcripts → one deck
+python3 skills/feishu-deck-h5/assets/extract-from-claude-code.py \
+    ~/.claude/projects/-Users-bytedance/*.jsonl \
+    --filter-deck <slug> \
+    --out runs/<ts>/output/PROMPTS.md \
+    --title "<deck display name>"
+```
+
+### Realtime-append contract (when agent supports it)
+
+When supported, the agent MUST after every user message:
+
+1. Compute the run's PROMPTS.md path:
+   `runs/<ts>/output/PROMPTS.md` (same directory as the deck artifact)
+2. If file doesn't exist, create with title + standard header
+3. Append a new entry with the timestamp + type guess + slide refs +
+   `(agent: <id>)` tag + verbatim user text
+4. DO NOT proceed to generate the artifact until the append is done
+
+**Verbatim or nothing**: do NOT summarize, translate, "improve", or
+LLM-remix the user's wording. The log's value is its truthiness. If
+the user wrote "字小了，没啥没检查出来" that is exactly what goes in.
+
+If the agent runtime cannot file-write (sandboxed harness), print
+`PROMPT-LOG: <ts> | <type> | <verbatim text>` to stdout so the user
+can hand-append to PROMPTS.md. Don't silently drop.
+
+### Why this exists (the actual goal)
+
+Most "bugs" in a finished deck started as a user complaint like "字小了"
+or "标题位置不对" or "中间太空" — the user was the audit. PROMPTS.md
+turns that audit into a queryable signal:
+
+| Signal type | What you mine PROMPTS.md for | Yields |
+|---|---|---|
+| **Skill-gap** | Repeated `bug-report` complaints across decks (e.g. "字小" appears 47 times across 23 decks) | New audit / rule / default — promote into validator |
+| **Protocol miss** | `bug-report` AND the prior agent response shows skipped pre-check (no Q0-Q4 design pass, no backup before delete, etc.) | Tighten existing rule into hard gate |
+| **Workflow inefficiency** | ≥ 5 edits on the same slide-key within 24h | Per-user coaching note: batch edits, use deck.json bulk ops, etc. |
+
+The `bug-report` class is by far the highest-value mine. Real
+production rate (in maintainer's testing on a 43-slide deck): 50
+bug-report prompts → at least 2 new audit rules + 1 hard-gate
+elevation. That's a 1:25 ratio of skill upgrades to user complaints,
+which is what makes the log worth keeping.
+
+### What NOT to log
+
+- Assistant responses (out of scope; log is the USER's voice)
+- Tool outputs (out of scope)
+- System-injected messages (`<command-name>`, `<system-reminder>`,
+  `<local-command-caveat>` — adapters MUST strip these)
+- Anything synthesized by an LLM in passing (e.g. an agent's
+  "I think the user meant ..." paraphrase)
+
+### Privacy boundary
+
+- PROMPTS.md is per-run, lives next to the deck in `runs/<ts>/output/`
+- Same lifecycle as the deck — `package-deliverable.sh` already
+  includes `*.md` files, so PROMPTS.md ships with the deck unless
+  excluded
+- **No automatic cross-user aggregation**. If you want a multi-user
+  analysis dataset, collect PROMPTS.md files MANUALLY into a separate
+  repo / dir — the user explicitly chooses what they share
+
+If a PROMPTS.md contains sensitive content (real customer names,
+internal metrics), `package-deliverable.sh --exclude PROMPTS.md` (TBD)
+or just `rm` before zipping. There's no automated PII scrubbing yet.
+
+---
+
 Generate a dark, cinematic Lark / 飞书 brand-aligned **HTML deck** at 1920×1080 in a single
 self-contained file that:
 
@@ -3701,19 +3812,28 @@ clearly Hero nor clearly Chrome.
 big" (88) depending on which way they were leaving from. The
 Goldilocks rule formalizes this: don't even TRY the middle.
 
-#### Hero-context label floor — labels next to hero data NEVER get 16 chrome (2026-05-17)
+#### Content-context label floor — labels in content cards NEVER get 16 chrome (2026-05-17, broadened 2026-05-23)
 
-When a card / panel contains a **hero anchor** (any element ≥ 48 px
-acting as the visual focal point — hero numeral, big-stat number,
-display title, large icon), every **content label** in the same
-card must be **≥ 24 (Body tier)**. The 16 (Foot / chrome) tier is
-reserved for page-level metadata ONLY.
+When a card / panel contains **any content-tier text (≥ 28 px Sub
+tier or above)**, every **content label** in the same card must be
+**≥ 24 (Body tier)**. The 16 (Foot / chrome) tier is reserved for
+page-level metadata ONLY (reached via `.header` / `.footer` /
+`.source-footer` / `.pageno` / `.wordmark` ancestor).
+
+**Broadened 2026-05-23**: originally the rule required a 48 px hero
+anchor inside the card. Empirically (PROMPTS.md corpus: 85 "字小"
+complaints across 8 decks), users complained equally about chrome
+labels in cards that had only a 28-44 Sub-tier anchor (e.g.
+`story-case .industry-tag`, `logo-wall .ind-name`,
+`script-card .card-num`). Lowered anchor threshold from 48 → 28
+(any content-tier text in the card triggers the floor).
 
 | Element role | Tier | Examples |
 |---|---|---|
 | Hero anchor | 48+ | Hero numeral, big-stat number, display title |
-| Content label (introduces a value) | **24 Body MIN** | "北极星" / "核心售卖" / "交付" / "触达" / "已读" / "个性化对象" |
-| Page-level chrome | 16 Foot | `.pageno` / `.source` / `.footnote` / `.copyright` / `.attrib` |
+| Sub anchor | 28-44 | Story-hook, card title, scene name, action title |
+| Content label (introduces a value) | **24 Body MIN** | "北极星" / "核心售卖" / "交付" / "触达" / "已读" / "个性化对象" / "痛点 / 冲突 / 解法" / "时间维度" / "剧本 01" |
+| Page-level chrome | 16 Foot | `.pageno` / `.source` / `.footnote` / `.copyright` / `.attrib` (REQUIRES `.header` / `.footer` ancestor — chrome class inside content card still flags) |
 
 **Why this rule exists** (showcase eval 2026-05-17):
 
