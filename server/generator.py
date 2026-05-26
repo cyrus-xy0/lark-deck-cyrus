@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections import Counter
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -46,7 +47,12 @@ REQUIRED_OUTPUTS = [
     "texts.md",
     "FEEDBACK.md",
     "assets-manifest.yaml",
+    "journey.json",
+    "JOURNEY.md",
+    "quality-insights.json",
 ]
+
+TEXT_LEAF_SKIP_KEYS = {"title", "icon", "img", "image", "src", "url", "href", "company_logo"}
 
 
 def now_iso() -> str:
@@ -542,6 +548,16 @@ def delivery_name(deck: dict[str, Any]) -> str:
     return f"lark-{slug}-{date}"
 
 
+def unique_generated_task_id(title_source: str) -> str:
+    base = f"generator-{datetime.now():%Y%m%d-%H%M%S-%f}-{slugify(str(title_source))}"
+    candidate = base
+    suffix = 1
+    while (RUNS_DIR / candidate).exists():
+        suffix += 1
+        candidate = f"{base}-{suffix:02d}"
+    return candidate
+
+
 def write_feedback(output_dir: Path, outline: dict[str, Any], deck: dict[str, Any], source: str) -> None:
     meta = deck.get("deck", {})
     questions = outline.get("open_questions") or []
@@ -620,6 +636,409 @@ def assert_required_outputs(output_dir: Path) -> list[str]:
     return missing
 
 
+def journey_event(stage: str, actor: str, summary: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "at": now_iso(),
+        "stage": stage,
+        "actor": actor,
+        "summary": summary,
+        "data": data or {},
+    }
+
+
+def append_journey_event(journey: dict[str, Any], stage: str, actor: str, summary: str, data: dict[str, Any] | None = None) -> None:
+    journey.setdefault("events", []).append(journey_event(stage, actor, summary, data))
+
+
+def task_version_summary(task: dict[str, Any], deck: dict[str, Any] | None = None) -> dict[str, Any]:
+    meta = (deck or {}).get("deck", {}) if isinstance(deck, dict) else {}
+    slides = (deck or {}).get("slides", []) if isinstance(deck, dict) else []
+    return {
+        "id": task.get("id", ""),
+        "status": task.get("status", ""),
+        "version": task.get("version", 0),
+        "source": task.get("source", ""),
+        "parent_task_id": task.get("parent_task_id", ""),
+        "created_at": task.get("created_at", ""),
+        "updated_at": task.get("updated_at", ""),
+        "title": meta.get("title", ""),
+        "slide_count": len(slides) if isinstance(slides, list) else 0,
+        "output_dir": task.get("output_dir", ""),
+    }
+
+
+def upsert_journey_version(journey: dict[str, Any], task: dict[str, Any], deck: dict[str, Any] | None = None) -> None:
+    versions = journey.setdefault("versions", [])
+    item = task_version_summary(task, deck)
+    for index, existing in enumerate(versions):
+        if existing.get("id") == item["id"]:
+            versions[index] = item
+            return
+    versions.append(item)
+
+
+def new_journey(task: dict[str, Any], request: dict[str, Any], source: str) -> dict[str, Any]:
+    brief = request.get("brief") if isinstance(request.get("brief"), dict) else {}
+    deck_json = request.get("deck_json") if isinstance(request.get("deck_json"), dict) else {}
+    title = (
+        deck_json.get("deck", {}).get("title")
+        if deck_json
+        else brief_value(brief, "title", "brief", "customer_name", default="deck")
+    )
+    journey = {
+        "schema": "lark-deck-journey/v1",
+        "trace_id": base_task_id(str(task.get("id", ""))),
+        "task_id": task.get("id", ""),
+        "root_task_id": base_task_id(str(task.get("id", ""))),
+        "title": title,
+        "source": source,
+        "created_at": task.get("created_at") or now_iso(),
+        "updated_at": now_iso(),
+        "versions": [],
+        "events": [],
+        "edit_sessions": [],
+        "insights": {},
+    }
+    append_journey_event(
+        journey,
+        "request_received",
+        "user",
+        "收到生成请求,开始创建 deck 任务。",
+        {
+            "source": source,
+            "brief_fields": sorted(brief.keys()),
+            "has_outline": bool(request.get("outline")),
+            "has_deck_json": bool(request.get("deck_json")),
+        },
+    )
+    history = request.get("interaction_history")
+    if isinstance(history, list):
+        for item in history[-100:]:
+            if not isinstance(item, dict):
+                continue
+            data = item.get("data") if isinstance(item.get("data"), dict) else {}
+            append_journey_event(
+                journey,
+                str(item.get("stage") or "interaction"),
+                str(item.get("actor") or "user"),
+                str(item.get("summary") or "入口交互事件。")[:240],
+                data,
+            )
+    return journey
+
+
+def editable_text_leaf(key: str, value: str) -> bool:
+    if not value.strip():
+        return False
+    if key in TEXT_LEAF_SKIP_KEYS:
+        return False
+    if re.match(r"^https?://", value):
+        return False
+    return True
+
+
+def collect_text_leaf_map(node: Any, path: tuple[Any, ...] = ()) -> dict[tuple[Any, ...], str]:
+    refs: dict[tuple[Any, ...], str] = {}
+    if isinstance(node, list):
+        for index, item in enumerate(node):
+            next_path = (*path, index)
+            if isinstance(item, str) and editable_text_leaf(str(index), item):
+                refs[next_path] = item
+            else:
+                refs.update(collect_text_leaf_map(item, next_path))
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            next_path = (*path, key)
+            if isinstance(value, str) and editable_text_leaf(str(key), value):
+                refs[next_path] = value
+            else:
+                refs.update(collect_text_leaf_map(value, next_path))
+    return refs
+
+
+def slide_map(deck: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    slides = deck.get("slides") if isinstance(deck.get("slides"), list) else []
+    return {str(slide.get("key")): slide for slide in slides if isinstance(slide, dict) and slide.get("key")}
+
+
+def sanitize_client_events(events: Any, limit: int = 200) -> list[dict[str, Any]]:
+    if not isinstance(events, list):
+        return []
+    safe_events: list[dict[str, Any]] = []
+    allowed_detail_keys = {
+        "field",
+        "slide_key",
+        "from",
+        "to",
+        "layout",
+        "variant",
+        "source",
+        "count",
+        "library_title",
+        "action",
+    }
+    for event in events[-limit:]:
+        if not isinstance(event, dict):
+            continue
+        detail = event.get("detail") if isinstance(event.get("detail"), dict) else {}
+        safe_detail = {
+            key: value
+            for key, value in detail.items()
+            if key in allowed_detail_keys and isinstance(value, (str, int, float, bool, type(None)))
+        }
+        safe_events.append(
+            {
+                "at": str(event.get("at") or "")[:40],
+                "type": str(event.get("type") or "unknown")[:80],
+                "active_key": str(event.get("active_key") or event.get("activeKey") or "")[:80],
+                "detail": safe_detail,
+            }
+        )
+    return safe_events
+
+
+def summarize_deck_changes(before: dict[str, Any], after: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    before_meta = before.get("deck") if isinstance(before.get("deck"), dict) else {}
+    after_meta = after.get("deck") if isinstance(after.get("deck"), dict) else {}
+    meta_fields = sorted(set(before_meta) | set(after_meta))
+    meta_changes = [
+        {"field": key, "before_present": key in before_meta, "after_present": key in after_meta}
+        for key in meta_fields
+        if before_meta.get(key) != after_meta.get(key)
+    ]
+
+    before_slides = slide_map(before)
+    after_slides = slide_map(after)
+    before_order = list(before_slides.keys())
+    after_order = list(after_slides.keys())
+    common_before = [key for key in before_order if key in after_slides]
+    common_after = [key for key in after_order if key in before_slides]
+    added = [key for key in after_order if key not in before_slides]
+    deleted = [key for key in before_order if key not in after_slides]
+
+    layout_changes: list[dict[str, Any]] = []
+    slide_text_changes: list[dict[str, Any]] = []
+    changed_slide_keys: set[str] = set()
+    changed_text_leaves = 0
+    title_changes = 0
+    for key in common_after:
+        before_slide = before_slides[key]
+        after_slide = after_slides[key]
+        before_layout = (before_slide.get("layout"), before_slide.get("variant"))
+        after_layout = (after_slide.get("layout"), after_slide.get("variant"))
+        if before_layout != after_layout:
+            layout_changes.append(
+                {
+                    "slide_key": key,
+                    "from": "/".join(str(part) for part in before_layout if part),
+                    "to": "/".join(str(part) for part in after_layout if part),
+                }
+            )
+            changed_slide_keys.add(key)
+
+        before_data = before_slide.get("data") if isinstance(before_slide.get("data"), dict) else {}
+        after_data = after_slide.get("data") if isinstance(after_slide.get("data"), dict) else {}
+        title_changed = before_data.get("title") != after_data.get("title")
+        if title_changed:
+            title_changes += 1
+            changed_slide_keys.add(key)
+        before_texts = collect_text_leaf_map(before_data)
+        after_texts = collect_text_leaf_map(after_data)
+        text_paths = set(before_texts) | set(after_texts)
+        changed_here = sum(1 for path in text_paths if before_texts.get(path) != after_texts.get(path))
+        if changed_here or title_changed:
+            changed_text_leaves += changed_here
+            changed_slide_keys.add(key)
+            slide_text_changes.append(
+                {
+                    "slide_key": key,
+                    "title_changed": title_changed,
+                    "changed_text_leaves": changed_here,
+                }
+            )
+
+    structured_payload = [key for key in ["updates", "slide_updates", "delete_slide_keys", "slide_order", "insert_slides"] if payload.get(key)]
+    return {
+        "meta_changes": meta_changes,
+        "slides_added": added,
+        "slides_deleted": deleted,
+        "slides_reordered": common_before != common_after,
+        "layout_changes": layout_changes,
+        "slide_text_changes": slide_text_changes[:80],
+        "structured_payload": structured_payload,
+        "totals": {
+            "meta_changes": len(meta_changes),
+            "slides_added": len(added),
+            "slides_deleted": len(deleted),
+            "slides_reordered": 1 if common_before != common_after else 0,
+            "layout_changes": len(layout_changes),
+            "title_changes": title_changes,
+            "changed_text_leaves": changed_text_leaves,
+            "changed_slide_count": len(changed_slide_keys),
+        },
+    }
+
+
+def derive_quality_insights(journey: dict[str, Any]) -> dict[str, Any]:
+    sessions = journey.get("edit_sessions") if isinstance(journey.get("edit_sessions"), list) else []
+    event_counts: Counter[str] = Counter()
+    totals: Counter[str] = Counter()
+    for session in sessions:
+        for event in session.get("client_events") or []:
+            event_counts[str(event.get("type") or "unknown")] += 1
+        diff_totals = ((session.get("diff") or {}).get("totals") or {}) if isinstance(session, dict) else {}
+        for key, value in diff_totals.items():
+            if isinstance(value, (int, float)):
+                totals[key] += int(value)
+
+    recommendations: list[str] = []
+    hints: list[str] = []
+    if totals["meta_changes"] >= 1 or event_counts["global_edit"] >= 1:
+        recommendations.append("生成前补齐标题、客户名、logo 和交付日期,减少首屏全局信息返工。")
+        hints.append("brief intake should ask for deck title, customer slug/logo, and delivery date before rendering")
+    if totals["slides_deleted"] >= 1:
+        recommendations.append("首版页数或页面相关性偏宽,下一轮 recipe 应更严格筛掉弱页面。")
+        hints.append("tighten outline relevance scoring and avoid low-evidence slides")
+    if totals["slides_reordered"] >= 1 or event_counts["move_slide"] >= 1:
+        recommendations.append("用户调整过叙事顺序,应把最终页序回写为该场景的推荐 pitch arc。")
+        hints.append("learn final slide order as preferred narrative arc for similar briefs")
+    if totals["slides_added"] >= 1 or event_counts["insert_library_slide"] >= 1:
+        recommendations.append("首版遗漏了可复用素材,生成前应更早检索 Business Library。")
+        hints.append("search reusable slide library before drafting DeckJSON")
+    if totals["changed_text_leaves"] >= 6 or event_counts["text_edit"] >= 3:
+        recommendations.append("用户做了较多文案精修,需要提升行业措辞、证据表达和页面密度匹配。")
+        hints.append("adapt copy tone and content density from saved user edits")
+    if totals["layout_changes"] >= 1:
+        recommendations.append("用户调整过 layout/variant,说明 layout selector 需要吸收该场景偏好。")
+        hints.append("update layout selection heuristics from final edited version")
+    if not recommendations:
+        recommendations.append("暂无明显精调压力;当前生成路径可作为同类 brief 的基线样本。")
+        hints.append("baseline sample: no major user tuning detected")
+
+    friction_score = min(
+        100,
+        len(sessions) * 12
+        + totals["changed_text_leaves"] * 2
+        + totals["slides_reordered"] * 8
+        + totals["slides_added"] * 10
+        + totals["slides_deleted"] * 10
+        + totals["layout_changes"] * 8,
+    )
+    return {
+        "schema": "lark-deck-quality-insights/v1",
+        "trace_id": journey.get("trace_id", ""),
+        "task_id": journey.get("task_id", ""),
+        "version_count": len(journey.get("versions") or []),
+        "edit_session_count": len(sessions),
+        "friction_score": friction_score,
+        "action_counts": dict(sorted(event_counts.items())),
+        "change_totals": dict(sorted(totals.items())),
+        "recommendations": recommendations,
+        "next_generation_hints": hints,
+    }
+
+
+def render_journey_markdown(journey: dict[str, Any], insights: dict[str, Any]) -> str:
+    versions = journey.get("versions") or []
+    events = journey.get("events") or []
+    sessions = journey.get("edit_sessions") or []
+    version_lines = "\n".join(
+        f"- v{item.get('version', 0)} · `{item.get('id', '')}` · {item.get('status', '')} · {item.get('slide_count', 0)} slides"
+        for item in versions
+    ) or "- 暂无版本记录。"
+    event_lines = "\n".join(
+        f"- {event.get('at', '')} · **{event.get('actor', '')}/{event.get('stage', '')}**: {event.get('summary', '')}"
+        for event in events[-80:]
+    ) or "- 暂无事件。"
+    session_lines = []
+    for session in sessions:
+        diff_totals = ((session.get("diff") or {}).get("totals") or {}) if isinstance(session, dict) else {}
+        session_lines.append(
+            "- "
+            f"{session.get('at', '')} · `{session.get('from_task_id', '')}` -> `{session.get('to_task_id', '')}` · "
+            f"{len(session.get('client_events') or [])} client events · "
+            f"{diff_totals.get('changed_slide_count', 0)} slides touched · "
+            f"{diff_totals.get('changed_text_leaves', 0)} text leaves changed"
+        )
+    recommendation_lines = "\n".join(f"- {item}" for item in insights.get("recommendations") or [])
+    action_counts = insights.get("action_counts") or {}
+    action_lines = "\n".join(f"- `{key}`: {value}" for key, value in action_counts.items()) or "- 暂无编辑器动作。"
+    change_totals = insights.get("change_totals") or {}
+    change_lines = "\n".join(f"- `{key}`: {value}" for key, value in change_totals.items()) or "- 暂无版本 diff。"
+    return f"""# 用户旅程 · {journey.get('title', 'deck')}
+
+Trace: `{journey.get('trace_id', '')}`
+当前任务: `{journey.get('task_id', '')}`
+更新时间: {journey.get('updated_at', '')}
+
+## 版本链路
+
+{version_lines}
+
+## 过程事件
+
+{event_lines}
+
+## 精调会话
+
+{chr(10).join(session_lines) if session_lines else "- 暂无精调会话。"}
+
+## 精调信号
+
+Friction score: **{insights.get('friction_score', 0)} / 100**
+
+### 编辑器动作
+
+{action_lines}
+
+### 版本差异
+
+{change_lines}
+
+## 对下一次生成的改进建议
+
+{recommendation_lines}
+"""
+
+
+def write_journey_artifacts(output_dir: Path, journey: dict[str, Any]) -> dict[str, Any]:
+    journey["updated_at"] = now_iso()
+    insights = derive_quality_insights(journey)
+    journey["insights"] = insights
+    write_json(output_dir / "journey.json", journey)
+    write_json(output_dir / "quality-insights.json", insights)
+    (output_dir / "JOURNEY.md").write_text(render_journey_markdown(journey, insights), encoding="utf-8")
+    return insights
+
+
+def load_journey_for_task(task: dict[str, Any]) -> dict[str, Any] | None:
+    output_dir = Path(task.get("output_dir", ""))
+    path = output_dir / "journey.json"
+    if not path.exists():
+        return None
+    try:
+        return read_json(path)
+    except Exception:
+        return None
+
+
+def append_learning_event(task: dict[str, Any], journey: dict[str, Any], insights: dict[str, Any]) -> None:
+    learning_dir = RUNS_DIR / "_learning"
+    learning_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "at": now_iso(),
+        "trace_id": journey.get("trace_id", ""),
+        "task_id": task.get("id", ""),
+        "status": task.get("status", ""),
+        "version": task.get("version", 0),
+        "friction_score": insights.get("friction_score", 0),
+        "recommendations": insights.get("recommendations", []),
+        "next_generation_hints": insights.get("next_generation_hints", []),
+    }
+    with (learning_dir / "generation-learning.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
 def html_page(title: str, body: str) -> bytes:
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -693,6 +1112,8 @@ def artifact_links(task: dict[str, Any]) -> str:
         ("编辑包", "edit_url"),
         ("下载包", "download_url"),
         ("Validator 报告", "validator-report.md"),
+        ("用户旅程", "JOURNEY.md"),
+        ("质量洞察", "quality-insights.json"),
     ]:
         value = artifacts.get(key)
         if value:
@@ -782,6 +1203,40 @@ def render_status_page(task_id: str) -> bytes:
             "</tr>"
         )
     version_rows_html = "".join(version_rows)
+    insights_path = output_dir / "quality-insights.json"
+    journey_summary = ""
+    if insights_path.exists():
+        try:
+            insights = read_json(insights_path)
+            recommendation_rows = "".join(
+                f"<li>{html.escape(str(item))}</li>"
+                for item in (insights.get("recommendations") or [])[:5]
+            )
+            action_counts = insights.get("action_counts") or {}
+            action_rows = "".join(
+                f"<tr><td><code>{html.escape(str(key))}</code></td><td>{html.escape(str(value))}</td></tr>"
+                for key, value in sorted(action_counts.items())
+            )
+            journey_summary = f"""
+<section class="panel">
+  <h2>用户旅程</h2>
+  <div class="grid">
+    <div class="metric"><div class="label">Friction</div><div class="value">{html.escape(str(insights.get("friction_score", 0)))} / 100</div></div>
+    <div class="metric"><div class="label">Edit sessions</div><div class="value">{html.escape(str(insights.get("edit_session_count", 0)))}</div></div>
+    <div class="metric"><div class="label">Versions</div><div class="value">{html.escape(str(insights.get("version_count", len(versions))))}</div></div>
+  </div>
+  <h2>精调信号</h2>
+  {f'<table><thead><tr><th>动作</th><th>次数</th></tr></thead><tbody>{action_rows}</tbody></table>' if action_rows else '<p class="muted">暂无编辑器动作。</p>'}
+  <h2>改进建议</h2>
+  {f'<ul>{recommendation_rows}</ul>' if recommendation_rows else '<p class="muted">暂无建议。</p>'}
+  <div class="actions">
+    <a href="/decks/{html.escape(task_id)}/journey"><button class="secondary" type="button">查看完整旅程</button></a>
+    <a href="/decks/{html.escape(task_id)}/insights"><button class="secondary" type="button">查看质量洞察 JSON</button></a>
+  </div>
+</section>
+"""
+        except Exception:
+            journey_summary = ""
     failure_log = html.escape(log_tail(task)) if error else ""
     body = f"""
 <section class="panel">
@@ -805,6 +1260,7 @@ def render_status_page(task_id: str) -> bytes:
   <h2>版本</h2>
   {f'<table><thead><tr><th>任务</th><th>版本</th><th>状态</th><th>更新时间</th><th>预览</th></tr></thead><tbody>{version_rows_html}</tbody></table>' if version_rows_html else '<p class="muted">暂无版本记录。</p>'}
 </section>
+{journey_summary}
 <section class="panel">
   <h2>日志</h2>
   {"<ul>" + log_rows + "</ul>" if log_rows else '<p class="muted">暂无日志。</p>'}
@@ -906,6 +1362,23 @@ def render_edit_page(task_id: str) -> bytes:
 let deck = JSON.parse(document.getElementById('deck-source').textContent);
 const library = JSON.parse(document.getElementById('library-source').textContent);
 let activeKey = (deck.slides && deck.slides[0] && deck.slides[0].key) || '';
+let editEvents = [];
+let formEditTimer = null;
+
+function recordEditEvent(type, detail = {{}}) {{
+  editEvents.push({{
+    at: new Date().toISOString(),
+    type,
+    active_key: activeKey,
+    detail
+  }});
+  if (editEvents.length > 200) editEvents.shift();
+}}
+
+function closestSlideKey(el) {{
+  const card = el && el.closest ? el.closest('.slide-card') : null;
+  return (card && card.dataset.key) || activeKey || '';
+}}
 
 function esc(value) {{
   return String(value ?? '').replace(/[&<>"']/g, ch => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[ch]));
@@ -1082,6 +1555,7 @@ function render() {{
 
 function setActive(key) {{
   syncFromForm();
+  recordEditEvent('select_slide', {{slide_key: key}});
   activeKey = key;
   renderSlideList();
   renderSlides();
@@ -1095,6 +1569,7 @@ function moveSlide(key, delta) {{
   if (index < 0 || next < 0 || next >= slides.length) return;
   const [item] = slides.splice(index, 1);
   slides.splice(next, 0, item);
+  recordEditEvent('move_slide', {{slide_key: key, from: index + 1, to: next + 1}});
   activeKey = key;
   render();
 }}
@@ -1106,6 +1581,7 @@ function deleteSlide(key) {{
     return;
   }}
   deck.slides = deck.slides.filter(slide => slide.key !== key);
+  recordEditEvent('delete_slide', {{slide_key: key}});
   activeKey = (deck.slides[0] && deck.slides[0].key) || '';
   render();
 }}
@@ -1132,6 +1608,12 @@ function insertLibrarySlide() {{
   const slides = deck.slides || (deck.slides = []);
   const activeIndex = slides.findIndex(existing => existing.key === activeKey);
   slides.splice(activeIndex >= 0 ? activeIndex + 1 : slides.length, 0, slide);
+  recordEditEvent('insert_library_slide', {{
+    slide_key: slide.key,
+    layout: slide.layout || '',
+    variant: slide.variant || '',
+    library_title: item.title || ''
+  }});
   activeKey = slide.key;
   render();
 }}
@@ -1140,6 +1622,7 @@ async function markReusable(key) {{
   syncFromForm();
   const slide = (deck.slides || []).find(item => item.key === key);
   if (!slide) return;
+  recordEditEvent('mark_reusable', {{slide_key: key}});
   const result = document.getElementById('result');
   result.classList.add('show');
   result.textContent = 'Marking...';
@@ -1170,6 +1653,7 @@ function refreshJson() {{
 
 function loadJson() {{
   deck = JSON.parse(document.getElementById('deck-json').value);
+  recordEditEvent('load_json', {{source: 'advanced-json'}});
   activeKey = (deck.slides && deck.slides[0] && deck.slides[0].key) || '';
   render();
 }}
@@ -1177,13 +1661,14 @@ function loadJson() {{
 async function saveDeck() {{
   syncFromForm();
   refreshJson();
+  recordEditEvent('save', {{count: editEvents.length + 1}});
   const result = document.getElementById('result');
   result.classList.add('show');
   result.textContent = 'Saving...';
   const response = await fetch('/decks/' + {task_id_js} + '/edits', {{
     method: 'POST',
     headers: {{'Content-Type': 'application/json'}},
-    body: JSON.stringify({{deck_json: deck}})
+    body: JSON.stringify({{deck_json: deck, client_events: editEvents}})
   }});
   const body = await response.json();
   result.textContent = JSON.stringify(body, null, 2);
@@ -1195,10 +1680,54 @@ async function saveDeck() {{
   }}
 }}
 
+document.addEventListener('input', event => {{
+  const target = event.target;
+  if (!target || !target.id && !target.classList) return;
+  let field = '';
+  if (target.id === 'deck-title' || target.id === 'customer-name' || target.id === 'customer-logo') field = target.id;
+  if (target.classList && target.classList.contains('slide-title')) field = 'slide-title';
+  if (target.classList && target.classList.contains('slide-body')) field = 'slide-body';
+  if (!field) return;
+  clearTimeout(formEditTimer);
+  formEditTimer = setTimeout(() => {{
+    recordEditEvent(field === 'slide-body' ? 'text_edit' : 'global_edit', {{
+      field,
+      slide_key: closestSlideKey(target)
+    }});
+  }}, 700);
+}}, true);
+
 render();
 </script>
 """
     return html_page(f"Edit Deck · {task_id}", body)
+
+
+def render_journey_page(task_id: str) -> bytes:
+    task = load_task(task_id)
+    output_dir = Path(task.get("output_dir", ""))
+    journey_path = output_dir / "JOURNEY.md"
+    insights_path = output_dir / "quality-insights.json"
+    if not journey_path.exists():
+        raise FileNotFoundError("JOURNEY.md")
+    journey_text = html.escape(journey_path.read_text(encoding="utf-8"))
+    insights_text = ""
+    if insights_path.exists():
+        insights_text = html.escape(json.dumps(read_json(insights_path), ensure_ascii=False, indent=2))
+    body = f"""
+<section class="panel">
+  <div class="actions">
+    <a href="/decks/{html.escape(task_id)}/status"><button class="secondary" type="button">返回状态页</button></a>
+    <a href="/decks/{html.escape(task_id)}/edit"><button type="button">继续轻量编辑</button></a>
+  </div>
+</section>
+<section class="panel">
+  <h2>用户旅程</h2>
+  <pre>{journey_text}</pre>
+</section>
+{f'<section class="panel"><h2>质量洞察 JSON</h2><pre>{insights_text}</pre></section>' if insights_text else ''}
+"""
+    return html_page(f"Journey · {task_id}", body)
 
 
 def task_paths(task_id: str) -> tuple[Path, Path, Path, Path]:
@@ -1301,6 +1830,66 @@ def next_version_id(task_id: str) -> tuple[str, int]:
     return f"{base}-v{version:03d}", version
 
 
+def update_edit_journey(
+    parent_task: dict[str, Any],
+    new_task: dict[str, Any],
+    payload: dict[str, Any],
+    before_deck: dict[str, Any],
+    after_deck: dict[str, Any],
+    diff: dict[str, Any],
+    client_events: list[dict[str, Any]],
+) -> None:
+    parent_journey = load_journey_for_task(parent_task)
+    if parent_journey:
+        journey = copy.deepcopy(parent_journey)
+    else:
+        journey = new_journey(parent_task, {"deck_json": before_deck}, str(parent_task.get("source") or "unknown"))
+        upsert_journey_version(journey, parent_task, before_deck)
+
+    journey["task_id"] = new_task.get("id", "")
+    journey["title"] = (after_deck.get("deck") or {}).get("title") or journey.get("title", "")
+    journey["source"] = "edit"
+    session = {
+        "at": now_iso(),
+        "from_task_id": parent_task.get("id", ""),
+        "to_task_id": new_task.get("id", ""),
+        "version": new_task.get("version", 0),
+        "status": new_task.get("status", ""),
+        "client_events": client_events,
+        "diff": diff,
+        "payload_shape": sorted(key for key, value in payload.items() if key != "deck_json" and value not in (None, "", [], {})),
+    }
+    journey.setdefault("edit_sessions", []).append(session)
+    append_journey_event(
+        journey,
+        "edit_received",
+        "user",
+        "用户保存了一轮精调,系统创建新版本并重新渲染。",
+        {
+            "from_task_id": parent_task.get("id", ""),
+            "to_task_id": new_task.get("id", ""),
+            "client_event_count": len(client_events),
+            "changed_slide_count": (diff.get("totals") or {}).get("changed_slide_count", 0),
+        },
+    )
+    append_journey_event(
+        journey,
+        "edit_analyzed",
+        "system",
+        "已分析版本差异和编辑器动作,生成下一轮质量改进信号。",
+        {"diff_totals": diff.get("totals", {})},
+    )
+    if new_task.get("status") == "succeeded":
+        append_journey_event(journey, "edited_result_ready", "system", "精调后的新版本已可预览、编辑和下载。")
+    else:
+        append_journey_event(journey, "edited_result_failed", "system", "精调后的新版本生成失败。", {"error": new_task.get("error")})
+
+    upsert_journey_version(journey, parent_task, before_deck)
+    upsert_journey_version(journey, new_task, after_deck)
+    insights = write_journey_artifacts(Path(new_task["output_dir"]), journey)
+    append_learning_event(new_task, journey, insights)
+
+
 def edit_task(task_id: str, payload: dict[str, Any], *, base_url: str | None = None) -> dict[str, Any]:
     task = load_task(task_id)
     task_dir = RUNS_DIR / task_id
@@ -1310,6 +1899,8 @@ def edit_task(task_id: str, payload: dict[str, Any], *, base_url: str | None = N
 
     source_deck = read_json(deck_path)
     edited_deck = apply_edit_payload(source_deck, payload)
+    diff = summarize_deck_changes(source_deck, edited_deck, payload)
+    client_events = sanitize_client_events(payload.get("client_events"))
     request_path = task_dir / "input" / "request.json"
     original_request = read_json(request_path) if request_path.exists() else {}
     outline_path = task_dir / "input" / "outline.json"
@@ -1335,6 +1926,7 @@ def edit_task(task_id: str, payload: dict[str, Any], *, base_url: str | None = N
     new_task["parent_task_id"] = task_id
     new_task["version"] = version
     new_task["edit_source"] = "deck_json"
+    update_edit_journey(task, new_task, payload, source_deck, edited_deck, diff, client_events)
     save_task(new_task_dir, new_task)
     return new_task
 
@@ -1356,7 +1948,7 @@ def create_or_run_task(
         if isinstance(request.get("deck_json"), dict)
         else brief_value(brief, "customer_name", "title", "brief", default="deck")
     )
-    task_id = task_id or f"generator-{datetime.now():%Y%m%d-%H%M%S}-{slugify(str(title_source))}"
+    task_id = task_id or unique_generated_task_id(str(title_source))
     task_dir, input_dir, output_dir, log_dir = task_paths(task_id)
     if task_dir.exists():
         shutil.rmtree(task_dir)
@@ -1380,25 +1972,50 @@ def create_or_run_task(
         task.update(metadata)
     save_task(task_dir, task)
     write_json(input_dir / "request.json", request)
+    journey = new_journey(task, request, source)
 
     try:
         if request.get("outline"):
             outline = request["outline"]
+            append_journey_event(journey, "outline_loaded", "system", "使用请求中提供的 outline。")
         else:
             outline = brief_to_outline(brief)
+            append_journey_event(
+                journey,
+                "outline_created",
+                "system",
+                "根据 brief 生成保守 outline,并记录开放问题。",
+                {"open_questions": len(outline.get("open_questions") or [])},
+            )
         write_json(input_dir / "outline.json", outline)
 
         if request.get("deck_json"):
             deck = request["deck_json"]
+            append_journey_event(
+                journey,
+                "deckjson_loaded",
+                "system",
+                "使用请求中提供的 DeckJSON 作为源文件。",
+                {"slide_count": len(deck.get("slides", [])) if isinstance(deck, dict) else 0},
+            )
         else:
             deck = outline_to_deck(outline)
+            append_journey_event(
+                journey,
+                "deckjson_created",
+                "system",
+                "将 outline 编译为 DeckJSON 初稿。",
+                {"slide_count": len(deck.get("slides", [])) if isinstance(deck, dict) else 0},
+            )
         write_json(output_dir / "deck.json", deck)
 
         outline_log = log_dir / "outline-validator.txt"
         proc = run_command(["python3", str(OUTLINE_VALIDATOR), str(input_dir / "outline.json")], outline_log)
         task["logs"]["outline_validator"] = str(outline_log)
         if proc.returncode != 0:
+            append_journey_event(journey, "outline_validation_failed", "system", "outline validator 未通过。", {"exit": proc.returncode})
             raise RuntimeError("outline validation failed")
+        append_journey_event(journey, "outline_validated", "system", "outline validator 通过。")
 
         render_log = log_dir / "render.txt"
         render_cmd = ["python3", str(RENDERER), str(output_dir / "deck.json"), str(output_dir), "--shared=copy"]
@@ -1407,9 +2024,12 @@ def create_or_run_task(
         proc = run_command(render_cmd, render_log)
         task["logs"]["render"] = str(render_log)
         if proc.returncode != 0:
+            append_journey_event(journey, "render_failed", "system", "DeckJSON 渲染 HTML 失败。", {"exit": proc.returncode})
             raise RuntimeError("render failed")
+        append_journey_event(journey, "rendered", "system", "DeckJSON 已渲染为 HTML / texts.md / assets。")
 
         write_feedback(output_dir, outline, deck, source)
+        append_journey_event(journey, "feedback_written", "system", "写入 FEEDBACK.md,保留本轮判断和待改进项。")
 
         validator_report = output_dir / "validator-report.md"
         check_log = log_dir / "check-only.txt"
@@ -1420,25 +2040,42 @@ def create_or_run_task(
         task["logs"]["check_only"] = str(check_log)
         task["artifacts"]["validator-report.md"] = str(validator_report)
         if proc.returncode != 0:
+            append_journey_event(journey, "strict_validation_failed", "system", "HTML strict validator 未通过。", {"exit": proc.returncode})
             raise RuntimeError("validator failed under --strict")
+        append_journey_event(journey, "strict_validated", "system", "HTML strict validator 通过。")
+        upsert_journey_version(journey, task, deck)
+        write_journey_artifacts(output_dir, journey)
 
         zip_name = delivery_name(deck)
         package_log = log_dir / "package.txt"
         proc = run_command(["bash", str(PACKAGE), str(output_dir), "--name", zip_name], package_log)
         task["logs"]["package"] = str(package_log)
         if proc.returncode != 0:
+            append_journey_event(journey, "package_failed", "system", "可编辑 zip 打包失败。", {"exit": proc.returncode})
             raise RuntimeError("editable zip packaging failed")
+        append_journey_event(journey, "packaged", "system", "可编辑 zip 已生成。", {"zip_name": zip_name})
 
         missing = assert_required_outputs(output_dir)
         if missing:
+            append_journey_event(journey, "output_contract_failed", "system", "固定交付契约缺少产物。", {"missing": missing})
             raise RuntimeError("missing required outputs: " + ", ".join(missing))
 
         task["status"] = "succeeded"
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、预览链接、编辑器和下载包拿到结果。")
     except Exception as exc:  # noqa: BLE001 - task wrapper should persist any failure.
         task["status"] = "failed"
         task["error"] = str(exc)
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+        append_journey_event(journey, "task_failed", "system", "任务失败,原因已写入 task.json。", {"error": str(exc)})
+    try:
+        deck_for_summary = read_json(output_dir / "deck.json") if (output_dir / "deck.json").exists() else None
+        upsert_journey_version(journey, task, deck_for_summary)
+        insights = write_journey_artifacts(output_dir, journey)
+        if not (metadata and metadata.get("parent_task_id")):
+            append_learning_event(task, journey, insights)
+    except Exception:
+        pass
     save_task(task_dir, task)
     return task
 
@@ -1533,6 +2170,20 @@ class GeneratorHandler(BaseHTTPRequestHandler):
                 self.send_html(200, render_edit_page(parts[1]))
             except FileNotFoundError:
                 self.send_json(404, {"error": "deck not found", "id": parts[1]})
+            return
+        if len(parts) == 3 and parts[0] == "decks" and parts[2] == "journey":
+            try:
+                self.send_html(200, render_journey_page(parts[1]))
+            except FileNotFoundError:
+                self.send_json(404, {"error": "journey not found", "id": parts[1]})
+            return
+        if len(parts) == 3 and parts[0] == "decks" and parts[2] == "insights":
+            try:
+                task = load_task(parts[1])
+                insights = read_json(Path(task["output_dir"]) / "quality-insights.json")
+                self.send_json(200, insights)
+            except FileNotFoundError:
+                self.send_json(404, {"error": "insights not found", "id": parts[1]})
             return
         if len(parts) == 2 and parts[0] == "decks":
             try:
@@ -1630,6 +2281,16 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_journey(args: argparse.Namespace) -> int:
+    task = load_task(args.task_id)
+    output_dir = Path(task["output_dir"])
+    if args.json:
+        print(json.dumps(read_json(output_dir / "journey.json"), ensure_ascii=False, indent=2))
+    else:
+        print((output_dir / "JOURNEY.md").read_text(encoding="utf-8"))
+    return 0
+
+
 def cmd_regenerate(args: argparse.Namespace) -> int:
     request_path = RUNS_DIR / args.task_id / "input" / "request.json"
     if not request_path.exists():
@@ -1671,6 +2332,11 @@ def main(argv: list[str] | None = None) -> int:
     status = sub.add_parser("status", help="print task status JSON")
     status.add_argument("task_id")
     status.set_defaults(func=cmd_status)
+
+    journey = sub.add_parser("journey", help="print task user journey")
+    journey.add_argument("task_id")
+    journey.add_argument("--json", action="store_true", help="print journey.json instead of JOURNEY.md")
+    journey.set_defaults(func=cmd_journey)
 
     regen = sub.add_parser("regenerate", help="rerun an existing task from input/request.json")
     regen.add_argument("task_id")

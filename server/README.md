@@ -9,6 +9,9 @@ and emits the fixed handoff contract:
 - `texts.md`
 - `FEEDBACK.md`
 - `assets-manifest.yaml`
+- `journey.json`
+- `JOURNEY.md`
+- `quality-insights.json`
 - editable `.zip`
 - `task.json`
 - `validator-report.md`
@@ -34,6 +37,13 @@ Read status:
 python3 server/generator.py status <task-id>
 ```
 
+Read the user journey:
+
+```bash
+python3 server/generator.py journey <task-id>
+python3 server/generator.py journey <task-id> --json
+```
+
 Regenerate from the original request:
 
 ```bash
@@ -54,9 +64,17 @@ python3 server/generator.py edit <task-id> --patch edit.json
   "slide_updates": [{ "key": "cover", "data": { "title": "新版标题" } }],
   "delete_slide_keys": ["old-slide"],
   "slide_order": ["cover", "business-gap", "next-step"],
-  "insert_slides": []
+  "insert_slides": [],
+  "client_events": [{ "type": "global_edit", "detail": { "field": "deck-title" } }]
 }
 ```
+
+Every successful create/edit writes a journey bundle into the task output:
+
+- `journey.json`: full version/event/edit-session trace.
+- `JOURNEY.md`: human-readable story from first request to current result.
+- `quality-insights.json`: aggregated tuning signals and next-generation hints
+  that can be fed back into recipe/layout/copy improvements.
 
 ## HTTP
 
@@ -86,6 +104,8 @@ Endpoints:
 - `GET /decks/{id}`
 - `GET /decks/{id}/status`
 - `GET /decks/{id}/edit`
+- `GET /decks/{id}/journey`
+- `GET /decks/{id}/insights`
 - `POST /decks/{id}/regenerate`
 - `POST /decks/{id}/edits`
 - `GET /decks/{id}/files/index.html`
@@ -103,9 +123,11 @@ Endpoints:
 - delete and reorder pages
 - insert a reusable slide from the local example slide library
 - save as a new task version (`v001`, `v002`, ...)
+- record sanitized edit actions such as text edits, global metadata edits,
+  slide reorder/delete, reusable slide insertion, and save events
 
 `GET /decks/{id}/status` shows task state, artifact links, validator report,
-failure log tail, and sibling versions.
+failure log tail, sibling versions, and journey/quality-insight summaries.
 
 ## Slide Library MVP
 
@@ -166,6 +188,9 @@ assets from live Base during rendering.
 `server/feishu_bot.py` is the first Feishu entry point. It consumes
 `im.message.receive_v1` events, extracts a business brief, asks up to 5 missing
 high-value questions, then calls the local generator and replies with links.
+The clarification flow is passed into generator `interaction_history`, so
+`JOURNEY.md` starts at the user's first bot message rather than only at the
+completed brief.
 
 Run a local text simulation:
 

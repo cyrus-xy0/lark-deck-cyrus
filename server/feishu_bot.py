@@ -279,12 +279,37 @@ def handle_message_text(
 ) -> BotResult:
     pending = state.setdefault("pending", {})
     pending_item = pending.get(conversation_key) or {}
+    interaction_history = list(pending_item.get("interaction_history") or [])
     brief = parse_brief_text(text, pending_item.get("brief"), pending_item.get("missing_keys"))
+    interaction_history.append(
+        {
+            "stage": "bot_message_received",
+            "actor": "user",
+            "summary": "用户在飞书入口提交或补充了 deck 需求。",
+            "data": {
+                "text_chars": len(text),
+                "brief_fields": sorted(brief.keys()),
+                "pending_keys_before": pending_item.get("missing_keys") or [],
+            },
+        }
+    )
     missing = missing_fields(brief)
     if missing:
+        interaction_history.append(
+            {
+                "stage": "bot_clarification_asked",
+                "actor": "system",
+                "summary": "信息不足,bot 追问高价值 brief 字段。",
+                "data": {
+                    "missing_keys": [key for key, _, _ in missing],
+                    "question_count": len(missing),
+                },
+            }
+        )
         pending[conversation_key] = {
             "brief": brief,
             "missing_keys": [key for key, _, _ in missing],
+            "interaction_history": interaction_history[-100:],
             "updated_at": time.time(),
         }
         questions = [question for _, _, question in missing]
@@ -292,7 +317,15 @@ def handle_message_text(
 
     pending.pop(conversation_key, None)
     brief.setdefault("attachments", "无")
-    task = generator.create_or_run_task({"brief": brief}, base_url=base_url)
+    interaction_history.append(
+        {
+            "stage": "bot_brief_completed",
+            "actor": "system",
+            "summary": "关键 brief 字段已补齐,进入生成链路。",
+            "data": {"brief_fields": sorted(brief.keys())},
+        }
+    )
+    task = generator.create_or_run_task({"brief": brief, "interaction_history": interaction_history[-100:]}, base_url=base_url)
     return BotResult(reply=format_task_reply(task), task=task)
 
 

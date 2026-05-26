@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -58,6 +59,11 @@ def main() -> int:
                 return 1
         if feishu_bot.load_state(state_path).get("pending"):
             print("bot pending state was not cleared", file=sys.stderr)
+            return 1
+        journey = json.loads((Path(second.task["output_dir"]) / "journey.json").read_text(encoding="utf-8"))
+        stages = [event.get("stage") for event in journey.get("events", [])]
+        if "bot_clarification_asked" not in stages or "bot_brief_completed" not in stages:
+            print("bot interaction history was not written to journey", file=sys.stderr)
             return 1
 
     print(second.task["output_dir"])

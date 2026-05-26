@@ -138,8 +138,13 @@
   - 删除/重排页面。
   - 从素材库插入已有 slide。
   - 保存后重新渲染,生成新版本 URL。
+- Journey 记录:
+  - 每次生成和精调保留 `journey.json` / `JOURNEY.md` / `quality-insights.json`。
+  - 记录从 brief 到最终版本的事件、版本链、编辑器动作和 DeckJSON diff。
+  - 将高频精调归因到 brief intake、recipe、layout selector、素材检索和文案生成。
 - 任务状态页:
   - 展示生成中、成功、失败原因、validator 报告。
+  - 展示用户旅程、精调信号和下一轮生成建议。
 
 ### P2: 素材库和复用闭环
 
@@ -190,6 +195,7 @@
   - 支持 deck diff 和回滚。
 - 质量看板:
   - 生成量、失败原因、常用 recipe、复用 slide、热门行业。
+  - 汇总 journey / quality insights,持续降低用户手动精调次数和版本数。
 - 生命周期:
   - 过期素材提醒。
   - 敏感客户素材下架。

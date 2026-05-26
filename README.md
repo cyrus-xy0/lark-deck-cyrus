@@ -38,6 +38,8 @@ skill，演进为“场景规划 → 知识库 → 素材库 → DeckJSON → H5
   生成可编辑、可校验、可入库的 HTML deck。
 - **服务端 wrapper** — `server/generator.py` 固化 `Brief -> Outline -> DeckJSON -> HTML`
   链路,生成任务目录、运行 renderer / validator,并输出预览、编辑和下载链接字段。
+- **Journey 学习闭环** — 每次生成和轻量编辑产出 `journey.json`、`JOURNEY.md`、
+  `quality-insights.json`,把用户精调动作转成下一次生成的改进信号。
 - **Pitch 预演** — `skills/pitch-rehearsal-simulator/` 在 HTML deck 之后模拟
   决策者、推动者、使用者、技术和财务角色逐页反应,输出异议地图和改稿队列。
 
