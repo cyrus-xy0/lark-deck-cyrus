@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# feishu-deck-h5 · install script
+# lark-deck-cyrus · install script
 #
 # Installs this skill into Claude Code (or any compatible harness that follows
 # the ~/.claude/skills/ convention) by:
-#   1. Cloning to $INSTALL_DIR (default: ~/Projects/feishu-deck-h5)
+#   1. Cloning to $INSTALL_DIR (default: ~/Projects/lark-deck-cyrus)
 #   2. Symlinking product skills into $CLAUDE_DIR/skills/
 #   3. Running preflight to verify
 #
@@ -12,20 +12,20 @@
 #   git clone <url> tmp && bash tmp/install.sh   # one-shot from anywhere
 #
 # Environment variables:
-#   INSTALL_DIR   where to keep the working clone (default: ~/Projects/feishu-deck-h5)
+#   INSTALL_DIR   where to keep the working clone (default: ~/Projects/lark-deck-cyrus)
 #   CLAUDE_DIR    skill registration root (default: ~/.claude — use ~/.openclaw etc. for other harnesses)
-#   REPO_URL      override the git remote (default: git@github.com:FuQiang/feishu-deck-h5.git)
+#   REPO_URL      override the git remote
 
 set -e
 
-REPO_URL="${REPO_URL:-git@github.com:FuQiang/feishu-deck-h5.git}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/Projects/feishu-deck-h5}"
+REPO_URL="${REPO_URL:-https://github.com/cyrus-xy0/feishu-deck-h5.git}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/Projects/lark-deck-cyrus}"
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 SKILLS_DIR="$CLAUDE_DIR/skills"
-SKILL_NAMES=("deck-outline-planner" "feishu-deck-h5" "pitch-rehearsal-simulator")
-PRIMARY_LINK_PATH="$SKILLS_DIR/feishu-deck-h5"
+SKILL_NAMES=("lark-deck-cyrus" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator")
+PRIMARY_LINK_PATH="$SKILLS_DIR/deck-renderer"
 
-echo "==> feishu-deck-h5 install"
+echo "==> lark-deck-cyrus install"
 echo "    repo:    $REPO_URL"
 echo "    target:  $INSTALL_DIR"
 echo "    skills:  ${SKILL_NAMES[*]}"
@@ -46,17 +46,17 @@ GH_USER="$(echo "$SSH_OUT" | sed -n 's/^Hi \([^!]*\)!.*/\1/p')"
 if ! git ls-remote "$REPO_URL" HEAD >/dev/null 2>&1; then
   cat <<EOF
 
-ERROR — your SSH key works, but you don't have access to FuQiang/feishu-deck-h5
+ERROR — your SSH key works, but you don't have access to the lark-deck-cyrus repo
 (it's a private repo). Send this message to FuQiang on Lark/Feishu:
 
   ──────────────────────────────────────────────────────────────
-  你好 FuQiang，想用一下 feishu-deck-h5 这个 skill，
+  你好，想用一下 lark-deck-cyrus 这个 skill，
   请把我加为仓库 collaborator：
 
   · GitHub 用户名: ${GH_USER:-<你的 GitHub username, 在 https://github.com 登录后右上角>}
-  · 仓库: https://github.com/FuQiang/feishu-deck-h5
-  · 添加入口（FuQiang 这边点）:
-    https://github.com/FuQiang/feishu-deck-h5/settings/access
+  · 仓库: ${REPO_URL}
+  · 添加入口:
+    仓库 Settings > Collaborators / Access
   ──────────────────────────────────────────────────────────────
 
 收到 GitHub 邀请邮件后点 "Accept invitation"，然后重新运行本脚本。

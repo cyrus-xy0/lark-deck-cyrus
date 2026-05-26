@@ -35,7 +35,7 @@
   "variant": "process",
   "source": {
     "level": "synthetic",
-    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "deck": "skills/deck-renderer/deck-json/examples/sample-deck.json",
     "slide_key": "process-4step",
     "owner": "lark-deck-cyrus",
     "approved_by": "system-seed"

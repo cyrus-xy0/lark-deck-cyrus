@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# package-skill.sh — build a portable feishu-deck-h5.zip
+# package-skill.sh — build a portable lark-deck-cyrus.zip
 #
-# Produces feishu-deck-h5-<YYYYMMDD>-<shortsha>.zip in the repo root.
+# Produces lark-deck-cyrus-<YYYYMMDD>-<shortsha>.zip in the repo root.
 # Recipient unzips → moves the inner skill folders into their
 # harness's skills directory (~/.claude/skills/, ~/.openclaw/skills/, …).
 #
@@ -13,14 +13,14 @@
 #   bash package-skill.sh                # from repo root
 #
 # Output:
-#   feishu-deck-h5-<version>.zip   in the repo root.
+#   lark-deck-cyrus-<version>.zip   in the repo root.
 
 set -euo pipefail
 
-PACKAGE_NAME="feishu-deck-h5"
+PACKAGE_NAME="lark-deck-cyrus"
 SKILLS_ROOT="skills"
-PRIMARY_SKILL="feishu-deck-h5"
-SKILL_NAMES=("deck-outline-planner" "feishu-deck-h5" "pitch-rehearsal-simulator")
+PRIMARY_SKILL="deck-renderer"
+SKILL_NAMES=("lark-deck-cyrus" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator")
 
 for SKILL_NAME in "${SKILL_NAMES[@]}"; do
   if [ ! -d "$SKILLS_ROOT/$SKILL_NAME" ]; then
@@ -81,7 +81,7 @@ Quick way (Claude Code on macOS / Linux):
 \`\`\`bash
 unzip $ZIP_NAME
 mkdir -p ~/.claude/skills
-mv deck-outline-planner feishu-deck-h5 pitch-rehearsal-simulator ~/.claude/skills/
+mv lark-deck-cyrus deck-planner deck-renderer deck-auditor pitch-simulator ~/.claude/skills/
 \`\`\`
 
 ## Verify
@@ -99,7 +99,7 @@ a writable mounted folder.
   maintainer for a fresh zip, or use the git-based install in the
   project's \`INSTALL.md\` (requires GitHub access).
 - \`runs/\` (per-invocation outputs) is intentionally excluded from this
-  zip. It will be created at \`~/.claude/skills/feishu-deck-h5/runs/\` (or
+  zip. It will be created at \`~/.claude/skills/deck-renderer/runs/\` (or
   at the repo root when checked out via git) on first use.
 - The skill is fully self-contained — no \`pip install\` or
   \`npm install\` required. Stock Python 3.11+ and a modern browser

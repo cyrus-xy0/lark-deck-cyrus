@@ -1,4 +1,4 @@
-# DESIGN.md — feishu-deck-h5
+# DESIGN.md — deck-renderer
 
 > Brand-safe, dark, cinematic, bilingual (ZH primary / EN secondary) HTML
 > presentation system, derived from the **飞书母版 2025 (深色通用)** PowerPoint
@@ -440,7 +440,7 @@ so modern browsers use the dynamic value while older ones fall back gracefully.
 Drop this block into the system prompt when asking an LLM to extend or generate a slide.
 
 ```
-You are producing a slide for the feishu-deck-h5 design system. Use ONLY the
+You are producing a slide for the deck-renderer design system. Use ONLY the
 tokens defined in DESIGN.md / feishu-deck.css. Hard rules:
 
   COLORS  (CSS variables only)
@@ -490,7 +490,6 @@ If content is missing, use 〔TODO〕 placeholders that are easy to find later.
 
 ### Ready-to-use prompts
 
-> "Produce a single feishu-deck-h5 slide using `data-layout=\"content-3up\"`. Title 「先进团队的工作方式」 / 'The way advanced teams work'. Three pillars: 即时同步、共识对齐、闭环交付. Accent: blue. Eyebrow: CHAPTER 02 / 06. No emoji. No drop shadow. Render the wordmark top-right and the footer with page no. 04. Output only HTML — no Markdown, no preamble."
+> "Produce a single deck-renderer slide using `data-layout=\"content-3up\"`. Title 「先进团队的工作方式」 / 'The way advanced teams work'. Three pillars: 即时同步、共识对齐、闭环交付. Accent: blue. Eyebrow: CHAPTER 02 / 06. No emoji. No drop shadow. Render the wordmark top-right and the footer with page no. 04. Output only HTML — no Markdown, no preamble."
 
 > "Produce a `data-layout=\"stats\"` slide. KPIs: 30万人组织 (秒级触达 3 秒)、98% 已读率、3.2x ROI、< 60 秒 决策时长. Accent: teal. Eyebrow: BUSINESS IMPACT. Footnote: 数据样本 12 家中国头部企业 · 2024 Q3-Q4. Output only HTML."
-

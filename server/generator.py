@@ -36,10 +36,10 @@ import pitch_recipes
 
 REPO = Path(__file__).resolve().parents[1]
 RUNS_DIR = REPO / "runs"
-OUTLINE_VALIDATOR = REPO / "skills/deck-outline-planner/validate-outline.py"
-RENDERER = REPO / "skills/feishu-deck-h5/deck-json/render-deck.py"
-CHECK_ONLY = REPO / "skills/feishu-deck-h5/assets/check-only.sh"
-PACKAGE = REPO / "skills/feishu-deck-h5/assets/package-deliverable.sh"
+OUTLINE_VALIDATOR = REPO / "skills/deck-planner/validate-outline.py"
+RENDERER = REPO / "skills/deck-renderer/deck-json/render-deck.py"
+CHECK_ONLY = REPO / "skills/deck-renderer/assets/check-only.sh"
+PACKAGE = REPO / "skills/deck-renderer/assets/package-deliverable.sh"
 BASE_LIBRARY = REPO / "scripts/base_library.py"
 
 REQUIRED_OUTPUTS = [
@@ -275,6 +275,26 @@ def high_value_questions(brief: dict[str, Any]) -> list[str]:
     return questions[:5]
 
 
+def enrich_slide_plan(slide: dict[str, Any]) -> dict[str, Any]:
+    """Fill required deck-planner talk-intent fields for generated outlines."""
+    out = copy.deepcopy(slide)
+    message = str(out.get("message") or out.get("title") or "本页需要支撑整体 pitch 主线。")
+    title = str(out.get("title") or out.get("key") or "页面")
+    role = str(out.get("role") or "context")
+    assets = normalize_list(out.get("assets"))
+    evidence = normalize_list(out.get("evidence"))
+    risks = normalize_list(out.get("risk_flags"))
+    out.setdefault("key_idea", message)
+    out.setdefault("emphasis", f"让客户在这一页明确理解: {message}")
+    out.setdefault("talk_track", f"讲这一页时先点题“{title}”,再用业务语境解释为什么它会影响下一步决策。")
+    out.setdefault("proof_needed", evidence)
+    out.setdefault("asset_need", assets)
+    out.setdefault("risk", risks)
+    if role not in {"cover", "closing"} and not out["risk"]:
+        out["risk"] = ["缺少客户事实时,只能作为待验证判断。"]
+    return out
+
+
 def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
     pitch_plan = pitch_recipes.plan_pitch(brief)
     recipe = pitch_plan["recipe"]
@@ -387,6 +407,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "assets": [],
         },
     ]
+    slides = [enrich_slide_plan(slide) for slide in slides]
 
     return {
         "version": "1.0",
@@ -475,7 +496,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             or ["试点范围、指标口径和客户版本边界。"],
         },
         "handoff": {
-            "target_skill": "feishu-deck-h5",
+            "target_skill": "deck-renderer",
             "deckjson_strategy": "direct",
             "notes": "generator wrapper 生成确定性初稿;真实客户交付前应补齐 open questions。",
         },

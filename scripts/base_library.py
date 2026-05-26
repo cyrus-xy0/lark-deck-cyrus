@@ -188,9 +188,13 @@ def shared_asset_records(config: dict[str, Any], identity: str) -> list[dict[str
     return [
         row
         for row in rows
-        if scalar(row.get("本地路径")).startswith("skills/feishu-deck-h5/assets/shared/")
+        if scalar(row.get("本地路径")).startswith("skills/deck-renderer/assets/shared/")
         and Path(scalar(row.get("本地路径"))).name not in SKIP_INDEX_NAMES
     ]
+
+
+def normalize_shared_asset_path(path: str) -> str:
+    return path
 
 
 def sync_shared_assets(config: dict[str, Any], identity: str, overwrite: bool, quiet: bool) -> dict[str, int]:
@@ -198,7 +202,7 @@ def sync_shared_assets(config: dict[str, Any], identity: str, overwrite: bool, q
     downloaded = 0
     skipped = 0
     for row in records:
-        target = REPO / scalar(row.get("本地路径"))
+        target = REPO / normalize_shared_asset_path(scalar(row.get("本地路径")))
         if download_attachment(config, "assets", row, target, identity, overwrite):
             downloaded += 1
         else:
@@ -211,8 +215,8 @@ def sync_shared_assets(config: dict[str, Any], identity: str, overwrite: bool, q
 def asset_index_from_base(config: dict[str, Any], identity: str) -> dict[str, Any]:
     items = []
     for row in shared_asset_records(config, identity):
-        full_path = scalar(row.get("本地路径"))
-        rel_path = full_path.removeprefix("skills/feishu-deck-h5/")
+        full_path = normalize_shared_asset_path(scalar(row.get("本地路径")))
+        rel_path = full_path.removeprefix("skills/deck-renderer/")
         attachments = attachment_list(row)
         size_bytes = int(attachments[0].get("size", 0)) if attachments else int(float(row.get("大小KB") or 0) * 1024)
         items.append(

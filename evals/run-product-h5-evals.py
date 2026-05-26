@@ -18,11 +18,11 @@ from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
-OUTLINE_VALIDATOR = REPO / "skills/deck-outline-planner/validate-outline.py"
-RENDERER = REPO / "skills/feishu-deck-h5/deck-json/render-deck.py"
-CHECK_ONLY = REPO / "skills/feishu-deck-h5/assets/check-only.sh"
-REHEARSAL_SIM = REPO / "skills/pitch-rehearsal-simulator/simulate-pitch.py"
-REHEARSAL_VALIDATOR = REPO / "skills/pitch-rehearsal-simulator/validate-rehearsal.py"
+OUTLINE_VALIDATOR = REPO / "skills/deck-planner/validate-outline.py"
+RENDERER = REPO / "skills/deck-renderer/deck-json/render-deck.py"
+CHECK_ONLY = REPO / "skills/deck-renderer/assets/check-only.sh"
+REHEARSAL_SIM = REPO / "skills/pitch-simulator/simulate-pitch.py"
+REHEARSAL_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py"
 CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
 
@@ -210,6 +210,7 @@ def outline_case(
     unsupported: list[str],
     confirmations: list[str],
 ) -> dict:
+    slides = [enrich_slide_plan(slide) for slide in slides]
     return {
         "version": "1.0",
         "brief": {
@@ -253,11 +254,28 @@ def outline_case(
             "needs_user_confirmation": confirmations,
         },
         "handoff": {
-            "target_skill": "feishu-deck-h5",
+            "target_skill": "deck-renderer",
             "deckjson_strategy": "direct",
             "notes": "本 eval 直接生成 DeckJSON,真实客户交付前仍需用户确认 open questions。",
         },
     }
+
+
+def enrich_slide_plan(slide: dict) -> dict:
+    out = dict(slide)
+    message = str(out.get("message") or out.get("title") or "本页需要支撑整体 pitch 主线。")
+    title = str(out.get("title") or out.get("key") or "页面")
+    role = str(out.get("role") or "context")
+    assets = out.get("assets") if isinstance(out.get("assets"), list) else []
+    evidence = out.get("evidence") if isinstance(out.get("evidence"), list) else []
+    risks = out.get("risk_flags") if isinstance(out.get("risk_flags"), list) else []
+    out.setdefault("key_idea", message)
+    out.setdefault("emphasis", f"让客户在这一页明确理解: {message}")
+    out.setdefault("talk_track", f"讲这一页时先点题“{title}”,再用业务语境解释为什么它会影响下一步决策。")
+    out.setdefault("proof_needed", list(evidence))
+    out.setdefault("asset_need", list(assets))
+    out.setdefault("risk", list(risks) or ([] if role in {"cover", "closing"} else ["缺少客户事实时,只能作为待验证判断。"]))
+    return out
 
 
 def common_assets(*ids: str) -> list[dict]:

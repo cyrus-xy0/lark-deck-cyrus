@@ -35,7 +35,7 @@
   "variant": "before-after",
   "source": {
     "level": "synthetic",
-    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "deck": "skills/deck-renderer/deck-json/examples/phase-1c-extras.json",
     "slide_key": "before-after-demo",
     "owner": "lark-deck-cyrus",
     "approved_by": "system-seed"

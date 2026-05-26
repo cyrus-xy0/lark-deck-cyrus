@@ -28,7 +28,7 @@ Create from an existing DeckJSON source:
 
 ```bash
 python3 server/generator.py create \
-  --deck-json skills/feishu-deck-h5/deck-json/examples/sample-deck.json
+  --deck-json skills/deck-renderer/deck-json/examples/sample-deck.json
 ```
 
 Read status:
@@ -139,6 +139,14 @@ P2 starts with a local split library:
   assets, and product icon index.
 - `library/business/slides/*.json`: approved reusable business slides.
 - `library/business/candidates/*.json`: GTM-marked slides waiting for review.
+- `library/knowledge/candidates/*.json`: "讲什么" candidates for `deck-planner`
+  (scenario, key idea, emphasis, talk track, proof needed, risk).
+- `library/presentation/candidates/*.json`: "怎么呈现" candidates for
+  `deck-renderer` (DeckJSON fragment, layout, variant, thumbnail, visual pattern).
+
+Ingest evaluates these layers separately. A generated slide may be reusable as
+planner knowledge but not as a visual pattern, or reusable as a renderer pattern
+but too customer-specific to become planning knowledge.
 
 Gate and search:
 
@@ -159,6 +167,9 @@ python3 server/slide_library.py mark-reuse \
   --deck-type 客户pitch \
   --tag 值得复用
 ```
+
+This writes the legacy business candidate and, when suitable, split candidates
+for the knowledge layer and presentation layer.
 
 Approve a reviewed candidate into the Business Library:
 

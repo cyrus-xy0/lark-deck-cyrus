@@ -1,4 +1,4 @@
-# feishu-deck-h5
+# lark-deck-cyrus
 
 > **飞书风格的客户提案 deck，但是 HTML 不是 PPT。**
 > 浏览器全屏放映、单文件发 IM、文本编辑器改字、视觉与飞书母版完全对齐。
@@ -19,35 +19,37 @@
 - **文字用记事本改** — 配套 `texts.md` 文本侧文件，改文字不动布局
 - **视觉跟飞书品牌完全对齐** — 15 个 DeckJSON layout enum（13 个常规 + 2 个 special）沿用飞书母版坐标，色值/字号/留白由 renderer 和 validator 约束
 
-更完整的产品方向见 [`PRODUCT.md`](PRODUCT.md):本项目正在从单个 H5 生成
-skill，演进为“场景规划 → 知识库 → 素材库 → DeckJSON → H5 渲染 → Pitch 预演
-→ 反馈入库”的产品闭环。
+更完整的产品方向见 [`PRODUCT.md`](PRODUCT.md):本项目是 `lark-deck-cyrus`
+总控 skill，串联“场景规划 → 知识库 → 素材库 → DeckJSON → HTML 渲染 → 质量验收
+→ Pitch 预演 → 用户确认迭代 → 反馈入库”的产品闭环。
 
 ---
 
 ## 产品化能力
 
-- **outline planner** — `skills/deck-outline-planner/` 先判断行业痛点、受众、
-  证据缺口、素材计划和页级 layout candidate,避免只做视觉 demo。
+- **deck planner** — `skills/deck-planner/` 先判断行业痛点、受众、
+  每页重点、关键 idea、讲法、证据缺口、素材计划和页级 layout candidate,避免只做视觉 demo。
 - **知识库** — 飞书 Base `知识库` 是 source of truth; `knowledge/` / `.base-cache/`
   只作为本地副本。
 - **素材索引** — 飞书 Base `素材库` 统一索引 logo、图片、video、icon、demo 等素材;
   `assets/shared/asset-index.generated.json` 由 Base 导出,本地 agent 和飞书 bot 共用
   `scripts/base_library.py` 这一套访问入口。
-- **H5 渲染** — `skills/feishu-deck-h5/` 消费 outline,优先用 DeckJSON-first
-  生成可编辑、可校验、可入库的 HTML deck。
+- **HTML deck 渲染** — `skills/deck-renderer/` 消费 outline,优先用 DeckJSON-first
+  生成可编辑、可交付的 HTML deck。
+- **质量验收** — `skills/deck-auditor/` 统一解释 validator、screenshot、gate、
+  交付包和可讲性问题,并把修改项分流回 planner 或 renderer。
 - **服务端 wrapper** — `server/generator.py` 固化 `Brief -> Outline -> DeckJSON -> HTML`
   链路,生成任务目录、运行 renderer / validator,并输出预览、编辑和下载链接字段。
 - **Journey 学习闭环** — 每次生成和轻量编辑产出 `journey.json`、`JOURNEY.md`、
   `quality-insights.json`,把用户精调动作转成下一次生成的改进信号。
-- **Pitch 预演** — `skills/pitch-rehearsal-simulator/` 在 HTML deck 之后模拟
+- **Pitch 预演** — `skills/pitch-simulator/` 在 HTML deck 之后模拟
   决策者、推动者、使用者、技术和财务角色逐页反应,输出异议地图和改稿队列。
 
 ---
 
 ## 为什么不直接用 PowerPoint
 
-| | PowerPoint .pptx | feishu-deck-h5 .html |
+| | PowerPoint .pptx | lark-deck-cyrus .html |
 |---|---|---|
 | 文件大小 | 几十 MB 起步 | 24-360 KB |
 | 需要 Office license | 是 | 否（任何浏览器都能开） |
@@ -94,7 +96,7 @@ skill，演进为“场景规划 → 知识库 → 素材库 → DeckJSON → H5
 - **飞书产品官方 logo** — aily / 多维表格 / 妙搭 / 飞书会议 / 飞书人事 / 集成平台
   等全套产品标识，无需自己画 SVG。
 
-完整 layout 规格 + 11 个叙事模式 + UI 原语清单见 [SKILL.md](skills/feishu-deck-h5/SKILL.md)。
+完整 layout 规格 + 11 个叙事模式 + UI 原语清单见 [deck-renderer/SKILL.md](skills/deck-renderer/SKILL.md)。
 
 ---
 
@@ -110,18 +112,19 @@ skill，演进为“场景规划 → 知识库 → 素材库 → DeckJSON → H5
 
 **让 Claude 帮你装 + 帮你做**，一句话：
 
-> "帮我安装 feishu-deck-h5 skill：https://github.com/FuQiang/feishu-deck-h5，
+> "帮我安装 lark-deck-cyrus skill：https://github.com/cyrus-xy0/feishu-deck-h5，
 > 装完帮我做一份关于〔你的主题〕的 deck"
 
 Claude 会读 [INSTALL.md](INSTALL.md) 走标准安装流程（plugin marketplace 或 install.sh），
-然后按 [SKILL.md](skills/feishu-deck-h5/SKILL.md) 的规范生成 deck。
+然后按 [lark-deck-cyrus/SKILL.md](skills/lark-deck-cyrus/SKILL.md) 的总控流程生成 deck。
 
-如果你只有一段业务场景 brief,推荐先让 agent 使用 `deck-outline-planner`
-产出 outline,确认后再交给 `feishu-deck-h5` 渲染。
+如果你只有一段业务场景 brief,推荐先让 agent 使用 `deck-planner`
+产出 outline,确认后再交给 `deck-renderer` 渲染。
 
-如果已经生成了 HTML deck,可以继续让 agent 使用 `pitch-rehearsal-simulator`
-预演“拿这套片子去讲会发生什么”,产出 `pitch-rehearsal.json` 和
-`PITCH_REHEARSAL.md`,再把修改队列回写到 outline / deck.json。
+如果已经生成了 HTML deck,先让 agent 使用 `deck-auditor` 做质量验收。需要模拟
+客户反应时,再使用 `pitch-simulator` 预演“拿这套片子去讲会发生什么”,产出
+`pitch-rehearsal.json` 和 `PITCH_REHEARSAL.md`;用户确认采纳后,再把修改队列
+回写到 outline / deck.json。
 
 ---
 
@@ -130,7 +133,8 @@ Claude 会读 [INSTALL.md](INSTALL.md) 走标准安装流程（plugin marketplac
 | 内容 | 文档 |
 |---|---|
 | 安装路径（marketplace / install.sh / 手动 clone） | [INSTALL.md](INSTALL.md) |
-| 15 layout enum + 11 叙事模式 + 27 UI 原语 + 55 自检项 | [SKILL.md](skills/feishu-deck-h5/SKILL.md) |
+| 总控流程 | [lark-deck-cyrus/SKILL.md](skills/lark-deck-cyrus/SKILL.md) |
+| 15 layout enum + 11 叙事模式 + 27 UI 原语 + 55 自检项 | [deck-renderer/SKILL.md](skills/deck-renderer/SKILL.md) |
 | 9-section 完整设计系统 | [DESIGN.md](DESIGN.md) |
 
 ---

@@ -1,12 +1,12 @@
 {
-  "name": "feishu-deck-h5",
+  "name": "lark-deck-cyrus",
   "owner": {
     "name": "FuQiang",
     "url": "https://github.com/FuQiang"
   },
   "plugins": [
     {
-      "name": "feishu-deck-h5",
+      "name": "lark-deck-cyrus",
       "source": "./",
       "description": "场景规划 + 飞书风格 HTML deck 生成 + pitch 预演技能 — outline planner、素材库、DeckJSON、H5 渲染、客户反应模拟",
       "version": "1.2.0",

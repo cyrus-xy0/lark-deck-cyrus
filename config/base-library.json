@@ -60,9 +60,9 @@
     }
   },
   "local_cache": {
-    "shared_assets": "skills/feishu-deck-h5/assets/shared",
+    "shared_assets": "skills/deck-renderer/assets/shared",
     "knowledge": ".base-cache/knowledge",
-    "asset_index": "skills/feishu-deck-h5/assets/shared/asset-index.generated.json"
+    "asset_index": "skills/deck-renderer/assets/shared/asset-index.generated.json"
   },
   "policy": {
     "source_of_truth": "飞书 Base",

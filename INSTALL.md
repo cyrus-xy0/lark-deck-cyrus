@@ -1,7 +1,7 @@
 # Install — agent-readable spec
 
-> This file is the canonical install procedure for the lark deck product skills:
-> `deck-outline-planner`, `feishu-deck-h5`, and `pitch-rehearsal-simulator`.
+> This file is the canonical install procedure for the lark-deck-cyrus product skills:
+> `lark-deck-cyrus`, `deck-planner`, `deck-renderer`, `deck-auditor`, and `pitch-simulator`.
 > If you are a Claude (or any AI agent) and the user asked you to install
 > this skill from a git URL, follow these steps in order.
 > If you are a human, [README.md](./README.md) is friendlier.
@@ -10,7 +10,7 @@
 
 Tell your Claude agent:
 
-> "帮我安装 feishu-deck-h5 这个 skill：`git@github.com:FuQiang/feishu-deck-h5.git`"
+> "帮我安装 lark-deck-cyrus 这个 skill：`https://github.com/cyrus-xy0/feishu-deck-h5.git`"
 
 The agent will detect your harness, install the product skills, and verify.
 
@@ -27,13 +27,13 @@ Run these checks **in order**, stop at the first match:
 **Action — instruct the user to run:**
 
 ```
-/plugin marketplace add git@github.com:FuQiang/feishu-deck-h5.git
-/plugin install feishu-deck-h5@feishu-deck-h5
+/plugin marketplace add https://github.com/cyrus-xy0/feishu-deck-h5.git
+/plugin install lark-deck-cyrus@lark-deck-cyrus
 ```
 
 Then restart the session. (Slash commands cannot be invoked by an agent — the user has to type them.)
 
-**Verify:** after restart, `bash ~/.claude/skills/feishu-deck-h5/assets/preflight.sh` should print `PREFLIGHT OK`.
+**Verify:** after restart, `bash ~/.claude/skills/deck-renderer/assets/preflight.sh` should print `PREFLIGHT OK`.
 
 ### 2. install.sh path (any harness with `~/.claude/skills/` convention)
 
@@ -42,9 +42,9 @@ Then restart the session. (Slash commands cannot be invoked by an agent — the 
 **Action — run as the user:**
 
 ```bash
-git clone git@github.com:FuQiang/feishu-deck-h5.git /tmp/feishu-deck-h5-installer
-bash /tmp/feishu-deck-h5-installer/install.sh
-rm -rf /tmp/feishu-deck-h5-installer
+git clone https://github.com/cyrus-xy0/feishu-deck-h5.git /tmp/lark-deck-cyrus-installer
+bash /tmp/lark-deck-cyrus-installer/install.sh
+rm -rf /tmp/lark-deck-cyrus-installer
 ```
 
 For non-Claude-Code harnesses (e.g. openclaw if it uses a different skill root), set `CLAUDE_DIR` first:
@@ -53,19 +53,22 @@ For non-Claude-Code harnesses (e.g. openclaw if it uses a different skill root),
 CLAUDE_DIR=~/.openclaw bash install.sh
 ```
 
-**Verify:** the script symlinks `deck-outline-planner`, `feishu-deck-h5`, and
-`pitch-rehearsal-simulator`, then auto-runs `preflight.sh` for the H5 renderer.
+**Verify:** the script symlinks exactly five skills: `lark-deck-cyrus`,
+`deck-planner`, `deck-renderer`, `deck-auditor`, and `pitch-simulator`, then
+auto-runs `preflight.sh` for `deck-renderer`.
 Look for `PREFLIGHT OK`.
 
 ### 3. Manual path (fallback when nothing else fits)
 
 ```bash
-git clone git@github.com:FuQiang/feishu-deck-h5.git ~/Projects/feishu-deck-h5
+git clone https://github.com/cyrus-xy0/feishu-deck-h5.git ~/Projects/lark-deck-cyrus
 mkdir -p ~/.claude/skills
-ln -s ~/Projects/feishu-deck-h5/skills/deck-outline-planner ~/.claude/skills/deck-outline-planner
-ln -s ~/Projects/feishu-deck-h5/skills/feishu-deck-h5 ~/.claude/skills/feishu-deck-h5
-ln -s ~/Projects/feishu-deck-h5/skills/pitch-rehearsal-simulator ~/.claude/skills/pitch-rehearsal-simulator
-bash ~/.claude/skills/feishu-deck-h5/assets/preflight.sh
+ln -s ~/Projects/lark-deck-cyrus/skills/lark-deck-cyrus ~/.claude/skills/lark-deck-cyrus
+ln -s ~/Projects/lark-deck-cyrus/skills/deck-planner ~/.claude/skills/deck-planner
+ln -s ~/Projects/lark-deck-cyrus/skills/deck-renderer ~/.claude/skills/deck-renderer
+ln -s ~/Projects/lark-deck-cyrus/skills/deck-auditor ~/.claude/skills/deck-auditor
+ln -s ~/Projects/lark-deck-cyrus/skills/pitch-simulator ~/.claude/skills/pitch-simulator
+bash ~/.claude/skills/deck-renderer/assets/preflight.sh
 ```
 
 ---
@@ -73,14 +76,14 @@ bash ~/.claude/skills/feishu-deck-h5/assets/preflight.sh
 ## Prerequisites (verify before installing)
 
 - SSH key registered with GitHub: `ssh -T git@github.com` returns `Hi <user>!`
-- Collaborator access on `FuQiang/feishu-deck-h5` (repo is private — ask FuQiang)
+- Collaborator access if the repository is private
 - `python3`, `bash`, `node` on PATH (used by build/validate)
 
 If `ssh -T git@github.com` fails, stop and ask the user to set up their SSH key first — every install path depends on it.
 
 ### Don't have collaborator access yet?
 
-If `git ls-remote git@github.com:FuQiang/feishu-deck-h5.git HEAD` fails with
+If `git ls-remote <repo-url> HEAD` fails with
 "Repository not found" or "Permission denied" but `ssh -T git@github.com`
 works, the user has SSH set up but is not yet a collaborator on this private
 repo.
@@ -101,11 +104,12 @@ Do **not** try to add them as a collaborator via `gh api` — only the repo owne
 ## Repo structure (so agents know what they cloned)
 
 ```
-.claude-plugin/marketplace.json   ← present means: plugin path supported
 .claude-plugin/plugin.json
-skills/deck-outline-planner/SKILL.md
-skills/feishu-deck-h5/SKILL.md    ← present means: manual/install.sh path supported
-skills/pitch-rehearsal-simulator/SKILL.md
+skills/lark-deck-cyrus/SKILL.md
+skills/deck-planner/SKILL.md
+skills/deck-renderer/SKILL.md            ← present means: manual/install.sh path supported
+skills/deck-auditor/SKILL.md
+skills/pitch-simulator/SKILL.md
 install.sh                        ← present means: install.sh path supported
 INSTALL.md                        ← this file
 README.md                         ← human-facing docs

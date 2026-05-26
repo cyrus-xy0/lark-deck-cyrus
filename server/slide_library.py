@@ -5,6 +5,16 @@ This module is the first productized boundary between the generator/editor and
 reusable team assets. Feishu Base remains the long-term source of truth; this
 local library gives CI, demos, and offline workers a deterministic gate/search
 contract.
+
+Reuse is intentionally split into two layers:
+
+- knowledge candidates: "讲什么" assets for deck-planner, such as scenario,
+  key idea, proof strategy, objections, and talk track.
+- presentation candidates: "怎么呈现" assets for deck-renderer, such as
+  DeckJSON fragments, layout choices, thumbnails, and reusable visual patterns.
+
+A generated slide can be strong in one layer and weak in the other; ingest must
+judge them separately rather than treating a slide as a single reusable unit.
 """
 
 from __future__ import annotations
@@ -20,8 +30,10 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 BUSINESS_LIBRARY = REPO / "library/business/slides"
 CANDIDATES_DIR = REPO / "library/business/candidates"
+KNOWLEDGE_CANDIDATES_DIR = REPO / "library/knowledge/candidates"
+PRESENTATION_CANDIDATES_DIR = REPO / "library/presentation/candidates"
 DESIGN_KIT = REPO / "library/design-kit/manifest.json"
-EXAMPLE_DECKS = REPO / "skills/feishu-deck-h5/deck-json/examples"
+EXAMPLE_DECKS = REPO / "skills/deck-renderer/deck-json/examples"
 RUNS_DIR = REPO / "runs"
 
 ALLOWED_SOURCE_LEVELS = {
@@ -113,6 +125,21 @@ def slide_title(slide: dict[str, Any]) -> str:
 
 def slide_text(slide: dict[str, Any]) -> str:
     return "\n".join(text_values(slide.get("data") or {})).strip()
+
+
+def parse_notes(notes: Any) -> dict[str, list[str]]:
+    if not isinstance(notes, str):
+        return {}
+    parsed: dict[str, list[str]] = {}
+    for raw in notes.splitlines():
+        if ":" not in raw:
+            continue
+        key, value = raw.split(":", 1)
+        key = key.strip()
+        values = [item.strip() for item in value.split(" / ") if item.strip()]
+        if key and values:
+            parsed[key] = values
+    return parsed
 
 
 def load_design_kit() -> dict[str, Any]:
@@ -335,6 +362,149 @@ def summarize_entry(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def outline_slide_for_task(task_id: str, slide_key: str) -> dict[str, Any]:
+    outline_path = RUNS_DIR / task_id / "input/outline.json"
+    if not outline_path.exists():
+        return {}
+    try:
+        outline = read_json(outline_path)
+    except Exception:
+        return {}
+    slides = ((outline.get("outline") or {}).get("slides") or [])
+    if not isinstance(slides, list):
+        return {}
+    return next((item for item in slides if isinstance(item, dict) and item.get("key") == slide_key), {})
+
+
+def first_note_or_plan(notes: dict[str, list[str]], outline_slide: dict[str, Any], key: str, fallback: str = "") -> str:
+    value = outline_slide.get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    values = notes.get(key) or []
+    return values[0] if values else fallback
+
+
+def list_note_or_plan(notes: dict[str, list[str]], outline_slide: dict[str, Any], key: str, fallback_keys: list[str] | None = None) -> list[str]:
+    value = outline_slide.get(key)
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    values = notes.get(key) or []
+    if values:
+        return values
+    for fallback_key in fallback_keys or []:
+        fallback = outline_slide.get(fallback_key)
+        if isinstance(fallback, list):
+            return [str(item).strip() for item in fallback if str(item).strip()]
+        fallback_values = notes.get(fallback_key) or []
+        if fallback_values:
+            return fallback_values
+    return []
+
+
+def assess_reuse_layers(slide: dict[str, Any], metadata: dict[str, Any], outline_slide: dict[str, Any] | None = None) -> dict[str, Any]:
+    outline_slide = outline_slide or {}
+    notes = parse_notes(slide.get("notes"))
+    text = slide_text(slide)
+    title = metadata.get("title") or slide_title(slide)
+    layout = str(slide.get("layout") or "")
+    sensitive = []
+    haystack = " ".join([title, text, str(slide.get("notes") or "")])
+    for code, pattern in SENSITIVE_PATTERNS:
+        if pattern.search(haystack):
+            sensitive.append(code)
+
+    key_idea = first_note_or_plan(notes, outline_slide, "key_idea", text or title)
+    talk_track = first_note_or_plan(notes, outline_slide, "talk_track")
+    proof_needed = list_note_or_plan(notes, outline_slide, "proof_needed", ["evidence"])
+    risk = list_note_or_plan(notes, outline_slide, "risk", ["risk_flags"])
+    knowledge_ok = bool(key_idea and (talk_track or proof_needed or risk)) and not sensitive
+
+    presentation_ok = bool(layout and layout not in {"raw", "replica"} and slide.get("data")) and not sensitive
+    return {
+        "knowledge": {
+            "verdict": "candidate" if knowledge_ok else "not-suitable",
+            "reason": (
+                "contains reusable pitch intent for planner"
+                if knowledge_ok
+                else "missing talk intent or contains sensitive content"
+            ),
+            "feeds": "deck-planner",
+        },
+        "presentation": {
+            "verdict": "candidate" if presentation_ok else "not-suitable",
+            "reason": (
+                "contains reusable DeckJSON layout/data pattern for renderer"
+                if presentation_ok
+                else "layout/data is not reusable or contains sensitive content"
+            ),
+            "feeds": "deck-renderer",
+        },
+        "sensitive_matches": sensitive,
+    }
+
+
+def split_candidate_payloads(
+    *,
+    entry_id: str,
+    task_id: str,
+    slide_key: str,
+    slide: dict[str, Any],
+    metadata: dict[str, Any],
+    outline_slide: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    title = metadata.get("title") or slide_title(slide)
+    outline_slide = outline_slide or {}
+    notes = parse_notes(slide.get("notes"))
+    assessment = assess_reuse_layers(slide, metadata, outline_slide)
+    base_source = {
+        "level": metadata.get("source_level") or "internal-draft",
+        "deck": f"runs/{task_id}/output/deck.json",
+        "slide_key": slide_key,
+        "owner": metadata.get("owner") or "gtm",
+        "reviewer": metadata.get("reviewer", ""),
+    }
+    knowledge = {
+        "version": "1.0",
+        "id": f"know-{entry_id}",
+        "status": "candidate",
+        "title": title,
+        "feeds": "deck-planner",
+        "industry": normalize_list(metadata.get("industry") or ["待标注"]),
+        "product": normalize_list(metadata.get("product") or ["待标注"]),
+        "customer_stage": normalize_list(metadata.get("customer_stage") or ["待标注"]),
+        "deck_type": normalize_list(metadata.get("deck_type") or ["待标注"]),
+        "planning_unit": {
+            "message": first_note_or_plan(notes, outline_slide, "message", slide_text(slide) or title),
+            "key_idea": first_note_or_plan(notes, outline_slide, "key_idea", slide_text(slide) or title),
+            "emphasis": first_note_or_plan(notes, outline_slide, "emphasis"),
+            "talk_track": first_note_or_plan(notes, outline_slide, "talk_track"),
+            "proof_needed": list_note_or_plan(notes, outline_slide, "proof_needed", ["evidence"]),
+            "asset_need": list_note_or_plan(notes, outline_slide, "asset_need"),
+            "risk": list_note_or_plan(notes, outline_slide, "risk", ["risk_flags"]),
+        },
+        "source": base_source,
+        "assessment": assessment["knowledge"],
+    }
+    presentation = {
+        "version": "1.0",
+        "id": f"present-{entry_id}",
+        "status": "candidate",
+        "title": title,
+        "feeds": "deck-renderer",
+        "thumbnail": metadata.get("thumbnail") or "library/business/thumbnails/pending.svg",
+        "tags": normalize_list(metadata.get("tags") or metadata.get("tag") or ["needs-review"]),
+        "layout": slide.get("layout"),
+        "variant": slide.get("variant", ""),
+        "renderer_unit": {
+            "slide": slide,
+            "insert_suggestion": f"插入为 {slide.get('layout')}{('/' + str(slide.get('variant'))) if slide.get('variant') else ''},再替换客户事实和指标。",
+        },
+        "source": base_source,
+        "assessment": assessment["presentation"],
+    }
+    return {"knowledge": knowledge, "presentation": presentation}
+
+
 def mark_reuse_candidate(task_id: str, slide_key: str, metadata: dict[str, Any]) -> dict[str, Any]:
     deck_path = RUNS_DIR / task_id / "output/deck.json"
     if not deck_path.exists():
@@ -343,6 +513,7 @@ def mark_reuse_candidate(task_id: str, slide_key: str, metadata: dict[str, Any])
     slide = next((item for item in deck.get("slides", []) if item.get("key") == slide_key), None)
     if not slide:
         raise ValueError(f"slide not found: {slide_key}")
+    outline_slide = outline_slide_for_task(task_id, slide_key)
 
     entry_id = re.sub(r"[^a-z0-9-]+", "-", f"candidate-{task_id}-{slide_key}".lower()).strip("-")[:96]
     entry = {
@@ -370,8 +541,31 @@ def mark_reuse_candidate(task_id: str, slide_key: str, metadata: dict[str, Any])
     }
     target = CANDIDATES_DIR / f"{entry_id}.json"
     write_json(target, entry)
+    split_payloads = split_candidate_payloads(
+        entry_id=entry_id,
+        task_id=task_id,
+        slide_key=slide_key,
+        slide=slide,
+        metadata=metadata,
+        outline_slide=outline_slide,
+    )
+    split_paths: dict[str, str] = {}
+    if split_payloads["knowledge"]["assessment"]["verdict"] == "candidate":
+        target_knowledge = KNOWLEDGE_CANDIDATES_DIR / f"{split_payloads['knowledge']['id']}.json"
+        write_json(target_knowledge, split_payloads["knowledge"])
+        split_paths["knowledge"] = repo_rel(target_knowledge)
+    if split_payloads["presentation"]["assessment"]["verdict"] == "candidate":
+        target_presentation = PRESENTATION_CANDIDATES_DIR / f"{split_payloads['presentation']['id']}.json"
+        write_json(target_presentation, split_payloads["presentation"])
+        split_paths["presentation"] = repo_rel(target_presentation)
     check = validate_entry(entry, seen_ids=set(), seen_slide_keys=set())
-    return {"path": repo_rel(target), "entry": summarize_entry(entry), "issues": check}
+    return {
+        "path": repo_rel(target),
+        "entry": summarize_entry(entry),
+        "issues": check,
+        "split_assessment": assess_reuse_layers(slide, metadata, outline_slide),
+        "split_candidate_paths": split_paths,
+    }
 
 
 def candidate_file(candidate_id: str) -> Path:

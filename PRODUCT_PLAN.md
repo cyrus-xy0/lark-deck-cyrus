@@ -48,41 +48,95 @@
 5. **素材可检索可追踪**: logo、icon、案例、demo、优秀 slide 都要有索引、来源和权限边界。
 6. **好内容回流系统**: 每次生成后的 `FEEDBACK.md`、素材引用和通过 gate 的 slide 都要服务下一次复用。
 
-## 4. 端到端产品链路
+## 4. 当前设计共识
+
+当前版本先把系统收敛为一个总控 skill + 四个子 skill。`lark-deck-cyrus`
+不直接生产页面,它只维护从需求澄清到最终可讲 pitch deck 的全局编排。
+
+| Skill | 管什么 | 不管什么 | 关键输出 |
+|---|---|---|---|
+| `lark-deck-cyrus` | 全局编排、上下文闭环、用户确认边界、最终交付说明 | 不直接写页面、不直接给验收结论、不模拟客户反应 | workflow state, handoff context |
+| `deck-planner` | 讲什么:每页 message、key idea、emphasis、talk track、proof needed、asset need、layout candidate、risk | 不负责 HTML 细节和最终视觉 | `outline.json` |
+| `deck-renderer` | 怎么生成:DeckJSON、HTML、sidecar、素材复制、低层 validator 工具、交付包 | 不给“能不能发”的最终验收结论 | `deck.json`, `index.html`, `texts.md`, package |
+| `deck-auditor` | 能不能发:叙事、视觉、素材、交付包、入库门槛的验收和问题分流 | 不直接改 deck、不模拟真实客户反馈 | verdict, blockers, warnings, routing, reuse assessment |
+| `pitch-simulator` | 讲出去会怎样:客户角色反应、异议地图、追问、改稿队列 | 不替代真实客户研究、不自动触发改稿 | `pitch-rehearsal.json`, `PITCH_REHEARSAL.md` |
+
+### 4.1 deck-planner 输出契约
+
+planner 的页级规划必须显式表达“讲法”,而不只是标题和页型。每一页至少包含:
+
+| 字段 | 含义 | 下游用途 |
+|---|---|---|
+| `slide.message` | 这一页要让听众记住的一句话 | renderer 文案和 auditor 可讲性检查 |
+| `slide.key_idea` | 支撑 message 的核心 idea | pitch-simulator 预测异议和追问 |
+| `slide.emphasis` | 现场讲的时候要重读或放大的重点 | renderer 排版权重和 talk track |
+| `slide.talk_track` | 主讲人怎么讲这一页 | rehearsal 和后续讲稿 |
+| `slide.proof_needed` | 需要补的事实、数据、案例或来源 | auditor 证据纪律 |
+| `slide.asset_need` | 需要的 logo、截图、demo、图片或视频 | renderer 素材解析 |
+| `slide.layout_candidate` | 建议页型或 layout 方向 | renderer layout 选择 |
+| `slide.risk` | 这页可能被质疑、误读或缺证据的点 | auditor / simulator 风险输入 |
+
+### 4.2 renderer 与 auditor 边界
+
+`deck-renderer` 可以提供底层 validator、screenshot、gate 工具,但“这份 deck
+是否可以发给客户”必须由 `deck-auditor` 给结论。renderer 的 PASS 只说明技术和
+结构检查通过,不等于叙事可讲、素材可信、交付包完整或适合入库。
+
+### 4.3 预演后的迭代边界
+
+`pitch-simulator` 输出的是客户会议的模拟预演,不是事实反馈。它可以给出
+revision queue,但必须等待用户确认后,才允许总控把这些建议重新输入
+`deck-planner` 和 `deck-renderer`。这样可以避免模拟结果自动覆盖用户原始意图。
+
+### 4.4 Slide Library 双层复用
+
+Slide Library 不只保存“好看的页”。入库时要拆成两层评估,分别服务前序链路:
+
+| 复用层 | 服务对象 | 保存什么 | 典型字段 |
+|---|---|---|---|
+| 知识库候选 | `deck-planner` | 讲什么:场景、主张、证据策略、讲法、风险、异议 | scenario, key idea, proof needed, talk track, risk |
+| 素材库 / 呈现候选 | `deck-renderer` | 怎么呈现:layout、DeckJSON 片段、视觉模式、缩略图、素材引用 | layout, variant, deck fragment, thumbnail, asset refs |
+
+同一页可以只进入知识库、只进入素材库、两者都进入,也可以两者都不进入。
+入库判断的职责归 `deck-auditor`,实际写入和服务端管理归 Slide Library 模块。
+
+## 5. 端到端产品链路
 
 ```text
 飞书 Bot / Web 表单
   -> 需求澄清
-  -> deck-outline-planner 生成结构化 outline
+  -> deck-planner 生成结构化 outline
   -> Pitch Recipe / Layout 选择
   -> 素材库解析和缺口标注
   -> DeckJSON
-  -> feishu-deck-h5 renderer
-  -> validator / screenshot / gate
-  -> pitch-rehearsal-simulator 讲前预演
+  -> deck-renderer
+  -> deck-auditor 质量验收 (validator / screenshot / gate)
+  -> pitch-simulator 预演和改稿建议
+  -> 用户确认后回流 deck-planner / deck-renderer 迭代
   -> HTML 预览链接 + 可编辑包
   -> Web 轻量编辑
   -> 发布客户链接
   -> Slide Library 入库 / 复用
 ```
 
-## 5. 产品架构
+## 6. 产品架构
 
 | 模块 | 产品责任 | 当前基础 | 规划方向 |
 |---|---|---|---|
 | 入口层 | GTM 从哪里开始 | 目前主要是 Codex / skill | 飞书 Bot 为主,Web 表单为辅,Codex 给维护者 |
-| 规划层 | 先把 brief 变成可执行 deck 结构 | `skills/deck-outline-planner/` | 增加 pitch recipe、行业场景和 open questions |
+| 规划层 | 先把 brief 变成可执行 deck 结构 | `skills/deck-planner/` | 增加 pitch recipe、行业场景和 open questions |
 | 知识层 | 行业痛点、产品主张、案例、异议 | 飞书 Base `知识库`; 本地仅副本 | 扩充来源等级和可引用边界 |
 | 素材层 | logo、icon、demo、图片、优秀页 | 飞书 Base `素材库`; `assets/shared/` 仅 cache | 做成可搜索、可预览、可插入的素材库 |
-| 渲染层 | 结构化 deck 到 HTML | DeckJSON、renderer、validator、`server/generator.py` 薄 wrapper | 生产级队列、持久化、静态托管和任务追踪 |
-| 预演层 | 预测这套片子讲给目标受众后的反应 | `skills/pitch-rehearsal-simulator/` | 角色化 audience panel、异议地图、改稿队列、讲法建议 |
+| 渲染层 | 结构化 deck 到 HTML | DeckJSON、renderer、`server/generator.py` 薄 wrapper | 生产级队列、持久化、静态托管和任务追踪 |
+| 验收层 | 交付前质量门禁 | `skills/deck-auditor/`; renderer validator / gate | 独立验收报告、问题分流、发布前准入 |
+| 预演层 | 预测这套片子讲给目标受众后的反应 | `skills/pitch-simulator/` | 角色化 audience panel、异议地图、改稿队列、讲法建议 |
 | 编辑层 | 生成后如何修改 | `texts.md`、DeckJSON、客户端 edit-mode | Web 轻量编辑 deck.json,重新渲染发布 |
 | 发布层 | 成品放在哪里 | 本地 `runs/` | 对象存储 / 静态托管,每份 deck 有 URL 和版本 |
-| 复用层 | 好页如何沉淀 | `data-slide-key`、gate 意识 | slide library 入库、搜索、组合、下载 |
+| 复用层 | 好页如何沉淀 | `data-slide-key`、gate 意识 | 入库时拆成知识库(讲什么)和素材库(怎么呈现),分别服务 planner / renderer |
 
-## 6. MVP 范围
+## 7. MVP 范围
 
-### 6.1 MVP 要解决的问题
+### 7.1 MVP 要解决的问题
 
 让一个 GTM 不需要懂 repo、脚本和模板,也能在飞书里完成:
 
@@ -93,7 +147,7 @@
 5. 修改文字、客户名、logo、页序。
 6. 一键提交优秀页进入素材库候选。
 
-### 6.2 MVP 不做
+### 7.2 MVP 不做
 
 - 不做完整 PowerPoint 替代。
 - 不做开放公网无权限分享。
@@ -101,7 +155,7 @@
 - 不一开始做复杂工作流审批。
 - 不自动编造客户数据、访谈来源、STORY id 或具名引语。
 
-### 6.3 MVP 成功定义
+### 7.3 MVP 成功定义
 
 | 指标 | 目标 |
 |---|---|
@@ -112,7 +166,7 @@
 | 复用沉淀 | 每 10 份 deck 至少沉淀 10 张可复用 slide |
 | 用户信任 | 不出现不可 defend 的虚构数据或来源 |
 
-## 7. 路线图
+## 8. 路线图
 
 ### P0: 生成链路产品化
 
@@ -158,6 +212,7 @@
   - 来源等级明确。
   - 无敏感客户信息泄露。
   - 缩略图、文本、标签、deck 来源完整。
+  - 分层判断:讲法/场景/证据是否适合进入知识库,版式/素材/DeckJSON 片段是否适合进入素材库。
 - 检索能力:
   - 按行业、产品、客户阶段、deck 类型、价值主张、layout 搜索。
   - 返回缩略图和可插入建议。
@@ -201,9 +256,9 @@
   - 敏感客户素材下架。
   - 品牌资产升级后的批量重渲染。
 
-## 8. 关键产品决策
+## 9. 关键产品决策
 
-### 8.1 用户入口
+### 9.1 用户入口
 
 默认入口是 **飞书 Bot**,不是 Codex。
 
@@ -219,7 +274,7 @@
 | Web 工作台 | GTM / PMM | 预览、轻量编辑、素材库检索 |
 | Codex / repo | 维护者 | 模板、validator、schema、批量迁移 |
 
-### 8.2 渲染位置
+### 9.2 渲染位置
 
 生成渲染在服务端,浏览器只负责展示。
 
@@ -232,7 +287,7 @@ brief / deck.json
 
 这样才能统一版本、跑校验、保留源文件、支持重新生成。
 
-### 8.3 素材维护
+### 9.3 素材维护
 
 素材分两类:
 
@@ -241,7 +296,7 @@ brief / deck.json
 | 设计素材 | Design Kit / 当前 repo | 设计系统和工程维护者 |
 | 业务素材 | Slide Library / Base / 对象存储 | GTM、PMM、维护者共同维护 |
 
-### 8.4 修改方式
+### 9.4 修改方式
 
 正式修改链路是:
 
@@ -254,19 +309,20 @@ brief / deck.json
 
 `texts.md` 和 HTML edit-mode 可以作为轻量编辑入口,但最终仍要回写结构化源。
 
-## 9. 当前资产与差距
+## 10. 当前资产与差距
 
-### 9.1 已有基础
+### 10.1 已有基础
 
-- `feishu-deck-h5`: 飞书风格 HTML deck 设计系统、模板、运行时和 validator。
-- `pitch-rehearsal-simulator`: H5 后置预演,模拟购买委员会角色、逐页反应、异议地图和改稿队列。
+- `deck-renderer`: HTML deck 设计系统、模板、运行时和交付包生产。
+- `deck-auditor`: 质量验收,承接 validator / screenshot / gate,判断是否可讲、可发、可入库。
+- `pitch-simulator`: 讲前预演,模拟购买委员会角色、逐页反应、异议地图和改稿队列。
 - `deck-json`: 单一数据模型、schema、renderer、CLI、layout/block 模板。
-- `deck-outline-planner`: 将业务 brief 变成场景、主张、证据缺口、素材计划和页级规划。
+- `deck-planner`: 将业务 brief 变成场景、主张、证据缺口、素材计划和页级规划。
 - `assets/shared`: 已形成公共素材索引,当前 Base 迁移记录包含 571 个 asset、52 条 knowledge。
 - `evals`: 已有 5 个产品级场景 eval,覆盖 outline、render、strict check、截图和评分。
 - `data-slide-key`: 已有 slide library 复用锚点意识。
 
-### 9.2 主要差距
+### 10.2 主要差距
 
 | 差距 | 影响 | 优先级 |
 |---|---|---|
@@ -278,17 +334,18 @@ brief / deck.json
 | 入库流程未闭环 | 好页难持续变成团队资产 | P2 |
 | 文档存在漂移 | 新用户信任和维护成本受影响 | P0 |
 
-## 10. 近期实施建议
+## 11. 近期实施建议
 
-### 10.1 两周内
+### 11.1 两周内
 
 - 整理并合并产品文档,明确 `PRODUCT.md`、`PRODUCT_PLAN.md`、`README.md` 分工。
-- 为 `deck-outline-planner` 增加 3 个 pitch recipe 示例。
-- 把 `pitch-rehearsal-simulator` 接入至少 1 个产品 eval,验证 JSON、报告和回写建议格式。
+- 为 `deck-planner` 增加 3 个 pitch recipe 示例。
+- 把 `deck-auditor` 接入生成链路,让验收结果能明确回到 planner 或 renderer。
+- 把 `pitch-simulator` 接入至少 1 个产品 eval,验证 JSON、报告和用户确认后的回写建议格式。
 - 将 product eval 固定进 CI 或本地一键命令。
 - 梳理文档漂移:layout 数量、inline/finalize、编辑模式、slide library 关系。
 
-### 10.2 一个月内
+### 11.2 一个月内
 
 - 把最薄的 generator wrapper 扩成可部署 service:
   - `POST /decks`
@@ -298,7 +355,7 @@ brief / deck.json
 - 做飞书 Bot 原型:接 brief、问问题、返回链接。
 - 做 Web 预览页:展示 deck、validator 报告、下载链接。
 
-### 10.3 一个季度内
+### 11.3 一个季度内
 
 - 上线轻量编辑器。
 - 上线素材库搜索和插入。
@@ -306,7 +363,7 @@ brief / deck.json
 - 将 Base 中的 asset / knowledge 变成生成时可查询的真实数据源。
 - 形成 20 个真实场景 eval 和 50 张可复用 slide。
 
-## 11. 产品风险
+## 12. 产品风险
 
 | 风险 | 表现 | 应对 |
 |---|---|---|
@@ -316,17 +373,17 @@ brief / deck.json
 | 素材库变垃圾桶 | 所有 deck 都进库 | 入库审核、标签规范、过期下架 |
 | 维护成本膨胀 | 每个客户都要定制模板 | recipe 优先,新增 layout 必须来自重复需求 |
 
-## 12. 北极星指标
+## 13. 北极星指标
 
 建议北极星指标:
 
-> GTM 通过系统生成并实际使用的客户 pitchdeck 数量,以及其中被复用的 slide 数量。
+> GTM 通过系统生成并实际使用的客户 pitchdeck 数量,以及其中被复用的知识单元和呈现单元数量。
 
 配套指标:
 
 - 生成到首次预览的时间。
 - strict validator 通过率。
 - 用户自行完成修改的比例。
-- 每周新增可复用 slide 数。
-- 素材库搜索到插入的转化率。
+- 每周新增可复用知识单元和呈现单元数。
+- 知识库搜索到 planner 采用、素材库搜索到 renderer 插入的转化率。
 - 被重新使用的 deck / slide 占比。

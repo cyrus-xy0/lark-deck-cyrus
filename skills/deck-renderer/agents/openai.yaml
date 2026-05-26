@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deck Renderer"
+  short_description: "Render and validate lark-deck-cyrus H5 decks."
+  default_prompt: "Use deck-renderer to compile DeckJSON and generate the H5 deck artifacts."

@@ -33,7 +33,7 @@ knowledge/
 
 ## outline skill 使用方式
 
-`deck-outline-planner` 在生成 outline 前应读取:
+`deck-planner` 在生成 outline 前应读取:
 
 1. 用户 brief 中明确出现的行业 / 场景对应的 `industries/*`。
 2. 用户提到的飞书产品对应的 `products/*`。

@@ -29,14 +29,14 @@
     "end"
   ],
   "css_tokens": [
-    "skills/feishu-deck-h5/assets/feishu-deck.css",
-    "skills/feishu-deck-h5/deck-json/templates/extra-layouts.css"
+    "skills/deck-renderer/assets/feishu-deck.css",
+    "skills/deck-renderer/deck-json/templates/extra-layouts.css"
   ],
   "brand_assets": [
-    "skills/feishu-deck-h5/assets/lark-logo.png",
-    "skills/feishu-deck-h5/assets/lark-logo-mono-white.png",
-    "skills/feishu-deck-h5/assets/lark-cover-bg.jpg",
-    "skills/feishu-deck-h5/assets/lark-content-bg.jpg"
+    "skills/deck-renderer/assets/lark-logo.png",
+    "skills/deck-renderer/assets/lark-logo-mono-white.png",
+    "skills/deck-renderer/assets/lark-cover-bg.jpg",
+    "skills/deck-renderer/assets/lark-content-bg.jpg"
   ],
-  "product_icon_index": "skills/feishu-deck-h5/assets/shared/asset-index.generated.json"
+  "product_icon_index": "skills/deck-renderer/assets/shared/asset-index.generated.json"
 }

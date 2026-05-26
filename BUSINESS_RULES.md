@@ -1,8 +1,8 @@
-# feishu-deck-h5 · 业务规则审阅文档
+# deck-renderer · 业务规则审阅文档
 
 本文是为**人工技能评审**准备的业务视角索引——把技能里所有强制规则、设计约束、行为边界汇总到一处,方便快速判断"技能在做什么、不做什么、为什么这么定"。
 
-完整源在 `skills/feishu-deck-h5/SKILL.md`(~4900 行)和 `DESIGN.md`(9-section 设计系统);本文不替代它们,只做业务摘要。
+完整源在 `skills/deck-renderer/SKILL.md`(~4900 行)和 `DESIGN.md`(9-section 设计系统);本文不替代它们,只做业务摘要。
 
 > **2026-05-08 重写**:覆盖到 commit `27252f9`。新增资产库 / 转换三模式 / R-LANG / R-KEY / finalize.sh 一条龙,SKILL.md 自检章节由 200 行压成 ~50 行,~280 行文档瘦身。
 
@@ -296,7 +296,7 @@ per-page polish 模式下,源 PDF/PPT 标题必须**逐字**到 HTML——不丢
 ### 库结构
 
 ```
-skills/feishu-deck-h5/assets/
+skills/deck-renderer/assets/
 ├── clientlogo/                          ← 251 张客户 / PE / VC 标识(24 MB)
 ├── digital_employee_avatars_50/         ← 45 张通用 AI 助手肖像
 ├── mydigitalemployee/                   ← 5 个内部命名 persona
@@ -480,9 +480,9 @@ skills/feishu-deck-h5/assets/
 
 ## 完整规范引用
 
-- `skills/feishu-deck-h5/SKILL.md` —— ~4900 行,技能实操细则
+- `skills/deck-renderer/SKILL.md` —— ~4900 行,技能实操细则
 - `DESIGN.md` —— 9-section 设计系统(颜色/字体/组件/布局/响应/品牌等)
-- `skills/feishu-deck-h5/assets/validate.py` —— ~27 个 audit/check 函数
-- `skills/feishu-deck-h5/assets/finalize.sh` —— 一条命令编排 copy-assets / extract-texts / validate / package
-- `skills/feishu-deck-h5/templates/` —— 5 个 Layer 1 模板(_shell / one-pager / quote / big-stat / multi-case-bundle)
-- `skills/feishu-deck-h5/examples/` —— 完整可运行样例
+- `skills/deck-renderer/assets/validate.py` —— ~27 个 audit/check 函数
+- `skills/deck-renderer/assets/finalize.sh` —— 一条命令编排 copy-assets / extract-texts / validate / package
+- `skills/deck-renderer/templates/` —— 5 个 Layer 1 模板(_shell / one-pager / quote / big-stat / multi-case-bundle)
+- `skills/deck-renderer/examples/` —— 完整可运行样例
