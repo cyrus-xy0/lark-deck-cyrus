@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "mode": "base-first",
-  "base_token": "KpQhbR7N4af4AVsoi3Oc1sc1njd",
-  "base_url": "https://bytedance.larkoffice.com/base/KpQhbR7N4af4AVsoi3Oc1sc1njd",
+  "mode": "auto",
+  "base_token": "",
+  "base_url": "",
   "tables": {
     "assets": {
       "id": "tblFAspBOYHniu9V",
@@ -61,12 +61,13 @@
   },
   "local_cache": {
     "shared_assets": "skills/deck-renderer/assets/shared",
-    "knowledge": ".base-cache/knowledge",
+    "knowledge": "knowledge",
+    "base_knowledge": ".base-cache/knowledge",
     "asset_index": "skills/deck-renderer/assets/shared/asset-index.generated.json"
   },
   "policy": {
-    "source_of_truth": "飞书 Base",
-    "local_files": "cache-only",
-    "offline_usage": "explicit-only"
+    "default": "local package cache",
+    "live_base": "optional via LARK_LIBRARY_BASE_TOKEN and lark-cli",
+    "offline_usage": "allowed by default for external installs"
   }
 }

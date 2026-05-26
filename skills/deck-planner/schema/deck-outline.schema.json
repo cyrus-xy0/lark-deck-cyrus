@@ -105,7 +105,7 @@
       "required": ["source", "used_for"],
       "additionalProperties": false,
       "properties": {
-        "source": { "const": "feishu-base" },
+        "source": { "enum": ["feishu-base", "local-cache", "user-provided", "public"] },
         "table": { "type": "string" },
         "record_id": { "type": "string" },
         "doc_id": { "type": "string" },
@@ -266,7 +266,7 @@
         "type": { "enum": ["image", "video", "icon", "logo", "avatar", "demo", "data", "other"] },
         "need": { "type": "string", "minLength": 1 },
         "query": { "type": "string" },
-        "preferred_source": { "enum": ["feishu-base", "user-provided", "generated", "external", "none"] },
+        "preferred_source": { "enum": ["feishu-base", "local-cache", "user-provided", "generated", "external", "none"] },
         "fallback": { "type": "string" },
         "required": { "type": "boolean", "default": false }
       }

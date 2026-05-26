@@ -1,4 +1,4 @@
 interface:
   display_name: "Lark Deck Cyrus"
   short_description: "Plan, render, and rehearse Lark-style H5 pitch decks."
-  default_prompt: "Use lark-deck-cyrus to plan and generate a customer pitch deck."
+  default_prompt: "Use $lark-deck-cyrus to plan and generate a customer pitch deck."

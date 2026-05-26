@@ -1,11 +1,13 @@
 ---
 name: pitch-simulator
 description: |
-  Use this skill after a pitch deck has been planned, rendered, and preferably
-  quality-audited, when the user wants to simulate what will happen if they pitch it to a customer,
+  Use this skill after a pitch deck has been planned or rendered, preferably
+  after quality audit, when the user wants to rehearse pitching it to a customer,
   investor, leader, buying committee, or internal stakeholder. Common triggers:
   "模拟讲这套片子", "用户听完会怎样", "pitch rehearsal", "audience simulator",
   "客户会怎么反应", "拿这份 deck 去讲会有什么结果", "帮我预演这场提案".
+  The output is a scenario forecast and talk-track/revision queue, not real
+  customer research or a sales probability prediction.
 ---
 
 # pitch-simulator

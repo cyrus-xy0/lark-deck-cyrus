@@ -1,11 +1,13 @@
 ---
 name: deck-renderer
 description: |
-  Rendering sub-skill for lark-deck-cyrus. Use when the lark-deck-cyrus controller
-  needs to turn an approved deck-planner plan into DeckJSON, render the HTML
-  deck, or produce index.html/texts.md/FEEDBACK.md/editable package artifacts.
-  This skill owns production and rendering. Quality acceptance is handled by
-  deck-auditor, and customer-reaction rehearsal is handled by pitch-simulator.
+  Production and rendering skill for Cyrus/Lark/Feishu-style H5 decks. Use when
+  an approved outline, deck.json, source material, or existing deck needs to be
+  compiled into DeckJSON, rendered to HTML, edited, converted, packaged, or
+  delivered with index.html/texts.md/FEEDBACK.md assets. It owns production
+  mechanics and low-level validation tooling. User-facing quality acceptance
+  belongs to deck-auditor, and customer-reaction rehearsal belongs to
+  pitch-simulator.
 ---
 
 # deck-renderer
@@ -26,7 +28,7 @@ Before reading anything else in this file, decide which mode the user is in:
 
 | Mode | Trigger phrases / signals | What to do |
 |---|---|---|
-| **CHECK-ONLY** | "帮我检查这份 HTML/deck" · "看看这个 deck 合不合规" · "审一下这个 HTML" · "validate this" · "check the deck" · "扫一遍合规问题" · "这个 HTML 哪里不对" · user hands over a path to an existing `.html` and asks for review WITHOUT asking to generate / modify content | **Jump to "CHECK-ONLY MODE" section below.** SKIP PREFLIGHT, SKIP `new-run.sh`, SKIP `copy-assets`, SKIP everything else in this file. |
+| **CHECK-ONLY** | `deck-auditor` or the controller asks for the low-level validator, or the user explicitly asks only for technical validator output such as "run check-only.sh", "validate this HTML with renderer rules", "只跑底层规则". If the user wants a readiness verdict, route through `deck-auditor` first. | **Jump to "CHECK-ONLY MODE" section below.** SKIP PREFLIGHT, SKIP `new-run.sh`, SKIP `copy-assets`, SKIP everything else in this file. |
 | **GENERATION** *(default)* | "做一份飞书 deck" · "把这个 PDF 转成 HTML" · "客户提案" · "周会汇报材料" · "改一下第 N 页" · anything where output is a new or edited HTML deck | Follow the rest of this file starting at PREFLIGHT, **then read DECK GENERATION POLICY** to pick DeckJSON-first (default) vs raw HTML authoring (escape hatch). **If input is a pure text brief** (主题列表 / Q&A 文案 / outline 描述), **also read DESIGN-FIRST POLICY** — produce the per-page layout plan and get user confirmation BEFORE touching any file. |
 
 If a request is genuinely ambiguous ("can you look at this HTML and improve it?"
@@ -36,9 +38,11 @@ If a request is genuinely ambiguous ("can you look at this HTML and improve it?"
 
 ## CHECK-ONLY MODE
 
-The user gave you an HTML file (own deck, foreign deck, downloaded sample,
-PR for review) and just wants to know what's non-compliant. The skill ships
-a dedicated entry point for this:
+This is a technical subprocess, not the product-level acceptance flow. Use it
+when another skill needs the validator report, or when the user explicitly asks
+for renderer-rule output only. If the user asks whether a deck is ready to
+present, share, publish, or enter the slide library, call `deck-auditor` and let
+it interpret this validator output.
 
 In the lark-deck-cyrus product workflow, `deck-auditor` owns quality acceptance.
 This section describes the underlying technical validator that `deck-auditor`

@@ -1,0 +1,41 @@
+{
+  "name": "lark-deck-cyrus",
+  "version": "1.2.0",
+  "description": "End-to-end Cyrus/Lark H5 pitch deck system: plan, render, audit, rehearse, and package customer-ready decks.",
+  "author": {
+    "name": "FuQiang",
+    "url": "https://github.com/FuQiang"
+  },
+  "homepage": "https://github.com/cyrus-xy0/lark-deck-cyrus",
+  "repository": "https://github.com/cyrus-xy0/lark-deck-cyrus",
+  "license": "MIT",
+  "keywords": [
+    "presentation",
+    "h5-deck",
+    "lark",
+    "feishu",
+    "deckjson",
+    "pitch",
+    "sales",
+    "rehearsal"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Lark Deck Cyrus",
+    "shortDescription": "Plan, render, audit, and rehearse H5 pitch decks.",
+    "longDescription": "Turn customer briefs, sales ideas, and raw materials into talk-ready Lark/Feishu-style HTML pitch decks through planner, renderer, auditor, and pitch rehearsal skills.",
+    "developerName": "FuQiang",
+    "category": "Productivity",
+    "capabilities": [
+      "Write",
+      "Presentation",
+      "Analysis"
+    ],
+    "brandColor": "#1E6FFF",
+    "defaultPrompt": [
+      "Use lark-deck-cyrus to create a customer pitch deck.",
+      "Use deck-auditor to check whether this H5 deck is ready.",
+      "Use pitch-simulator to rehearse this deck with the audience."
+    ]
+  }
+}

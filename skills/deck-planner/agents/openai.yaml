@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deck Planner"
+  short_description: "Shape business briefs into pitch deck outlines."
+  default_prompt: "Use $deck-planner to turn this customer brief into a pitch deck outline."

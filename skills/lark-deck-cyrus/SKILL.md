@@ -1,18 +1,31 @@
 ---
 name: lark-deck-cyrus
 description: |
-  总控 skill for the lark-deck-cyrus pitch deck workflow. Use when the user
-  wants to turn an initial business need, customer brief, sales idea, or
-  proposal direction into a talk-ready pitch deck. It orchestrates requirement
-  clarification, deck planning, deck rendering, quality acceptance, pitch
-  simulation, user-confirmed iteration, and final delivery across deck-planner,
-  deck-renderer, deck-auditor, and pitch-simulator.
+  End-to-end controller for Cyrus/Lark/Feishu-style H5 pitch decks. Use when
+  the user wants to turn a business need, customer brief, sales idea, raw
+  materials, or proposal direction into a talk-ready deck. It routes and
+  coordinates requirement clarification, narrative planning, DeckJSON/HTML
+  rendering, quality acceptance, pitch rehearsal, user-confirmed iteration, and
+  final delivery across deck-planner, deck-renderer, deck-auditor, and
+  pitch-simulator.
 ---
 
 # lark-deck-cyrus
 
 目标:把一个初始需求变成客户现场可以直接讲的 pitch deck。
 这个 skill 是总控入口,负责判断当前应该调用哪个子 skill,并维护从需求到交付的上下文闭环。
+
+## 入口判断
+
+先判断用户是在要哪一段:
+
+- 端到端:从 brief / 客户需求 / 销售想法开始,需要最终可讲 deck。继续使用本总控。
+- 只要规划:用户明确要大纲、讲法、每页重点。路由到 `deck-planner`。
+- 只要生产:用户已有 outline / deck.json / HTML,要生成、改稿、打包。路由到 `deck-renderer`。
+- 只要验收:用户问是否合格、能否分享、能否入库、哪里不合规。路由到 `deck-auditor`。
+- 只要预演:用户问客户会怎么反应、怎么讲、会被问什么。路由到 `pitch-simulator`。
+
+如果请求横跨多段或用户只说“做一份 deck”,留在本总控,按标准工作流推进。
 
 ## 子 skill 分工
 

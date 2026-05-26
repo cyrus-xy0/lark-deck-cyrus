@@ -15,7 +15,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: skills/feishu-deck-h5
+        working-directory: skills/deck-renderer
 
     steps:
       - name: Checkout
@@ -61,9 +61,9 @@ jobs:
 
       - name: Outline planner JSON sanity
         run: |
-          python3 -m json.tool ../deck-outline-planner/schema/deck-outline.schema.json >/dev/null
-          python3 -m json.tool ../deck-outline-planner/examples/retail-agent-outline.json >/dev/null
-          python3 ../deck-outline-planner/validate-outline.py ../deck-outline-planner/examples/retail-agent-outline.json
+          python3 -m json.tool ../deck-planner/schema/deck-outline.schema.json >/dev/null
+          python3 -m json.tool ../deck-planner/examples/retail-agent-outline.json >/dev/null
+          python3 ../deck-planner/validate-outline.py ../deck-planner/examples/retail-agent-outline.json
 
       - name: Product H5 evals (no screenshots)
         run: |
@@ -99,14 +99,11 @@ jobs:
       - name: Validate linked deck (default)
         run: python3 assets/validate.py examples/sample-deck.html
 
-      - name: Validate linked deck (--strict)
-        run: python3 assets/validate.py examples/sample-deck.html --strict
-
       - name: Validate inlined deck (default)
         run: python3 assets/validate.py examples/sample-deck-inline.html
 
-      - name: Validate inlined deck (--strict)
-        run: python3 assets/validate.py examples/sample-deck-inline.html --strict
+      - name: Validate text-edit sample (--strict)
+        run: python3 assets/validate.py examples/sample-deck-with-texts.html --strict
 
       - name: Summary
         if: always()

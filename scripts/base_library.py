@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Base-first library provider for deck assets and planning knowledge.
+"""Library provider for deck assets and planning knowledge.
 
-The Feishu Base configured in config/base-library.json is the source of
-truth. Local files are cache copies only. This CLI is intentionally usable by
-both local agent workflows and Feishu bot workers.
+Default mode is auto: try the configured Feishu/Lark Base when available, then
+fall back to the local package cache. This keeps external GitHub installs
+usable without private Base access while preserving the live Base path for
+internal workers.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +32,20 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     if os.environ.get("LARK_LIBRARY_BASE_TOKEN"):
         data["base_token"] = os.environ["LARK_LIBRARY_BASE_TOKEN"]
     return data
+
+
+def library_mode(config: dict[str, Any]) -> str:
+    mode = os.environ.get("LARK_LIBRARY_MODE") or config.get("mode") or "auto"
+    mode = str(mode).strip().lower()
+    return mode if mode in {"auto", "base", "local"} else "auto"
+
+
+def can_try_base(config: dict[str, Any]) -> bool:
+    if library_mode(config) == "local":
+        return False
+    if not config.get("base_token"):
+        return False
+    return shutil.which("lark-cli") is not None
 
 
 def repo_rel(path: Path) -> str:
@@ -146,6 +162,123 @@ def search_records(config: dict[str, Any], table: str, keyword: str, identity: s
     return rows_from_payload(payload)
 
 
+def local_asset_rows(config: dict[str, Any], keyword: str, limit: int) -> list[dict[str, Any]]:
+    index_path = REPO / config["local_cache"]["asset_index"]
+    if not index_path.exists():
+        return []
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    terms = [part.lower() for part in keyword.split() if part.strip()]
+    if not terms:
+        return []
+    rows = []
+    for item in payload.get("items", []):
+        haystack = " ".join(
+            [
+                str(item.get("id", "")),
+                str(item.get("display_name", "")),
+                str(item.get("kind", "")),
+                str(item.get("collection", "")),
+                str(item.get("path", "")),
+                " ".join(str(tag) for tag in item.get("tags", [])),
+            ]
+        ).lower()
+        if all(term in haystack for term in terms) or any(term in haystack for term in terms):
+            rel_path = "skills/deck-renderer/" + str(item.get("path", ""))
+            rows.append(
+                {
+                    "素材ID": item.get("id", ""),
+                    "显示名称": item.get("display_name", ""),
+                    "类型": item.get("kind", ""),
+                    "集合": item.get("collection", ""),
+                    "格式": Path(str(item.get("path", ""))).suffix.lstrip("."),
+                    "MIME": item.get("mime", ""),
+                    "本地路径": rel_path,
+                    "大小KB": round(int(item.get("size_bytes") or 0) / 1024, 1),
+                    "SHA256": item.get("sha256", ""),
+                    "标签": item.get("tags", []),
+                    "适用场景": "local package cache",
+                    "附件": [],
+                }
+            )
+            if len(rows) >= limit:
+                break
+    return rows
+
+
+def title_from_text(path: Path, text: str) -> str:
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            return line.lstrip("#").strip() or path.stem
+    return path.stem.replace("-", " ")
+
+
+def local_knowledge_rows(config: dict[str, Any], keyword: str, limit: int) -> list[dict[str, Any]]:
+    roots = [REPO / config["local_cache"].get("knowledge", "knowledge")]
+    if os.environ.get("LARK_LIBRARY_INCLUDE_BASE_CACHE", "").lower() in {"1", "true", "yes"}:
+        roots.append(REPO / config["local_cache"].get("base_knowledge", ".base-cache/knowledge"))
+    terms = [part.lower() for part in keyword.split() if part.strip()]
+    if not terms:
+        return []
+    rows = []
+    seen: set[Path] = set()
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or path.suffix.lower() not in {".md", ".json", ".txt"}:
+                continue
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            try:
+                text = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            haystack = f"{path.as_posix()}\n{text}".lower()
+            if not (all(term in haystack for term in terms) or any(term in haystack for term in terms)):
+                continue
+            rel = repo_rel(path)
+            summary = " ".join(text.replace("\n", " ").split())[:240]
+            rows.append(
+                {
+                    "文档ID": path.stem,
+                    "标题": title_from_text(path, text),
+                    "类型": "local-cache",
+                    "本地路径": rel,
+                    "内容": text[:2000],
+                    "摘要": summary,
+                    "来源等级": "local-cache",
+                    "关联行业": rel,
+                    "字数": len(text),
+                    "SHA256": "",
+                    "附件": [],
+                }
+            )
+            if len(rows) >= limit:
+                return rows
+    return rows
+
+
+def search_with_fallback(config: dict[str, Any], table: str, keyword: str, identity: str, limit: int) -> list[dict[str, Any]]:
+    if can_try_base(config):
+        try:
+            return search_records(config, table, keyword, identity, limit)
+        except SystemExit:
+            if library_mode(config) == "base":
+                raise
+    elif library_mode(config) == "base":
+        raise SystemExit("base_library: live Base mode requested, but base_token or lark-cli is missing")
+
+    if table == "assets":
+        return local_asset_rows(config, keyword, limit)
+    return local_knowledge_rows(config, keyword, limit)
+
+
 def attachment_list(record: dict[str, Any]) -> list[dict[str, Any]]:
     value = record.get("附件") or []
     return value if isinstance(value, list) else []
@@ -198,6 +331,12 @@ def normalize_shared_asset_path(path: str) -> str:
 
 
 def sync_shared_assets(config: dict[str, Any], identity: str, overwrite: bool, quiet: bool) -> dict[str, int]:
+    if not can_try_base(config):
+        if library_mode(config) == "base":
+            raise SystemExit("base_library: live Base mode requested, but base_token or lark-cli is missing")
+        if not quiet:
+            print(json.dumps({"records": 0, "downloaded": 0, "skipped": 0, "mode": "local-cache"}, ensure_ascii=False, indent=2))
+        return {"records": 0, "downloaded": 0, "skipped": 0}
     records = shared_asset_records(config, identity)
     downloaded = 0
     skipped = 0
@@ -240,6 +379,17 @@ def write_asset_index(config: dict[str, Any], identity: str, output: Path | None
     out = output or (REPO / config["local_cache"]["asset_index"])
     if not out.is_absolute():
         out = REPO / out
+    if not can_try_base(config):
+        if library_mode(config) == "base":
+            raise SystemExit("base_library: live Base mode requested, but base_token or lark-cli is missing")
+        if check:
+            if out.exists():
+                print(f"asset index present in local package cache: {repo_rel(out)}")
+                return 0
+            print(f"asset index missing from local package cache: {repo_rel(out)}", file=sys.stderr)
+            return 1
+        print(f"using local package cache; did not rewrite {repo_rel(out)}")
+        return 0
     rendered = json.dumps(asset_index_from_base(config, identity), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if check:
         current = out.read_text(encoding="utf-8") if out.exists() else ""
@@ -275,8 +425,14 @@ def print_records(rows: list[dict[str, Any]], table: str, fmt: str) -> None:
 
 
 def sync_knowledge_cache(config: dict[str, Any], identity: str, overwrite: bool, quiet: bool) -> dict[str, int]:
+    if not can_try_base(config):
+        if library_mode(config) == "base":
+            raise SystemExit("base_library: live Base mode requested, but base_token or lark-cli is missing")
+        if not quiet:
+            print(json.dumps({"records": 0, "downloaded": 0, "skipped": 0, "mode": "local-cache"}, ensure_ascii=False, indent=2))
+        return {"records": 0, "downloaded": 0, "skipped": 0}
     records = list_records(config, "knowledge", identity)
-    cache_root = REPO / config["local_cache"]["knowledge"]
+    cache_root = REPO / config["local_cache"].get("base_knowledge", ".base-cache/knowledge")
     downloaded = 0
     skipped = 0
     for row in records:
@@ -297,12 +453,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--as", dest="identity", choices=["user", "bot"], default=os.environ.get("LARK_LIBRARY_AS", "user"))
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("search-assets", help="search the Base asset table")
+    p = sub.add_parser("search-assets", help="search assets from live Base or local package cache")
     p.add_argument("keyword")
     p.add_argument("--limit", type=int, default=20)
     p.add_argument("--format", choices=["markdown", "json"], default="markdown")
 
-    p = sub.add_parser("search-knowledge", help="search the Base knowledge table")
+    p = sub.add_parser("search-knowledge", help="search knowledge from live Base or local package cache")
     p.add_argument("keyword")
     p.add_argument("--limit", type=int, default=10)
     p.add_argument("--format", choices=["markdown", "json"], default="markdown")
@@ -324,10 +480,10 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
 
     if args.command == "search-assets":
-        print_records(search_records(config, "assets", args.keyword, args.identity, args.limit), "assets", args.format)
+        print_records(search_with_fallback(config, "assets", args.keyword, args.identity, args.limit), "assets", args.format)
         return 0
     if args.command == "search-knowledge":
-        print_records(search_records(config, "knowledge", args.keyword, args.identity, args.limit), "knowledge", args.format)
+        print_records(search_with_fallback(config, "knowledge", args.keyword, args.identity, args.limit), "knowledge", args.format)
         return 0
     if args.command == "sync-shared-assets":
         sync_shared_assets(config, args.identity, args.overwrite, args.quiet)

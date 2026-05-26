@@ -3,15 +3,22 @@ name: deck-auditor
 description: |
   Quality acceptance skill for lark-deck-cyrus. Use after deck-renderer has
   produced a deck, or when the user asks whether a generated deck is ready to
-  present, share, publish, or enter the slide library. It runs and interprets
-  validator, screenshot, gate, delivery-package, and talk-readiness checks, then
-  routes required fixes back to deck-planner or deck-renderer.
+  present, share, publish, enter the slide library, or when the user asks
+  "审一下/检查一下/看看哪里不合规" for an existing HTML deck. It runs and
+  interprets validator, screenshot, gate, delivery-package, and talk-readiness
+  checks, then routes required fixes back to deck-planner or deck-renderer.
 ---
 
 # deck-auditor
 
 目标:判断一份已经生成的 pitch deck 是否达到“可以讲、可以发、可以继续迭代或可以入库”的质量门槛。
 这个 skill 不负责生成页面,也不负责模拟客户会议;它负责验收、归因和分流。
+
+## 入口边界
+
+- 用户要“能不能发 / 能不能讲 / 能不能入库 / 哪里不合规”:使用本 skill。
+- 用户只明确要求底层技术规则输出:调用 `deck-renderer` 的 check-only 工具,但结论仍可由本 skill 解释。
+- 用户要求直接修改页面或重新生成:先验收并归因,再把修复路由到 `deck-renderer` 或 `deck-planner`。
 
 ## 输入
 

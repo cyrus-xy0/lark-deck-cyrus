@@ -8,7 +8,7 @@
     {
       "name": "lark-deck-cyrus",
       "source": "./",
-      "description": "场景规划 + 飞书风格 HTML deck 生成 + pitch 预演技能 — outline planner、素材库、DeckJSON、H5 渲染、客户反应模拟",
+      "description": "lark-deck-cyrus 独立产品技能包：场景规划、素材库、DeckJSON/H5 渲染、质量验收和 pitch 预演",
       "version": "1.2.0",
       "category": "skill",
       "tags": ["presentation", "html", "feishu", "lark", "deck", "ppt", "outline", "asset-library", "pitch", "rehearsal", "simulation"]

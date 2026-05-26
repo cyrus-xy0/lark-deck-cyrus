@@ -244,6 +244,23 @@ _RULE_WITH_COMMENTS_RE = re.compile(
 
 
 _AT_RULE_RE = re.compile(r'@[a-zA-Z-]+[^{]*\{(?:[^{}]|\{[^{}]*\})*\}', re.S)
+_BASE64_DATA_URL_RE = re.compile(
+    r'data:([a-zA-Z0-9.+-]+/[a-zA-Z0-9.+-]+);base64,[A-Za-z0-9+/=_-]+'
+)
+
+
+def collapse_base64_data_urls(html: str) -> str:
+    """Replace large inline asset payloads with short sentinels for audits.
+
+    The validator's structural/type audits do not need the bytes inside
+    `data:image/...;base64,...`. Keeping those payloads in the scan string makes
+    broad regex passes over inlined decks painfully slow. `audit_perf` still
+    receives the original HTML so it can enforce payload-size rules.
+    """
+    return _BASE64_DATA_URL_RE.sub(
+        lambda m: f'data:{m.group(1)};base64,<omitted>',
+        html,
+    )
 
 
 @functools.lru_cache(maxsize=64)
@@ -2606,6 +2623,8 @@ def main():
             repl_script, html_text)
         return html_text
     html = inline_linked(html, path.parent)
+    html_for_perf = html
+    html = collapse_base64_data_urls(html)
 
     slides = extract_slides(html)
 
@@ -2640,7 +2659,7 @@ def main():
     audit_slide_keys(slides, iss)
     audit_language_policy(html, slides, iss)
     audit_list_echo(slides, iss)
-    audit_perf(html, iss)
+    audit_perf(html_for_perf, iss)
     audit_text_ids(html, path, iss)
     audit_feedback_md(path, iss)
 

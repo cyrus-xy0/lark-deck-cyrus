@@ -696,6 +696,14 @@ body {
   position: absolute; bottom: 96px; left: 126px; right: 124px;
   display: flex; flex-wrap: wrap; gap: 14px;
 }
+/* 2026-05-20 · section pill 升 16→24 (Body tier) — Hero-context label floor 规则
+   (SKILL.md 2026-05-17): section 页 chapter-num 160 / title 88 是 hero anchor,
+   同一页内 content label(产品名)必须 ≥ 24 Body,不能 16 chrome,否则在投影
+   距离上看不清。 */
+.slide[data-layout="section"] .pills .pill {
+  font-size: 24px;
+  padding: 12px 22px;
+}
 
 /* ============================================================================
    LAYOUT 03 — Content (3-up cards)
@@ -774,18 +782,80 @@ body {
 /* li uses block + left padding (NOT grid). Grid would treat <b> and the
    trailing text node as two separate items: text node would auto-place
    into row 2 / col 1 (36px wide) and CJK chars would wrap one-per-line. */
-.slide[data-layout="content-2col"] .col-text ul.feature-list li {
+/* feature-list bullet pattern — generalized 2026-05-22 from content-2col
+   `.col-text` scope to ANY slide (utility class). Use `<ul class="feature-list">`
+   in any raw layout to get framework-standard colored-dot bullets with halo. */
+.slide ul.feature-list li {
   /* 2026-05-17: text-72 → #fff. feature-list items ARE body content;
      muted color was readability gap on projector. */
-  position: relative; padding-left: 36px;
+  position: relative; padding-left: 28px;
   font: 500 24px/1.45 var(--fs-font-cjk); color: #fff;
+  list-style: none;
 }
-.slide[data-layout="content-2col"] .col-text ul.feature-list li::before {
+.slide ul.feature-list li::before {
   content: ""; position: absolute; left: 0; top: 14px;
   width: 8px; height: 8px; border-radius: 999px;
   background: var(--fs-accent);
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--fs-accent) 16%, transparent);
 }
+
+/* ============================================================================
+   UTILITY · .fs-claim-row — icon + label + description row (added 2026-05-22)
+   ----------------------------------------------------------------------------
+   For "highlight badge / claim tile / KPI callout" patterns where each tile
+   has: small icon (left) + bold label (line 1) + lighter desc (line 2 below).
+   USE THIS instead of authoring ad-hoc `.highlight` / `.hi` / `.kpi-tile`
+   structures in raw layouts.
+
+   Structure:
+     <div class="fs-claim-row is-teal">              <!-- accent variant -->
+       <span class="fs-claim-row__icon">✓</span>
+       <div class="fs-claim-row__text">
+         <span class="fs-claim-row__label">全自动 · 端到端</span>
+         <span class="fs-claim-row__desc">从三流输入到双平台产出零人工介入</span>
+       </div>
+     </div>
+
+   Accents: .is-blue / .is-teal / .is-violet / .is-purple / .is-orange
+   (defaults to teal if no variant class).
+   ============================================================================ */
+.slide .fs-claim-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; border-radius: 12px;
+  border: 1px solid var(--fs-divider);
+  background: rgba(255, 255, 255, 0.04);
+}
+.slide .fs-claim-row__icon {
+  width: 24px; height: 24px; flex: 0 0 24px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font: 700 16px/1 var(--fs-font-latin);
+  background: rgba(51, 214, 192, 0.20);
+  color: var(--fs-teal);
+}
+.slide .fs-claim-row__text {
+  flex: 1; display: flex; flex-direction: column; gap: 4px;
+  min-width: 0;
+}
+.slide .fs-claim-row__label {
+  font: 700 24px/1.3 var(--fs-font-cjk); color: #fff;
+  letter-spacing: -0.005em;
+}
+.slide .fs-claim-row__desc {
+  font: 500 24px/1.4 var(--fs-font-cjk); color: #cdd0df;
+}
+/* Accent variants */
+.slide .fs-claim-row.is-blue   { border-color: rgba(60,127,255,0.40); background: rgba(60,127,255,0.05); }
+.slide .fs-claim-row.is-blue   .fs-claim-row__icon { background: rgba(60,127,255,0.20); color: var(--fs-blue); }
+.slide .fs-claim-row.is-teal   { border-color: rgba(51,214,192,0.40); background: rgba(51,214,192,0.05); }
+.slide .fs-claim-row.is-teal   .fs-claim-row__icon { background: rgba(51,214,192,0.20); color: var(--fs-teal); }
+.slide .fs-claim-row.is-violet { border-color: rgba(159,111,241,0.40); background: rgba(159,111,241,0.05); }
+.slide .fs-claim-row.is-violet .fs-claim-row__icon { background: rgba(159,111,241,0.20); color: var(--fs-violet); }
+.slide .fs-claim-row.is-purple { border-color: rgba(123,90,209,0.40); background: rgba(123,90,209,0.05); }
+.slide .fs-claim-row.is-purple .fs-claim-row__icon { background: rgba(123,90,209,0.20); color: var(--fs-purple); }
+.slide .fs-claim-row.is-orange { border-color: rgba(254,127,0,0.40); background: rgba(254,127,0,0.05); }
+.slide .fs-claim-row.is-orange .fs-claim-row__icon { background: rgba(254,127,0,0.20); color: var(--fs-orange); }
+
 .slide[data-layout="content-2col"] .col-visual {
   border: 1px solid var(--fs-hairline); border-radius: 16px;
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
@@ -835,10 +905,14 @@ body {
 .slide[data-layout="stats"] .col:first-child { border-left: 0; padding-left: 0; }
 /* 规范: stats trend tags must be readable at slide projection distance.
    ≥ 20 px CJK font, no Latin-uppercase forcing on CJK glyphs (which falls back
-   to system font and renders smaller). */
+   to system font and renders smaller).
+   2026-05-20 · bumped 24 → 28 (sub tier). At 24, trend visually disappeared
+   next to the 132px hero number per BF13 hero-context label floor — needs to
+   sit closer in weight to the .label below it. 28 reads as deliberate label
+   without competing with the 132 number. */
 .slide[data-layout="stats"] .col .trend {
   display: inline-flex; align-items: center; gap: 8px;
-  font: 600 24px/1 var(--fs-font-cjk); letter-spacing: 0.04em;
+  font: 600 28px/1 var(--fs-font-cjk); letter-spacing: 0.04em;
   text-transform: none; color: var(--fs-accent);
 }
 .slide[data-layout="stats"] .col .num {
@@ -851,13 +925,18 @@ body {
 .slide[data-layout="stats"] .col .label {
   font: 500 24px/1.4 var(--fs-font-cjk); color: var(--fs-text-72);
 }
+/* 2026-05-20 · font family switched latin → cjk on .source / .footnote.
+   When source text mixes Latin and CJK ("Source · 内部传输实测 2024 Q4"),
+   var(--fs-font-latin) falls back to system font for the CJK glyphs and
+   renders smaller / mismatched. CJK-first font handles both scripts more
+   uniformly at 16px. */
 .slide[data-layout="stats"] .col .source {
-  font: 500 16px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
+  font: 500 16px/1.4 var(--fs-font-cjk); color: var(--fs-text-40);
   letter-spacing: 0.06em;
 }
 .slide[data-layout="stats"] .footnote {
   position: absolute; left: 96px; right: 96px; bottom: 110px;
-  font: 500 16px/1.4 var(--fs-font-latin); color: var(--fs-text-40);
+  font: 500 16px/1.4 var(--fs-font-cjk); color: var(--fs-text-40);
   letter-spacing: 0.04em;
 }
 
@@ -876,8 +955,11 @@ body {
   position: absolute; left: 96px; right: 96px; bottom: 130px; max-width: 1100px;
 }
 .slide[data-layout="image-text"] h2.title {
+  /* allow:typescale — image-text 是 hero-style 全幅图布局(类 cover/section),
+     2026-05-20 加入 Hero exception 名单,从 4-tier 的 48 升到 master-spec 的 88
+     (与 section H2 同级)。在 cinematic 全屏画面上 48 px ZH 标题视觉空虚。*/
   margin-top: 24px;
-  font: 700 48px/1.1 var(--fs-font-cjk); letter-spacing: -0.005em;
+  font: 700 88px/1.1 var(--fs-font-cjk); letter-spacing: -0.005em;
 }
 .slide[data-layout="image-text"] .lede { margin-top: 28px; color: var(--fs-text-65); }
 
@@ -1044,23 +1126,36 @@ body {
   font: 700 48px/1.05 var(--fs-font-cjk); letter-spacing: -0.005em;
 }
 
-/* TOC = vertical pill stack, centered on canvas */
+/* TOC = vertical pill stack, centered on canvas
+   2026-05-20 · 自适应 padding/gap by pill count (BF-AGENDA-DENSITY).
+   default tuned for N=3-4; N=5 / N≥6 progressively tighten so 6 pills
+   no longer overflow the 840px usable area and break "visually centered". */
 .slide[data-layout="agenda"] .toc {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  /* 2026-05-06 v2.1 · gap 36 → 56 (more breathing room between pills) */
   gap: 56px;
   padding: 120px 96px;
 }
 .slide[data-layout="agenda"][data-variant="with-header"] .toc { padding-top: 280px; }
+
+/* N=5 · 紧凑档 */
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(5)) {
+  gap: 36px; padding: 80px 96px;
+}
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(5)) .item { padding: 28px 96px; }
+
+/* N≥6 · 极致紧凑 */
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(6)) {
+  gap: 24px; padding: 60px 96px;
+}
+.slide[data-layout="agenda"] .toc:has(.item:nth-child(6)) .item { padding: 22px 96px; }
 
 /* Each .item = a pill card */
 .slide[data-layout="agenda"] .toc .item {
   display: grid; grid-template-columns: 140px 1fr;
   align-items: center; gap: 40px;
   width: 1180px; max-width: 100%;
-  /* 2026-05-06 v2.1 · padding 34/52 → 44/96 (numbers no longer crowd left edge) */
   padding: 44px 96px;
   background: rgba(8,14,40,0.45);
   border: 1.5px solid rgba(60,127,255,0.55);
@@ -1124,6 +1219,15 @@ body {
 }
 .slide[data-layout="big-stat"] .copy p {
   font: 500 24px/1.55 var(--fs-font-cjk); color: var(--fs-text-65); max-width: 600px;
+}
+/* 2026-05-20 · big-stat eyebrow override. Global .slide .eyebrow is 16px
+   Latin (designed for footer chrome). In big-stat next to a 312px hero
+   number, 16 reads as invisible. Bump to 28 (sub tier) so eyebrow earns
+   its labeling role in the hero composition. */
+.slide[data-layout="big-stat"] .copy .eyebrow {
+  font-size: 28px;
+  margin-bottom: 18px;
+  letter-spacing: 0.08em;
 }
 
 /* BF11 — Hero zone content centered, not left-flush (2026-05-16).
@@ -1365,7 +1469,7 @@ body {
    this is safe to apply universally. */
 .slide[data-layout="content-3up"]  .grid       { top: 200px; bottom: 110px; align-content: center; }
 .slide[data-layout="content-2col"] .grid       { top: 200px; bottom: 110px; align-content: center; }
-.slide[data-layout="stats"]        .grid       { top: 220px; align-content: center; }
+.slide[data-layout="stats"]        .grid       { top: 220px; bottom: 200px; align-content: center; }
 .slide[data-layout="stats"]        .footnote   { bottom: 96px; }
 .slide[data-layout="table"]        .table-wrap { top: 200px; bottom: 110px; }
 /* Timeline opts OUT of L2 vertical centering. .axis is absolutely positioned
@@ -3218,6 +3322,66 @@ body {
   .slide-frame { page-break-after: always; }
 }
 
+/* ============================================================================
+   Mobile UX (≤900px) — tap-to-enlarge + swipe nav
+   ----------------------------------------------------------------------------
+   Root cause this fixes: on mobile, auto mode = 'scroll' → each slide-frame is
+   100% viewport width with aspect-ratio 16/9. On a 393×852 phone that's
+   ~393×220 — design canvas 1920×1080 scales to ~0.2×, so 22px body text
+   becomes ~4.5px on screen. User-reported symptom: "手机端打开就是错乱的".
+
+   Fix philosophy: scroll mode stays as the overview, but tapping any slide
+   switches to present mode (slide fills viewport) for that one frame. From
+   there a left/right swipe paginates; tap "← 返回列表" returns to scroll.
+   Pair with the .js handlers (init() bottom block).
+   ============================================================================ */
+@media (max-width: 900px) {
+  /* Hint on each scroll-mode frame that tapping enlarges it. */
+  .deck[data-mode="scroll"] .slide-frame { cursor: pointer; }
+  .deck[data-mode="scroll"] .slide-frame::after {
+    content: "点击放大";
+    position: absolute; right: 10px; bottom: 10px;
+    z-index: 50;
+    background: rgba(60,127,255,0.92); color: #fff;
+    font: 700 11px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    padding: 5px 10px; border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    pointer-events: none;
+    letter-spacing: 0.04em;
+  }
+  /* Mobile present-mode chrome: back button + page indicator. */
+  .fs-mobile-back {
+    position: fixed; top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    z-index: 1001;
+    background: rgba(8,12,24,0.85); color: #fff;
+    font: 700 13px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    padding: 9px 14px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.20);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fs-mobile-pageno {
+    position: fixed; bottom: max(14px, env(safe-area-inset-bottom));
+    left: 50%; transform: translateX(-50%);
+    z-index: 1001;
+    background: rgba(8,12,24,0.85); color: #fff;
+    font: 700 13px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    padding: 8px 16px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.20);
+    backdrop-filter: blur(8px);
+    display: none;
+    pointer-events: none;
+    letter-spacing: 0.05em;
+  }
+  .deck[data-mode="present"] ~ .fs-mobile-back,
+  .deck[data-mode="present"] ~ .fs-mobile-pageno { display: block; }
+}
+
 /* === Inlined brand assets (single-file delivery mode) === */
 :root {
   --fs-asset-logo: url("data:image/png;base64,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");
@@ -3689,9 +3853,15 @@ body {
       if (deck.dataset.mode !== 'present') return;
       const cur = currentIdx(frames);
       switch (e.key) {
-        case 'ArrowRight': case 'PageDown': case ' ': case 'Spacebar':
+        // Next-slide aliases. Covers standard keyboards + most presentation
+        // clickers, including Windows-market models that emit ArrowDown/Up
+        // (Targus / Kensington Expert / DinoFire / 一拓 / Aibatu) and ones
+        // that map "advance" to Enter.
+        case 'ArrowRight': case 'ArrowDown': case 'PageDown':
+        case ' ': case 'Spacebar': case 'Enter':
           e.preventDefault(); goTo(deck, frames, Math.min(cur + 1, frames.length - 1)); break;
-        case 'ArrowLeft':  case 'PageUp':
+        case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+        case 'Backspace':
           e.preventDefault(); goTo(deck, frames, Math.max(cur - 1, 0)); break;
         case 'Home':
           e.preventDefault(); goTo(deck, frames, 0); break;
@@ -3999,6 +4169,136 @@ body {
   // Expose programmatic API for SPA hosts
   if (typeof window !== 'undefined') {
     window.feishuDeck = { init };
+  }
+})();
+
+/* ============================================================================
+   Mobile UX patch (≤900px) — tap-to-enlarge + swipe nav (2026-05-21)
+   ----------------------------------------------------------------------------
+   Issue: on mobile, the framework auto-switches to scroll mode where each
+   slide-frame is 100vw × 9/16 (~393×220 on a 393w phone). The 1920×1080
+   design canvas scales to ~0.2× → 22px body text becomes ~4.5px → unreadable.
+   User reported "手机端打开就是错乱的".
+
+   Fix: keep scroll mode as the overview but make each frame a tap target —
+   tap any slide → switch to present mode showing that one slide filling the
+   viewport. Left/right swipe paginates. Tap "← 返回列表" returns to scroll.
+
+   Paired with the CSS block at the bottom of feishu-deck.css (same date stamp).
+   Runs as a separate IIFE after the main init, so existing init logic stays
+   untouched. Mobile-only — does nothing on viewports > 900px.
+   ============================================================================ */
+(function () {
+  if (typeof window === 'undefined') return;
+  if (!window.matchMedia('(max-width: 900px)').matches) return;
+
+  function wire() {
+    const deck = document.querySelector('.deck');
+    if (!deck) return;
+    const frames = Array.from(deck.querySelectorAll('.slide-frame'));
+    if (!frames.length) return;
+    if (document.querySelector('.fs-mobile-back')) return;  // idempotent
+
+    const backBtn = document.createElement('div');
+    backBtn.className = 'fs-mobile-back';
+    backBtn.textContent = '← 返回列表';
+    backBtn.setAttribute('role', 'button');
+    backBtn.setAttribute('aria-label', '返回 slide 列表');
+    document.body.appendChild(backBtn);
+
+    const pageNo = document.createElement('div');
+    pageNo.className = 'fs-mobile-pageno';
+    document.body.appendChild(pageNo);
+
+    function curIdx() {
+      for (let i = 0; i < frames.length; i++) {
+        if (frames[i].classList.contains('is-current')) return i;
+      }
+      return 0;
+    }
+    function updatePageNo() {
+      pageNo.textContent = (curIdx() + 1) + ' / ' + frames.length;
+    }
+    // MANUAL scale computation. The framework's ResizeObserver only watches
+    // documentElement and does NOT fire on data-mode flips (the viewport
+    // doesn't change). So after switching mode, --fs-scale stays at the
+    // previous mode's value and the slide visibly fails to scale up.
+    // Measure clientWidth/Height ourselves after layout settles.
+    function scaleNow(idx) {
+      const frame = frames[idx];
+      const slide = frame && frame.querySelector('.slide');
+      if (!slide) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const w = frame.clientWidth, h = frame.clientHeight;
+          if (!w || !h) return;
+          const scale = Math.min(w / 1920, h / 1080);
+          slide.style.setProperty('--fs-scale', String(scale));
+        });
+      });
+    }
+    function setMode(mode, idx) {
+      deck.dataset.mode = mode;
+      try { localStorage.setItem('fs-deck-mode', mode); } catch (e) {}
+      if (mode === 'present' && typeof idx === 'number') {
+        frames.forEach((f, i) => f.classList.toggle('is-current', i === idx));
+        scaleNow(idx);
+      } else if (mode === 'scroll') {
+        frames.forEach((_, i) => scaleNow(i));
+      }
+      updatePageNo();
+    }
+    function go(delta) {
+      const cur = curIdx();
+      const next = Math.max(0, Math.min(frames.length - 1, cur + delta));
+      if (next !== cur) {
+        frames.forEach((f, i) => f.classList.toggle('is-current', i === next));
+        scaleNow(next);
+        updatePageNo();
+      }
+    }
+
+    frames.forEach((frame, i) => {
+      frame.addEventListener('click', (e) => {
+        if (deck.dataset.mode !== 'scroll') return;
+        if (e.target && e.target.closest('a, button, iframe, [role="button"], .probe-tab')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setMode('present', i);
+      }, true);
+    });
+
+    backBtn.addEventListener('click', () => {
+      const cur = curIdx();
+      setMode('scroll');
+      if (cur >= 0) setTimeout(() => frames[cur].scrollIntoView({ block: 'center' }), 50);
+    });
+
+    let sx = null, sy = null, st = 0;
+    document.addEventListener('touchstart', (e) => {
+      if (deck.dataset.mode !== 'present') return;
+      const t0 = e.touches[0]; sx = t0.clientX; sy = t0.clientY; st = Date.now();
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      if (deck.dataset.mode !== 'present' || sx === null) return;
+      const t1 = e.changedTouches[0];
+      const dx = t1.clientX - sx, dy = t1.clientY - sy, dt = Date.now() - st;
+      sx = sy = null;
+      if (dt > 600) return;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        if (e.target && e.target.closest('iframe')) return;
+        e.preventDefault();
+        go(dx < 0 ? +1 : -1);
+      }
+    }, { passive: false });
+
+    updatePageNo();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire, { once: true });
+  } else {
+    setTimeout(wire, 100);
   }
 })();
 </script></body></html>

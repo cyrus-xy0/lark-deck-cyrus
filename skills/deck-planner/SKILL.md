@@ -2,17 +2,24 @@
 name: deck-planner
 description: |
   Use this skill when the user asks for a deck plan, outline, proposal structure,
-  sales narrative, 客户提案大纲, 汇报材料规划, or gives a raw business brief that
-  should become a pitch deck. The skill decides what the deck should say, what
-  each page should emphasize, what the key ideas are, how the presenter should
-  tell the story, and what evidence or assets are still missing before
-  deck-renderer produces the final deck.
+  sales narrative, 客户提案大纲, 汇报材料规划, 每页重点, 讲法设计, or gives a
+  raw business brief that should become a pitch deck. The skill decides what the
+  deck should say, what each page should emphasize, what the key ideas are, how
+  the presenter should tell the story, and what evidence or assets are still
+  missing before deck-renderer produces the final deck. Do not use it for
+  low-level HTML/CSS fixes, packaging, visual acceptance, or pitch rehearsal.
 ---
 
 # deck-planner
 
 目标:把用户的业务场景转成可执行的 deck 规划,明确整套片子讲什么、每页讲什么、重点是什么、关键 idea 是什么、应该怎么讲。
 这个 skill 不直接生成 HTML,也不急着套模板;它先判断“为什么要做这份 deck、要打中谁、每页承担什么说服任务”。
+
+## 非目标
+
+- 不直接写 HTML、CSS 或交付包;这些交给 `deck-renderer`。
+- 不做最终质量判定;生成后的可读性、入库和交付验收交给 `deck-auditor`。
+- 不模拟客户真实反应;预演和异议地图交给 `pitch-simulator`。
 
 ## 输入
 
@@ -56,10 +63,9 @@ python3 skills/deck-planner/validate-outline.py \
    - 成功指标是什么:约会、立项、预算、内部 alignment、产品试用、复盘通过?
 
 3. **读取知识库**
-   - Source of truth 是飞书 Base `知识库` 表,不是本地 `knowledge/` 目录。
-   - 本地 agent 和飞书 bot 都必须通过仓库根目录的 `python3 scripts/base_library.py search-knowledge "<关键词>" --limit 10` 检索；bot 运行时用 `LARK_LIBRARY_AS=bot` 或全局 `--as bot`。
-   - 本地 `knowledge/` 和 `.base-cache/knowledge/` 只作为缓存/副本；只有在用户明确允许离线模式时才可引用,并要说明使用的是 cache。
-   - 根据行业、飞书产品、客户名分别搜索 Base；客户故事只使用 Base 中已授权/已沉淀记录。
+   - 默认通过仓库根目录的 `python3 scripts/base_library.py search-knowledge "<关键词>" --limit 10` 检索。
+   - 外部 GitHub 安装默认使用随包 `knowledge/` 本地知识;有 `lark-cli`、`LARK_LIBRARY_BASE_TOKEN` 或 `LARK_LIBRARY_MODE=base` 时才查 live Feishu Base。
+   - 根据行业、飞书产品、客户名分别搜索;客户故事只使用用户提供、公开来源、live Base 授权记录或本地明确标注的素材。
    - 没有知识就暴露缺口,不要编。
 
 4. **形成行业痛点判断**
@@ -78,8 +84,8 @@ python3 skills/deck-planner/validate-outline.py \
    - 若需要真实交互或在线体验,标记 `iframe-embed` / `phone-iframe` 或 `demo` asset。
 
 7. **生成素材计划**
-   - logo/icon/demo 先查飞书 Base `素材库` 表: `python3 scripts/base_library.py search-assets "<关键词>" --limit 20`。
-   - `assets/shared/asset-index.generated.json` 只是由 Base 导出的本地缓存索引,不能作为源头手工维护。
+   - logo/icon/demo 先查统一入口: `python3 scripts/base_library.py search-assets "<关键词>" --limit 20`。
+   - 外部安装默认读取 `assets/shared/asset-index.generated.json`;内部配置 live Base 后会优先查 Base。
    - 现场图片、客户截图、真实 demo 优先用户提供。
    - 找不到素材时明确 fallback,不要让模型临时画商标或伪造客户现场。
 

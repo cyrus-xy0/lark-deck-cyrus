@@ -122,11 +122,11 @@ def relpath_from_to(src_dir: Path, dst_dir: Path) -> str:
     return os.path.relpath(dst_dir, start=src_dir).replace(os.sep, "/")
 
 
-def sync_base_shared_assets(identity: str, offline_cache: bool) -> int:
-    """Base is the source of truth; assets/shared is only the local cache copy."""
+def sync_base_shared_assets(identity: str, offline_cache: bool, require_base: bool) -> int:
+    """Sync live Base assets when configured; otherwise use local package cache."""
     if not BASE_LIBRARY.exists():
         print(f"render-deck: Base library provider missing: {BASE_LIBRARY}", file=sys.stderr)
-        return 6
+        return 6 if require_base else 0
     rc = subprocess.run(
         [
             sys.executable,
@@ -145,12 +145,12 @@ def sync_base_shared_assets(identity: str, offline_cache: bool) -> int:
         if rc.stdout.strip():
             print(rc.stdout.strip())
         return 0
-    if offline_cache:
-        print("render-deck: WARN Base sync failed; using explicit offline local cache.", file=sys.stderr)
+    if offline_cache or not require_base:
+        print("render-deck: WARN Base sync unavailable; using local package cache.", file=sys.stderr)
         if rc.stderr.strip():
             print(rc.stderr.strip(), file=sys.stderr)
         return 0
-    print("render-deck: Base sync failed. Local shared assets are cache-only; fix Base access or rerun with --offline-cache.", file=sys.stderr)
+    print("render-deck: Base sync failed and --require-base was set.", file=sys.stderr)
     if rc.stdout.strip():
         print(rc.stdout, file=sys.stderr)
     if rc.stderr.strip():
@@ -1393,7 +1393,9 @@ def main(argv=None) -> int:
                     help="skip copy-assets step — output will reference skill-relative paths "
                          "(works only while output sits in <repo>/runs/<ts>/output/)")
     ap.add_argument("--offline-cache", action="store_true",
-                    help="emergency/maintenance only: render from existing local Base cache if Base is unreachable")
+                    help="render from the packaged local cache if live Base is unreachable (default behavior)")
+    ap.add_argument("--require-base", action="store_true",
+                    help="fail if live Base asset sync is unavailable")
     ap.add_argument("--base-as", choices=["user", "bot"], default=os.environ.get("LARK_LIBRARY_AS", "user"),
                     help="identity for Base-backed asset sync (default: env LARK_LIBRARY_AS or user)")
     ap.add_argument("--shared", choices=["link", "copy", "skip"], default="link",
@@ -1411,7 +1413,7 @@ def main(argv=None) -> int:
         # --inline supersedes copy-assets
         args.skip_copy_assets = True
 
-    sync_rc = sync_base_shared_assets(args.base_as, args.offline_cache)
+    sync_rc = sync_base_shared_assets(args.base_as, args.offline_cache, args.require_base)
     if sync_rc != 0:
         return sync_rc
 

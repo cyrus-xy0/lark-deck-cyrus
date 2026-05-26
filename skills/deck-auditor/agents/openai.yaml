@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deck Auditor"
+  short_description: "Audit H5 decks for readiness, quality, and reuse."
+  default_prompt: "Use $deck-auditor to check whether this H5 deck is ready to share."

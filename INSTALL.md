@@ -10,7 +10,7 @@
 
 Tell your Claude agent:
 
-> "帮我安装 lark-deck-cyrus 这个 skill：`https://github.com/cyrus-xy0/feishu-deck-h5.git`"
+> "帮我安装 lark-deck-cyrus 这个 skill：`git@github.com:cyrus-xy0/lark-deck-cyrus.git`"
 
 The agent will detect your harness, install the product skills, and verify.
 
@@ -27,7 +27,7 @@ Run these checks **in order**, stop at the first match:
 **Action — instruct the user to run:**
 
 ```
-/plugin marketplace add https://github.com/cyrus-xy0/feishu-deck-h5.git
+/plugin marketplace add git@github.com:cyrus-xy0/lark-deck-cyrus.git
 /plugin install lark-deck-cyrus@lark-deck-cyrus
 ```
 
@@ -42,7 +42,7 @@ Then restart the session. (Slash commands cannot be invoked by an agent — the 
 **Action — run as the user:**
 
 ```bash
-git clone https://github.com/cyrus-xy0/feishu-deck-h5.git /tmp/lark-deck-cyrus-installer
+git clone git@github.com:cyrus-xy0/lark-deck-cyrus.git /tmp/lark-deck-cyrus-installer
 bash /tmp/lark-deck-cyrus-installer/install.sh
 rm -rf /tmp/lark-deck-cyrus-installer
 ```
@@ -61,7 +61,7 @@ Look for `PREFLIGHT OK`.
 ### 3. Manual path (fallback when nothing else fits)
 
 ```bash
-git clone https://github.com/cyrus-xy0/feishu-deck-h5.git ~/Projects/lark-deck-cyrus
+git clone git@github.com:cyrus-xy0/lark-deck-cyrus.git ~/Projects/lark-deck-cyrus
 mkdir -p ~/.claude/skills
 ln -s ~/Projects/lark-deck-cyrus/skills/lark-deck-cyrus ~/.claude/skills/lark-deck-cyrus
 ln -s ~/Projects/lark-deck-cyrus/skills/deck-planner ~/.claude/skills/deck-planner
@@ -78,6 +78,9 @@ bash ~/.claude/skills/deck-renderer/assets/preflight.sh
 - SSH key registered with GitHub: `ssh -T git@github.com` returns `Hi <user>!`
 - Collaborator access if the repository is private
 - `python3`, `bash`, `node` on PATH (used by build/validate)
+- No Feishu/Lark Base access is required for first use. The package falls back
+  to local `knowledge/` and `assets/shared/` cache files. Internal users can set
+  `LARK_LIBRARY_BASE_TOKEN` and `LARK_LIBRARY_MODE=base` to require live Base.
 
 If `ssh -T git@github.com` fails, stop and ask the user to set up their SSH key first — every install path depends on it.
 

@@ -31,6 +31,7 @@ LAYOUTS = {
 VARIANT_REQUIRED = {"content", "stats", "flow"}
 DELIVERY_MODES = {"local-agent", "feishu-bot", "unknown"}
 EVIDENCE_LEVELS = {"user-provided", "approved-story", "public-pattern", "hypothesis"}
+KNOWLEDGE_SOURCES = {"feishu-base", "local-cache", "user-provided", "public"}
 
 
 class Validator:
@@ -115,10 +116,10 @@ class Validator:
             where = f"$.knowledge_refs[{i}]"
             if not self.require(ref, where, ["source", "used_for"]):
                 continue
-            if ref.get("source") != "feishu-base":
-                self.error(f"{where}.source", "must be feishu-base")
+            if ref.get("source") not in KNOWLEDGE_SOURCES:
+                self.error(f"{where}.source", f"must be one of {sorted(KNOWLEDGE_SOURCES)}")
             if not any(ref.get(key) for key in ["record_id", "doc_id", "query", "title"]):
-                self.error(where, "must include at least one Base locator: record_id, doc_id, query, or title")
+                self.error(where, "must include at least one locator: record_id, doc_id, query, or title")
 
     def validate_recipe_refs(self, refs: object) -> None:
         if not isinstance(refs, list):

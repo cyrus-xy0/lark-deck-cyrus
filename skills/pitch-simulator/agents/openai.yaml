@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pitch Simulator"
+  short_description: "Rehearse audience reactions and pitch objections."
+  default_prompt: "Use $pitch-simulator to rehearse how this deck may land with the audience."

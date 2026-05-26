@@ -1,107 +1,157 @@
 #!/usr/bin/env bash
-# lark-deck-cyrus · install script
+# lark-deck-cyrus install script
 #
-# Installs this skill into Claude Code (or any compatible harness that follows
-# the ~/.claude/skills/ convention) by:
-#   1. Cloning to $INSTALL_DIR (default: ~/Projects/lark-deck-cyrus)
-#   2. Symlinking product skills into $CLAUDE_DIR/skills/
-#   3. Running preflight to verify
+# Installs the lark-deck-cyrus product skills into Claude Code or any compatible
+# harness that follows the <harness-root>/skills convention.
 #
-# Usage:
-#   bash install.sh                              # from inside an existing clone
-#   git clone <url> tmp && bash tmp/install.sh   # one-shot from anywhere
+# Supported sources:
+#   1. A git checkout of git@github.com:cyrus-xy0/lark-deck-cyrus.git
+#   2. A zip/package produced by package-skill.sh
+#   3. An existing local working copy
 #
 # Environment variables:
-#   INSTALL_DIR   where to keep the working clone (default: ~/Projects/lark-deck-cyrus)
-#   CLAUDE_DIR    skill registration root (default: ~/.claude — use ~/.openclaw etc. for other harnesses)
-#   REPO_URL      override the git remote
+#   INSTALL_DIR   where to keep the durable working copy
+#                 default: ~/Projects/lark-deck-cyrus
+#   CLAUDE_DIR    skill registration root
+#                 default: ~/.claude
+#   REPO_URL      git remote used when a network clone/update is needed
+#                 default: git@github.com:cyrus-xy0/lark-deck-cyrus.git
+#   LARK_DECK_CYRUS_INSTALL_FROM_LOCAL=1
+#                 copy from this script's directory even if INSTALL_DIR is git
 
-set -e
+set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/cyrus-xy0/feishu-deck-h5.git}"
+REPO_URL="${REPO_URL:-git@github.com:cyrus-xy0/lark-deck-cyrus.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/Projects/lark-deck-cyrus}"
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 SKILLS_DIR="$CLAUDE_DIR/skills"
 SKILL_NAMES=("lark-deck-cyrus" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator")
-PRIMARY_LINK_PATH="$SKILLS_DIR/deck-renderer"
+PRIMARY_SKILL="deck-renderer"
+PRIMARY_LINK_PATH="$SKILLS_DIR/$PRIMARY_SKILL"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+same_path() {
+  local left right
+  left="$(cd "$1" 2>/dev/null && pwd -P || true)"
+  right="$(cd "$2" 2>/dev/null && pwd -P || true)"
+  [ -n "$left" ] && [ "$left" = "$right" ]
+}
+
+has_local_package() {
+  [ -d "$SCRIPT_DIR/skills/lark-deck-cyrus" ] && [ -d "$SCRIPT_DIR/skills/$PRIMARY_SKILL" ]
+}
+
+copy_local_package() {
+  if same_path "$SCRIPT_DIR" "$INSTALL_DIR"; then
+    echo "==> using current checkout at $INSTALL_DIR"
+    return
+  fi
+
+  echo "==> copying local package to $INSTALL_DIR"
+  mkdir -p "$INSTALL_DIR"
+  rsync -a \
+    --exclude='.git/' \
+    --exclude='.DS_Store' \
+    --exclude='__pycache__/' \
+    --exclude='*.pyc' \
+    --exclude='*.pyo' \
+    --exclude='.pytest_cache/' \
+    --exclude='runs/' \
+    --exclude='.base-cache/' \
+    --exclude='library/knowledge/candidates/' \
+    --exclude='library/presentation/candidates/' \
+    --exclude='*.zip' \
+    "$SCRIPT_DIR/" "$INSTALL_DIR/"
+}
+
+ensure_remote_available() {
+  if git ls-remote "$REPO_URL" HEAD >/dev/null 2>&1; then
+    return
+  fi
+
+  SSH_OUT="$(ssh -T -o BatchMode=yes -o ConnectTimeout=5 git@github.com 2>&1 || true)"
+  GH_USER="$(printf '%s\n' "$SSH_OUT" | sed -n 's/^Hi \([^!]*\)!.*/\1/p')"
+  cat <<EOF
+
+ERROR: cannot access the lark-deck-cyrus repository:
+  $REPO_URL
+
+If the repository is private, ask FuQiang to add you as a collaborator:
+
+  你好，想用一下 lark-deck-cyrus 这个 skill，
+  请把我加为仓库 collaborator：
+
+  GitHub 用户名: ${GH_USER:-<your GitHub username>}
+  仓库: ${REPO_URL}
+  添加入口: 仓库 Settings > Collaborators / Access
+
+After accepting the GitHub invitation, rerun this script.
+
+EOF
+  exit 2
+}
 
 echo "==> lark-deck-cyrus install"
 echo "    repo:    $REPO_URL"
+echo "    source:  $SCRIPT_DIR"
 echo "    target:  $INSTALL_DIR"
 echo "    skills:  ${SKILL_NAMES[*]}"
 echo "    into:    $SKILLS_DIR"
 echo
 
-# Prereq 1: SSH access to GitHub
-SSH_OUT="$(ssh -T -o BatchMode=yes -o ConnectTimeout=5 git@github.com 2>&1 || true)"
-if ! echo "$SSH_OUT" | grep -q "successfully authenticated\|Hi "; then
-  echo "ERROR — SSH to github.com failed. Make sure your SSH key is registered:"
-  echo "  https://github.com/settings/keys"
-  echo "  Test with: ssh -T git@github.com"
-  exit 1
-fi
-GH_USER="$(echo "$SSH_OUT" | sed -n 's/^Hi \([^!]*\)!.*/\1/p')"
-
-# Prereq 2: access to this specific repo (collaborator on private repo)
-if ! git ls-remote "$REPO_URL" HEAD >/dev/null 2>&1; then
-  cat <<EOF
-
-ERROR — your SSH key works, but you don't have access to the lark-deck-cyrus repo
-(it's a private repo). Send this message to FuQiang on Lark/Feishu:
-
-  ──────────────────────────────────────────────────────────────
-  你好，想用一下 lark-deck-cyrus 这个 skill，
-  请把我加为仓库 collaborator：
-
-  · GitHub 用户名: ${GH_USER:-<你的 GitHub username, 在 https://github.com 登录后右上角>}
-  · 仓库: ${REPO_URL}
-  · 添加入口:
-    仓库 Settings > Collaborators / Access
-  ──────────────────────────────────────────────────────────────
-
-收到 GitHub 邀请邮件后点 "Accept invitation"，然后重新运行本脚本。
-
-EOF
-  exit 2
-fi
-
-# 1. clone (or update if exists)
-if [ -d "$INSTALL_DIR/.git" ]; then
-  echo "==> existing clone found at $INSTALL_DIR, pulling latest..."
-  git -C "$INSTALL_DIR" pull --ff-only
+# 1. Prepare a durable project copy.
+if [ "${LARK_DECK_CYRUS_INSTALL_FROM_LOCAL:-}" = "1" ] && has_local_package; then
+  copy_local_package
+elif [ -d "$INSTALL_DIR/.git" ]; then
+  echo "==> existing git checkout found at $INSTALL_DIR, pulling latest..."
+  CURRENT_REMOTE="$(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || true)"
+  if [ "$CURRENT_REMOTE" != "$REPO_URL" ]; then
+    echo "==> setting origin remote to $REPO_URL"
+    git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+  fi
+  if ! git -C "$INSTALL_DIR" pull --ff-only; then
+    if has_local_package; then
+      echo "WARN: git update failed; falling back to the local package copy."
+      copy_local_package
+    else
+      exit 1
+    fi
+  fi
+elif has_local_package; then
+  copy_local_package
 else
-  echo "==> cloning..."
+  echo "==> cloning from git..."
+  ensure_remote_available
   mkdir -p "$(dirname "$INSTALL_DIR")"
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# 2. symlink product skills into $CLAUDE_DIR/skills/
+# 2. Symlink product skills into the harness skills directory.
 mkdir -p "$SKILLS_DIR"
 for SKILL_NAME in "${SKILL_NAMES[@]}"; do
   SRC_PATH="$INSTALL_DIR/skills/$SKILL_NAME"
   LINK_PATH="$SKILLS_DIR/$SKILL_NAME"
   if [ ! -d "$SRC_PATH" ]; then
-    echo "ERROR — missing skill directory: $SRC_PATH"
+    echo "ERROR: missing skill directory: $SRC_PATH" >&2
     exit 1
   fi
   if [ -L "$LINK_PATH" ] || [ -e "$LINK_PATH" ]; then
-    echo "==> removing existing $LINK_PATH..."
+    echo "==> replacing existing $LINK_PATH"
     rm -rf "$LINK_PATH"
   fi
   ln -s "$SRC_PATH" "$LINK_PATH"
   echo "==> symlinked: $LINK_PATH -> $SRC_PATH"
 done
 
-# 3. verify
+# 3. Verify.
 echo
 echo "==> running preflight..."
 if bash "$PRIMARY_LINK_PATH/assets/preflight.sh"; then
   echo
-  echo "==> DONE. Restart your Claude Code / harness session to pick up the new skill."
+  echo "==> DONE. Restart your Claude Code / harness session to pick up the new skills."
 else
   echo
-  echo "WARN — preflight failed. The skill is installed but the current directory"
-  echo "may not be a writable mount. cd into a real project before generating decks."
-  echo "(See SKILL.md PREFLIGHT for details.)"
+  echo "WARN: preflight failed. The skills are installed, but this shell may not"
+  echo "be in a writable project mount. cd into a real project before generating decks."
   exit 1
 fi

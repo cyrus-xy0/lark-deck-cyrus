@@ -184,7 +184,7 @@ def local_knowledge_refs(industry: str, business_moment: str, product_scope: lis
     if pack:
         refs.append(
             {
-                "source": "feishu-base",
+                "source": "local-cache",
                 "query": f"行业包 {pack.get('name')}",
                 "title": f"行业包 · {pack.get('name')}",
                 "cache_path": pack.get("_path", ""),
@@ -196,7 +196,7 @@ def local_knowledge_refs(industry: str, business_moment: str, product_scope: lis
     if retail.exists() and any(term in text for term in ["消费零售", "零售", "餐饮", "retail", "consumer"]):
         refs.append(
             {
-                "source": "feishu-base",
+                "source": "local-cache",
                 "query": "消费零售 连锁餐饮 行业包",
                 "title": "行业包 · 消费零售 / 连锁餐饮",
                 "cache_path": "knowledge/industries/retail-consumer.md",
@@ -206,7 +206,7 @@ def local_knowledge_refs(industry: str, business_moment: str, product_scope: lis
     if not refs and (REPO / "knowledge/README.md").exists():
         refs.append(
             {
-                "source": "feishu-base",
+                "source": "local-cache",
                 "query": "知识库 使用说明",
                 "title": "知识库使用说明",
                 "cache_path": "knowledge/README.md",

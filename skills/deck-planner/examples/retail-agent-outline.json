@@ -40,12 +40,11 @@
   },
   "knowledge_refs": [
     {
-      "source": "feishu-base",
-      "table": "知识库",
+      "source": "local-cache",
       "query": "消费零售 连锁餐饮 新品上市 门店巡检",
-      "cache_path": ".base-cache/knowledge/knowledge/industries/retail-consumer.md",
+      "cache_path": "knowledge/industries/retail-consumer.md",
       "title": "行业包 · 消费零售 / 连锁餐饮",
-      "used_for": "通过 Base 检索后作为痛点地图、素材提示、open questions"
+      "used_for": "通过本地知识库检索后作为痛点地图、素材提示、open questions"
     }
   ],
   "outline": {

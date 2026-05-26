@@ -33,7 +33,7 @@ runs/
 
 # Skill distribution artifacts from package-skill.sh — regenerable,
 # binary, dated. Don't commit.
-feishu-deck-h5-*.zip
+lark-deck-cyrus-*.zip
 
 # Node (if you ever add tooling)
 node_modules/
@@ -45,7 +45,11 @@ package-lock.json
 *~
 
 # Preflight cache (per-machine cross-clone search results)
-.feishu-deck-h5-preflight-cache
+.deck-renderer-preflight-cache
 
 # Base-backed local cache copies. Feishu Base is the source of truth.
 .base-cache/
+
+# Local candidate artifacts produced by eval/generator smoke tests.
+library/knowledge/candidates/
+library/presentation/candidates/

@@ -3,7 +3,7 @@
 > **飞书风格的客户提案 deck，但是 HTML 不是 PPT。**
 > 浏览器全屏放映、单文件发 IM、文本编辑器改字、视觉与飞书母版完全对齐。
 
-🔗 看样品 → [`examples/sample-deck.html`](examples/sample-deck.html)
+🔗 看样品 → [`skills/deck-renderer/examples/sample-deck.html`](skills/deck-renderer/examples/sample-deck.html)
 （双击在浏览器打开，左右键翻页）
 
 ---
@@ -29,11 +29,9 @@
 
 - **deck planner** — `skills/deck-planner/` 先判断行业痛点、受众、
   每页重点、关键 idea、讲法、证据缺口、素材计划和页级 layout candidate,避免只做视觉 demo。
-- **知识库** — 飞书 Base `知识库` 是 source of truth; `knowledge/` / `.base-cache/`
-  只作为本地副本。
-- **素材索引** — 飞书 Base `素材库` 统一索引 logo、图片、video、icon、demo 等素材;
-  `assets/shared/asset-index.generated.json` 由 Base 导出,本地 agent 和飞书 bot 共用
-  `scripts/base_library.py` 这一套访问入口。
+- **知识库** — GitHub 安装默认使用随包 `knowledge/`;内部用户可配置飞书 Base 作为 live source。
+- **素材索引** — GitHub 安装默认读取 `assets/shared/asset-index.generated.json`;
+  配置 `LARK_LIBRARY_BASE_TOKEN` 后可用飞书 Base 同步 logo、图片、video、icon、demo 等素材。
 - **HTML deck 渲染** — `skills/deck-renderer/` 消费 outline,优先用 DeckJSON-first
   生成可编辑、可交付的 HTML deck。
 - **质量验收** — `skills/deck-auditor/` 统一解释 validator、screenshot、gate、
@@ -102,9 +100,9 @@
 
 ## 看更多例子
 
-- [`examples/sample-deck.html`](examples/sample-deck.html) — HTML 示例 deck
-- [`preview-dark.html`](preview-dark.html) — 设计令牌（颜色 / 字号 / 渐变）+ 组件 gallery
-- [`templates/slide-recipes.html`](templates/slide-recipes.html) — 每种 layout 的 reference 实现
+- [`skills/deck-renderer/examples/sample-deck.html`](skills/deck-renderer/examples/sample-deck.html) — HTML 示例 deck
+- [`skills/deck-renderer/preview-dark.html`](skills/deck-renderer/preview-dark.html) — 设计令牌（颜色 / 字号 / 渐变）+ 组件 gallery
+- [`skills/deck-renderer/templates/slide-recipes.html`](skills/deck-renderer/templates/slide-recipes.html) — 每种 layout 的 reference 实现
 
 ---
 
@@ -112,7 +110,7 @@
 
 **让 Claude 帮你装 + 帮你做**，一句话：
 
-> "帮我安装 lark-deck-cyrus skill：https://github.com/cyrus-xy0/feishu-deck-h5，
+> "帮我安装 lark-deck-cyrus skill：git@github.com:cyrus-xy0/lark-deck-cyrus.git，
 > 装完帮我做一份关于〔你的主题〕的 deck"
 
 Claude 会读 [INSTALL.md](INSTALL.md) 走标准安装流程（plugin marketplace 或 install.sh），
