@@ -1,0 +1,89 @@
+{
+  "version": "1.0",
+  "id": "biz-kpi-row",
+  "title": "四项 KPI 结果页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/stats-row.svg",
+  "tags": [
+    "KPI",
+    "指标",
+    "数据"
+  ],
+  "industry": [
+    "消费零售",
+    "制造",
+    "HR",
+    "SaaS"
+  ],
+  "product": [
+    "飞书Base",
+    "飞书项目",
+    "飞书任务"
+  ],
+  "customer_stage": [
+    "POC",
+    "复盘续约"
+  ],
+  "deck_type": [
+    "POC方案",
+    "复盘续约"
+  ],
+  "value_prop": [
+    "指标看板",
+    "结果复盘"
+  ],
+  "layout": "stats",
+  "variant": "row",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "slide_key": "kpi-4up",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "kpi-4up",
+    "layout": "stats",
+    "variant": "row",
+    "accent": "teal",
+    "screen_label": "07 可量化结果",
+    "data": {
+      "title": "飞书带来的可量化结果",
+      "cols": [
+        {
+          "icon": "zap",
+          "trend": "↑ 触达",
+          "num": "3",
+          "unit": "秒",
+          "label": "30 万人组织全员消息送达时延",
+          "source": "Source · 内部传输实测 2024 Q4"
+        },
+        {
+          "icon": "check",
+          "trend": "↑ 已读",
+          "num": "98",
+          "unit": "%",
+          "label": "关键通知 30 分钟内已读率",
+          "source": "Source · 12 家头部企业平均"
+        },
+        {
+          "icon": "trending-up",
+          "trend": "↑ ROI",
+          "num": "3.2",
+          "unit": "×",
+          "label": "部署 12 个月后协同 ROI 中位数",
+          "source": "Source · IDC 2024 商务白皮书"
+        },
+        {
+          "icon": "clock",
+          "trend": "↓ 决策",
+          "num": "<60",
+          "unit": "秒",
+          "label": "关键决策从发起到对齐时长",
+          "source": "Source · 客户访谈 N=24"
+        }
+      ],
+      "footnote": "数据样本: 12 家中国头部企业, 2024 Q3-Q4 实测, 口径见附录 A."
+    }
+  }
+}

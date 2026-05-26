@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "id": "biz-impact-matrix",
+  "title": "业务影响矩阵",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/matrix.svg",
+  "tags": [
+    "矩阵",
+    "优先级"
+  ],
+  "industry": [
+    "制造",
+    "金融",
+    "SaaS"
+  ],
+  "product": [
+    "飞书项目",
+    "多维表格"
+  ],
+  "customer_stage": [
+    "POC",
+    "复盘续约"
+  ],
+  "deck_type": [
+    "分析报告",
+    "POC方案"
+  ],
+  "value_prop": [
+    "优先级判断",
+    "影响评估"
+  ],
+  "layout": "content",
+  "variant": "matrix",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "slide_key": "matrix-demo",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "matrix-demo",
+    "layout": "content",
+    "variant": "matrix",
+    "accent": "blue",
+    "screen_label": "02 matrix-2x2",
+    "data": {
+      "title": "matrix · 业务影响 × 实施难度",
+      "axes": {
+        "y": {
+          "name": "业务影响",
+          "high_label": "HIGH",
+          "low_label": "LOW"
+        },
+        "x": {
+          "name": "实施难度",
+          "high_label": "HARD",
+          "low_label": "EASY"
+        }
+      },
+      "quadrants": {
+        "tl": {
+          "title": "立即做",
+          "items": [
+            "销售周报自动化",
+            "审批流上线"
+          ]
+        },
+        "tr": {
+          "title": "战略投入",
+          "items": [
+            "客户 360 重构",
+            "数据湖建设"
+          ]
+        },
+        "bl": {
+          "title": "缓做",
+          "items": [
+            "内部 Wiki 整理"
+          ]
+        },
+        "br": {
+          "title": "不做",
+          "items": [
+            "定制化报表平台"
+          ]
+        }
+      }
+    }
+  }
+}

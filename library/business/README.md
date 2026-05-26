@@ -7,6 +7,10 @@ separate from the design kit:
 - `candidates/`: GTM-marked slides waiting for maintainer review.
 - `thumbnails/`: required preview images for library cards.
 
+Current seed coverage includes 17 approved reusable slides across high-frequency
+layouts: before-after, 3up, 2col, matrix, story-case, table, quote, image-text,
+stats row/hero/waterfall, timeline/process/tree/swim, arch-stack, and logo-wall.
+
 Run the gate:
 
 ```bash

@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "id": "biz-scale-hero",
+  "title": "规模化结果强调页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/stats-hero.svg",
+  "tags": [
+    "大数字",
+    "规模"
+  ],
+  "industry": [
+    "通用",
+    "互联网",
+    "SaaS"
+  ],
+  "product": [
+    "飞书"
+  ],
+  "customer_stage": [
+    "复盘续约"
+  ],
+  "deck_type": [
+    "客户pitch",
+    "案例包"
+  ],
+  "value_prop": [
+    "规模化协同",
+    "组织效率"
+  ],
+  "layout": "stats",
+  "variant": "hero",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "slide_key": "scale-30k",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "scale-30k",
+    "layout": "stats",
+    "variant": "hero",
+    "accent": "blue",
+    "decor": [
+      "blue-glow"
+    ],
+    "screen_label": "08 极限规模",
+    "data": {
+      "eyebrow": "SCALE · 极限规模",
+      "stat": {
+        "number": "30",
+        "unit": "万人"
+      },
+      "heading": "单一组织,统一协同",
+      "body": "飞书的消息、文档、视频会议在 30 万人量级下保持秒级响应,且不依赖私有部署。"
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "id": "biz-before-after",
+  "title": "痛点解法对比页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/before-after.svg",
+  "tags": [
+    "before-after",
+    "痛点"
+  ],
+  "industry": [
+    "消费零售",
+    "制造",
+    "金融",
+    "HR",
+    "SaaS"
+  ],
+  "product": [
+    "飞书AI",
+    "知识问答",
+    "飞书Base"
+  ],
+  "customer_stage": [
+    "首访"
+  ],
+  "deck_type": [
+    "客户pitch",
+    "行业方案"
+  ],
+  "value_prop": [
+    "痛点对比",
+    "业务闭环"
+  ],
+  "layout": "content",
+  "variant": "before-after",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "slide_key": "before-after-demo",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "before-after-demo",
+    "layout": "content",
+    "variant": "before-after",
+    "accent": "blue",
+    "screen_label": "01 before-after",
+    "data": {
+      "title": "before-after · 痛点 vs 解法",
+      "before": {
+        "tag": "现状 · 痛点",
+        "items": [
+          "数据散落在 5 个系统",
+          "决策靠 IT 拼表周报",
+          "看到数据已是一周后",
+          "无人对结论负责"
+        ]
+      },
+      "pivot": {
+        "caption": "飞书 · 12 周后"
+      },
+      "after": {
+        "tag": "飞书 · 现在",
+        "items": [
+          "单一 Base 实时聚合",
+          "决策者自助看板",
+          "数据延迟 < 5 分钟",
+          "字段责任人 + 时间戳"
+        ]
+      }
+    }
+  }
+}

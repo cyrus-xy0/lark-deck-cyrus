@@ -1,0 +1,56 @@
+{
+  "version": "1.0",
+  "id": "biz-onsite-image-text",
+  "title": "现场决策图文页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/image-text.svg",
+  "tags": [
+    "图文",
+    "现场"
+  ],
+  "industry": [
+    "制造",
+    "消费零售"
+  ],
+  "product": [
+    "飞书会议",
+    "飞书项目"
+  ],
+  "customer_stage": [
+    "首访",
+    "POC"
+  ],
+  "deck_type": [
+    "客户pitch",
+    "行业方案"
+  ],
+  "value_prop": [
+    "现场闭环",
+    "移动协同"
+  ],
+  "layout": "image-text",
+  "variant": "",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "slide_key": "image-onsite-decision",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "image-onsite-decision",
+    "layout": "image-text",
+    "accent": "blue",
+    "screen_label": "09 现场决策",
+    "data": {
+      "image": {
+        "src": "assets/onsite-photo.jpg",
+        "alt": "门店一线员工在 Lark 移动端审批一笔库存调拨",
+        "fit": "cover",
+        "position": "center"
+      },
+      "title": "现场决策,\n从未离线",
+      "lede": "门店、产线、出差、远程,飞书让每一处节点都能即时被看到、被对齐。"
+    }
+  }
+}

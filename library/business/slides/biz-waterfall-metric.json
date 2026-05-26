@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "id": "biz-waterfall-metric",
+  "title": "指标桥图页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/waterfall.svg",
+  "tags": [
+    "桥图",
+    "指标"
+  ],
+  "industry": [
+    "金融",
+    "SaaS",
+    "制造"
+  ],
+  "product": [
+    "多维表格",
+    "飞书Base"
+  ],
+  "customer_stage": [
+    "复盘续约"
+  ],
+  "deck_type": [
+    "复盘续约",
+    "分析报告"
+  ],
+  "value_prop": [
+    "指标归因",
+    "增长拆解"
+  ],
+  "layout": "stats",
+  "variant": "waterfall",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "slide_key": "waterfall-demo",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "waterfall-demo",
+    "layout": "stats",
+    "variant": "waterfall",
+    "accent": "teal",
+    "screen_label": "07 stats-waterfall",
+    "data": {
+      "title": "waterfall · 桥图",
+      "bars": [
+        {
+          "kind": "base",
+          "value": "¥ 8.2M",
+          "delta": "起点",
+          "label": "Q1 ARR"
+        },
+        {
+          "kind": "pos",
+          "value": "+ ¥ 2.4M",
+          "delta": "+ 29%",
+          "label": "渠道扩展",
+          "sublabel": "新签 12 家头部"
+        },
+        {
+          "kind": "neg",
+          "value": "− ¥ 0.4M",
+          "delta": "− 5%",
+          "label": "客户流失",
+          "sublabel": "2 家服务到期"
+        },
+        {
+          "kind": "pos",
+          "value": "+ ¥ 1.6M",
+          "delta": "+ 18%",
+          "label": "客单提升",
+          "sublabel": "AI 模块加购"
+        },
+        {
+          "kind": "end",
+          "value": "¥ 11.8M",
+          "delta": "合计 + 44%",
+          "label": "Q4 ARR"
+        }
+      ],
+      "footnote": "口径: 公司全年 ARR · Q4 / Q1 同口径"
+    }
+  }
+}

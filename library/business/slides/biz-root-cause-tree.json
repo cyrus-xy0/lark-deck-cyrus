@@ -1,0 +1,72 @@
+{
+  "version": "1.0",
+  "id": "biz-root-cause-tree",
+  "title": "根因拆解树",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/tree.svg",
+  "tags": [
+    "树",
+    "根因"
+  ],
+  "industry": [
+    "制造",
+    "金融",
+    "SaaS支持"
+  ],
+  "product": [
+    "知识问答",
+    "飞书Base"
+  ],
+  "customer_stage": [
+    "POC"
+  ],
+  "deck_type": [
+    "POC方案",
+    "分析报告"
+  ],
+  "value_prop": [
+    "根因分析",
+    "知识复用"
+  ],
+  "layout": "flow",
+  "variant": "tree",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "slide_key": "tree-demo",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "tree-demo",
+    "layout": "flow",
+    "variant": "tree",
+    "accent": "blue",
+    "screen_label": "05 flow-tree",
+    "data": {
+      "title": "flow-tree · MECE 拆解",
+      "root": {
+        "question": "为什么 ROI 未达预期?",
+        "why": "实际 1.8× · 预期 3.0×"
+      },
+      "branches": [
+        {
+          "ord": "A",
+          "title": "客户深度使用率低",
+          "leaves": [
+            "新功能未推广",
+            "培训未覆盖一线"
+          ]
+        },
+        {
+          "ord": "B",
+          "title": "实施周期超预算",
+          "leaves": [
+            "需求变更频繁",
+            "数据迁移返工"
+          ]
+        }
+      ]
+    }
+  }
+}

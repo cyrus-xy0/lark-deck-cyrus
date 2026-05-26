@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "id": "biz-customer-quote",
+  "title": "客户原声引用页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/quote.svg",
+  "tags": [
+    "引用",
+    "客户原声"
+  ],
+  "industry": [
+    "通用",
+    "SaaS"
+  ],
+  "product": [
+    "飞书"
+  ],
+  "customer_stage": [
+    "复盘续约",
+    "首访"
+  ],
+  "deck_type": [
+    "客户pitch",
+    "案例包"
+  ],
+  "value_prop": [
+    "客户证言",
+    "组织协同"
+  ],
+  "layout": "quote",
+  "variant": "",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "slide_key": "quote-30k-team",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "quote-30k-team",
+    "layout": "quote",
+    "accent": "blue",
+    "decor": [
+      "blue-glow"
+    ],
+    "screen_label": "06 客户原声",
+    "data": {
+      "title": "客户原声",
+      "quote": {
+        "lead": "飞书让 30 万人 ",
+        "accent": "像一个团队",
+        "tail": " 一样工作"
+      },
+      "attribution": "某头部互联网公司 · CIO · 2024"
+    }
+  }
+}

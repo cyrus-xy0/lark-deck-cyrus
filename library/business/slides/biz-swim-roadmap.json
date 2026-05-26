@@ -1,0 +1,88 @@
+{
+  "version": "1.0",
+  "id": "biz-swim-roadmap",
+  "title": "多泳道路线图",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/swim.svg",
+  "tags": [
+    "泳道",
+    "路线图"
+  ],
+  "industry": [
+    "互联网",
+    "SaaS",
+    "HR"
+  ],
+  "product": [
+    "飞书项目",
+    "Aily",
+    "飞书AI"
+  ],
+  "customer_stage": [
+    "POC",
+    "项目启动"
+  ],
+  "deck_type": [
+    "项目启动",
+    "产品介绍"
+  ],
+  "value_prop": [
+    "跨线协同",
+    "路线图"
+  ],
+  "layout": "flow",
+  "variant": "swim",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "slide_key": "swim-demo",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "swim-demo",
+    "layout": "flow",
+    "variant": "swim",
+    "accent": "blue",
+    "screen_label": "06 flow-swim",
+    "data": {
+      "title": "flow-swim · 多泳道 roadmap",
+      "time_axis": [
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4"
+      ],
+      "lanes": [
+        {
+          "name": "飞书 AI 助手",
+          "accent": "blue",
+          "milestones": [
+            {
+              "quarter": 1,
+              "title": "内测发布"
+            },
+            {
+              "quarter": 3,
+              "title": "全员开通"
+            }
+          ]
+        },
+        {
+          "name": "多维表格",
+          "accent": "teal",
+          "milestones": [
+            {
+              "quarter": 2,
+              "title": "Base 2.0"
+            },
+            {
+              "quarter": 4,
+              "title": "对外开放 API"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

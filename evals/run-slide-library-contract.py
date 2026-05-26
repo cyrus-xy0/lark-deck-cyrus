@@ -21,7 +21,7 @@ def has_error(issues: list[dict[str, str]]) -> bool:
 
 def main() -> int:
     gate = slide_library.validate_library(include_candidates=False)
-    if not gate["ok"] or gate["entries"] < 3:
+    if not gate["ok"] or gate["entries"] < 15:
         print("slide library gate failed or seed library is too small", file=sys.stderr)
         print(gate, file=sys.stderr)
         return 1

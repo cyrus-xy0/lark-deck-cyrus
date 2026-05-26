@@ -1,0 +1,89 @@
+{
+  "version": "1.0",
+  "id": "biz-comparison-table",
+  "title": "传统套件对比表",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/table.svg",
+  "tags": [
+    "对比",
+    "竞品"
+  ],
+  "industry": [
+    "通用",
+    "SaaS",
+    "互联网"
+  ],
+  "product": [
+    "飞书",
+    "飞书Base",
+    "飞书文档"
+  ],
+  "customer_stage": [
+    "竞品替代",
+    "首访"
+  ],
+  "deck_type": [
+    "竞品替代方案",
+    "客户pitch"
+  ],
+  "value_prop": [
+    "差异化对比",
+    "一体化协同"
+  ],
+  "layout": "table",
+  "variant": "",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "slide_key": "comparison-vs-traditional",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "comparison-vs-traditional",
+    "layout": "table",
+    "accent": "blue",
+    "screen_label": "10 平台对比",
+    "data": {
+      "title": "飞书与传统办公套件",
+      "headers": [
+        "能力",
+        "飞书 Lark",
+        "传统套件 A",
+        "传统套件 B"
+      ],
+      "rows": [
+        [
+          "消息 + 文档 + 表格 + 会议 一体化",
+          "原生集成",
+          "多产品拼接",
+          "多产品拼接"
+        ],
+        [
+          "多维表格 (Base) 自动化",
+          "核心能力",
+          "第三方插件",
+          "不支持"
+        ],
+        [
+          "30 万人级消息触达",
+          "3 秒内全员",
+          "待确认",
+          "待确认"
+        ],
+        [
+          "跨域中英双语支持",
+          "原生",
+          "需配置",
+          "需配置"
+        ],
+        [
+          "开放 API + Webhook",
+          "全量开放",
+          "受限",
+          "受限"
+        ]
+      ]
+    }
+  }
+}

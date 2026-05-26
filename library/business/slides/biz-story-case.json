@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "id": "biz-story-case",
+  "title": "一页纸案例页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/story-case.svg",
+  "tags": [
+    "案例",
+    "故事"
+  ],
+  "industry": [
+    "消费零售",
+    "制造",
+    "金融",
+    "教育"
+  ],
+  "product": [
+    "飞书AI",
+    "飞书Base"
+  ],
+  "customer_stage": [
+    "首访",
+    "复盘续约"
+  ],
+  "deck_type": [
+    "案例包",
+    "客户pitch"
+  ],
+  "value_prop": [
+    "案例证明",
+    "可信证据"
+  ],
+  "layout": "content",
+  "variant": "story-case",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "slide_key": "story-case-demo",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "story-case-demo",
+    "layout": "content",
+    "variant": "story-case",
+    "accent": "blue",
+    "decor": [
+      "blue-glow"
+    ],
+    "screen_label": "04 story-case",
+    "data": {
+      "title": "story-case · 一页纸案例",
+      "industry": "连锁零售 · 新店筹建",
+      "hook": {
+        "lead": "新店垃圾桶距出餐窄 1 米,按 SOP 必须 ",
+        "accent": "砸墙返工",
+        "tail": " —— 老专家两招就解决。"
+      },
+      "arc": {
+        "pain": "新店筹建,大量老专家经验不在 SOP,新人犯错返工成本高、耽误开店周期。",
+        "conflict": "瑞幸新店验收发现垃圾桶位置距出餐区窄 1 米,按 SOP 必须砸墙返工。",
+        "solution": "几十年经验的老专家随手两招:装玻璃隔离 / 换踩弹式垃圾桶 —— 不动装修就能合规。",
+        "value": {
+          "lead": "飞书把不在手册里的隐形经验萃取到 ",
+          "accent": "企业 AI 知识库",
+          "tail": ",新人遇到问题直接搜就能得到解法。"
+        }
+      },
+      "scene": {
+        "image": "../../../assets/lark-cover-bg.jpg",
+        "caption": "占位 · 真实场景应放门店现场照",
+        "alt": "lark master cover bg 占位"
+      }
+    }
+  }
+}

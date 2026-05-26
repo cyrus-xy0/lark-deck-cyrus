@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "id": "biz-process-4step",
+  "title": "四步交付流程",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/process.svg",
+  "tags": [
+    "流程",
+    "四步"
+  ],
+  "industry": [
+    "制造",
+    "HR",
+    "SaaS",
+    "消费零售"
+  ],
+  "product": [
+    "飞书项目",
+    "飞书任务",
+    "多维表格"
+  ],
+  "customer_stage": [
+    "POC",
+    "项目启动"
+  ],
+  "deck_type": [
+    "POC方案",
+    "项目启动"
+  ],
+  "value_prop": [
+    "任务拆解",
+    "交付闭环"
+  ],
+  "layout": "flow",
+  "variant": "process",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "slide_key": "process-4step",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "process-4step",
+    "layout": "flow",
+    "variant": "process",
+    "accent": "blue",
+    "screen_label": "12 协同闭环",
+    "data": {
+      "title": "需求到交付,四步成型",
+      "cols": 4,
+      "steps": [
+        {
+          "num": "01",
+          "title": "提出",
+          "body": "任意一线员工在 Messenger 发起,自动落入 Base 队列。"
+        },
+        {
+          "num": "02",
+          "title": "对齐",
+          "body": "相关方在 Docs 留痕讨论,关键决策沉淀到 Wiki。"
+        },
+        {
+          "num": "03",
+          "title": "交付",
+          "body": "负责人在 Base 中流转,责任人 + 时间戳每一步可追溯。"
+        },
+        {
+          "num": "04",
+          "title": "复盘",
+          "body": "会后 Meetings 自动生成纪要,关键指标进入下个周期。"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "version": "1.0",
+  "id": "biz-logo-wall",
+  "title": "客户矩阵页",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/logo-wall.svg",
+  "tags": [
+    "logo-wall",
+    "客户矩阵"
+  ],
+  "industry": [
+    "通用",
+    "消费零售",
+    "互联网"
+  ],
+  "product": [
+    "飞书"
+  ],
+  "customer_stage": [
+    "首访"
+  ],
+  "deck_type": [
+    "案例包",
+    "客户pitch"
+  ],
+  "value_prop": [
+    "客户背书",
+    "行业覆盖"
+  ],
+  "layout": "logo-wall",
+  "variant": "",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/phase-1c-extras.json",
+    "slide_key": "logos-demo",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "logos-demo",
+    "layout": "logo-wall",
+    "accent": "blue",
+    "screen_label": "09 logo-wall",
+    "data": {
+      "title": "logo-wall · 客户矩阵",
+      "lede": "按行业 × 客户 logo 排列。",
+      "industries": [
+        {
+          "name": "新茶饮 / 餐饮连锁",
+          "logos": [
+            "瑞幸咖啡",
+            "霸王茶姬",
+            "茶百道",
+            "古茗",
+            "益禾堂"
+          ]
+        },
+        {
+          "name": "投资机构",
+          "logos": [
+            "IDG资本",
+            "KKR",
+            "PAG",
+            "CPE源峰"
+          ]
+        }
+      ]
+    }
+  }
+}

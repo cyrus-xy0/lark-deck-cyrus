@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "id": "biz-lark-base-2col",
+  "title": "飞书 Base 流程运转双栏",
+  "status": "approved",
+  "thumbnail": "library/business/thumbnails/two-col.svg",
+  "tags": [
+    "Base",
+    "双栏",
+    "流程"
+  ],
+  "industry": [
+    "通用",
+    "SaaS",
+    "消费零售",
+    "制造"
+  ],
+  "product": [
+    "飞书Base",
+    "多维表格"
+  ],
+  "customer_stage": [
+    "首访",
+    "POC"
+  ],
+  "deck_type": [
+    "客户pitch",
+    "产品介绍"
+  ],
+  "value_prop": [
+    "流程可视化",
+    "数据协同",
+    "低代码运营"
+  ],
+  "layout": "content",
+  "variant": "2col",
+  "source": {
+    "level": "synthetic",
+    "deck": "skills/feishu-deck-h5/deck-json/examples/sample-deck.json",
+    "slide_key": "lark-base-tour",
+    "owner": "lark-deck-cyrus",
+    "approved_by": "system-seed"
+  },
+  "slide": {
+    "key": "lark-base-tour",
+    "layout": "content",
+    "variant": "2col",
+    "accent": "blue",
+    "screen_label": "05 Lark Base",
+    "data": {
+      "title": "让流程在表格里运转",
+      "text": {
+        "lede": "Lark Base 把任务、工单、合同、人员、审批,统一到一个可视化的多维表格。",
+        "feature_list": [
+          "看板、甘特、日历、卡片视图,一份数据多种视角。",
+          "关联字段把分散的表打成网,数据不再孤立。",
+          "触发器 + 自动化,把人手操作变成系统行为。",
+          "开放 API,与 ERP、CRM、自研系统双向同步。"
+        ]
+      },
+      "visual": {
+        "type": "data-panel",
+        "panel": {
+          "type": "data-panel",
+          "title": "销售战区 · 04-28 实时面板",
+          "tone": "default",
+          "rows": [
+            {
+              "lbl": "华东 · 大润发周末堆头",
+              "val": "ROI 3.2×"
+            },
+            {
+              "lbl": "华北 · 餐饮渠道返点",
+              "val": "ROI 0.6×",
+              "tone": "warn"
+            },
+            {
+              "lbl": "本周自动核销",
+              "val": "1,284 单 · ↑ 47%"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
