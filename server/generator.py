@@ -1053,6 +1053,7 @@ function renderSlides() {{
           <div class="actions">
             <button class="ghost" onclick="moveSlide('${{esc(slide.key)}}', -1)">上移</button>
             <button class="ghost" onclick="moveSlide('${{esc(slide.key)}}', 1)">下移</button>
+            <button class="ghost" onclick="markReusable('${{esc(slide.key)}}')">标记复用</button>
             <button class="danger" onclick="deleteSlide('${{esc(slide.key)}}')">删除</button>
           </div>
         </div>
@@ -1133,6 +1134,33 @@ function insertLibrarySlide() {{
   slides.splice(activeIndex >= 0 ? activeIndex + 1 : slides.length, 0, slide);
   activeKey = slide.key;
   render();
+}}
+
+async function markReusable(key) {{
+  syncFromForm();
+  const slide = (deck.slides || []).find(item => item.key === key);
+  if (!slide) return;
+  const result = document.getElementById('result');
+  result.classList.add('show');
+  result.textContent = 'Marking...';
+  const response = await fetch('/library/candidates', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{
+      task_id: {task_id_js},
+      slide_key: key,
+      title: slideLabel(slide, (deck.slides || []).findIndex(item => item.key === key)),
+      industry: ['待标注'],
+      product: ['待标注'],
+      customer_stage: ['待标注'],
+      deck_type: ['待标注'],
+      value_prop: [slideLabel(slide, 0)],
+      tag: ['值得复用', '待审核']
+    }})
+  }});
+  const body = await response.json();
+  result.textContent = JSON.stringify(body, null, 2);
+  if (!response.ok) alert('候选入库失败,请看页面底部结果。');
 }}
 
 function refreshJson() {{
@@ -1561,6 +1589,16 @@ class GeneratorHandler(BaseHTTPRequestHandler):
                 )
                 has_errors = any(issue["severity"] == "error" for issue in result.get("issues", []))
                 self.send_json(400 if has_errors else 201, result)
+                return
+            if len(parts) == 4 and parts[0] == "library" and parts[1] == "candidates" and parts[3] == "approve":
+                payload = self.read_body_json()
+                result = slide_library.approve_candidate(
+                    parts[2],
+                    reviewer=str(payload.get("reviewer") or "maintainer"),
+                    source_level=str(payload.get("source_level") or "internal-approved"),
+                    thumbnail=str(payload.get("thumbnail") or ""),
+                )
+                self.send_json(200 if result.get("ok") else 400, result)
                 return
         except Exception as exc:  # noqa: BLE001
             self.send_json(400, {"error": str(exc)})

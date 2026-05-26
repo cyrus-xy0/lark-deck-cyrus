@@ -31,3 +31,12 @@ python3 server/slide_library.py mark-reuse \
   --deck-type 客户pitch \
   --tag 值得复用
 ```
+
+Approve after maintainer review:
+
+```bash
+python3 server/slide_library.py approve-candidate <candidate-id> \
+  --reviewer maintainer \
+  --source-level internal-approved \
+  --thumbnail library/business/thumbnails/<final>.svg
+```

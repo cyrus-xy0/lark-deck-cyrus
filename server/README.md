@@ -94,6 +94,7 @@ Endpoints:
 - `GET /library/gate`
 - `GET /library/design-kit`
 - `POST /library/candidates`
+- `POST /library/candidates/{candidate-id}/approve`
 
 `GET /decks/{id}/edit` is the P1 lightweight web editor. It supports:
 
@@ -133,6 +134,15 @@ python3 server/slide_library.py mark-reuse \
   --customer-stage 首访 \
   --deck-type 客户pitch \
   --tag 值得复用
+```
+
+Approve a reviewed candidate into the Business Library:
+
+```bash
+python3 server/slide_library.py approve-candidate <candidate-id> \
+  --reviewer maintainer \
+  --source-level internal-approved \
+  --thumbnail library/business/thumbnails/<final>.svg
 ```
 
 The gate checks unique slide keys, explicit source level, thumbnail/text/tags

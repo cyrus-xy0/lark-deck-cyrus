@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,10 @@ def read_json(path: Path) -> dict[str, Any]:
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def repo_rel(path: Path) -> str:
@@ -369,6 +374,47 @@ def mark_reuse_candidate(task_id: str, slide_key: str, metadata: dict[str, Any])
     return {"path": repo_rel(target), "entry": summarize_entry(entry), "issues": check}
 
 
+def candidate_file(candidate_id: str) -> Path:
+    safe = Path(candidate_id).name.removesuffix(".json")
+    path = CANDIDATES_DIR / f"{safe}.json"
+    if path.exists():
+        return path
+    direct = Path(candidate_id)
+    if direct.exists():
+        return direct
+    raise FileNotFoundError(candidate_id)
+
+
+def approve_candidate(
+    candidate_id: str,
+    *,
+    reviewer: str,
+    source_level: str = "internal-approved",
+    thumbnail: str = "",
+) -> dict[str, Any]:
+    source_path = candidate_file(candidate_id)
+    entry = read_json(source_path)
+    if thumbnail:
+        entry["thumbnail"] = thumbnail
+    if str(entry.get("thumbnail", "")).endswith("pending.svg"):
+        raise ValueError("approved candidates need a final thumbnail")
+    entry["status"] = "approved"
+    entry.setdefault("source", {})["level"] = source_level
+    entry["source"]["reviewer"] = reviewer
+    entry["source"]["approved_at"] = now_iso()
+    if entry["id"].startswith("candidate-"):
+        entry["id"] = "biz-" + entry["id"].removeprefix("candidate-")
+
+    issues = validate_entry(entry, seen_ids=set(), seen_slide_keys=set())
+    if any(issue["severity"] == "error" for issue in issues):
+        return {"ok": False, "entry": summarize_entry(entry), "issues": issues}
+
+    target = BUSINESS_LIBRARY / f"{entry['id']}.json"
+    write_json(target, entry)
+    source_path.unlink()
+    return {"ok": True, "path": repo_rel(target), "entry": summarize_entry(entry), "issues": issues}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -400,6 +446,12 @@ def main(argv: list[str] | None = None) -> int:
     mark.add_argument("--source-level", default="internal-draft")
     mark.add_argument("--owner", default="gtm")
     mark.add_argument("--reviewer", default="")
+
+    approve = sub.add_parser("approve-candidate", help="approve a review candidate into the business slide library")
+    approve.add_argument("candidate_id")
+    approve.add_argument("--reviewer", required=True)
+    approve.add_argument("--source-level", default="internal-approved", choices=sorted(ALLOWED_SOURCE_LEVELS - {"internal-draft"}))
+    approve.add_argument("--thumbnail", default="", help="final thumbnail path; required if candidate still uses pending.svg")
 
     args = parser.parse_args(argv)
     if args.command == "search":
@@ -439,6 +491,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if not any(issue["severity"] == "error" for issue in result["issues"]) else 1
+    if args.command == "approve-candidate":
+        result = approve_candidate(
+            args.candidate_id,
+            reviewer=args.reviewer,
+            source_level=args.source_level,
+            thumbnail=args.thumbnail,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["ok"] else 1
     raise SystemExit(f"unknown command: {args.command}")
 
 
