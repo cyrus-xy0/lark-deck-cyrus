@@ -37,6 +37,9 @@ runs/20260508-180000/output/
 ├── index.html          ← deck(默认 linked ~24 KB,--inline 单文件 ~360 KB)
 ├── texts.md            ← 文本编辑 sidecar(每个 text leaf 都有 data-text-id)
 ├── FEEDBACK.md         ← 这次 build 的关键决策清单(人机闭环)
+├── JOURNEY.md          ← 从首次请求到当前版本的用户旅程和精调信号
+├── journey.json        ← 可机器分析的事件、版本和编辑 session 记录
+├── quality-insights.json ← 压缩用户精调工作量的改进建议和生成 hint
 ├── assets/             ← 自包含资源(logo / 头像 / 截图)
 └── deck-editable.zip   ← Mode 2/3 远程交付时附加产出
 ```
@@ -326,6 +329,11 @@ skills/feishu-deck-h5/assets/
 ## 11. 反馈闭环(FEEDBACK.md)
 
 每次成功 build **必须**产出 `FEEDBACK.md`——**不是空白模板**,是 agent 自动记录这次 run 真实做出的判断 / 取舍 / 妥协。
+
+服务端 wrapper 还必须产出 `JOURNEY.md`、`journey.json` 和
+`quality-insights.json`:它们记录用户从 brief、澄清、生成、预览、轻量编辑到当前
+结果的全过程,并把持续精调动作聚合成下一次 htmldeck 生成的 recipe / layout /
+文案改进信号。
 
 ### 必填 4 类内容
 1. **Header**:run 时间戳 + 一句话说做了什么

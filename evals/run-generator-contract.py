@@ -4,7 +4,8 @@
 This check verifies that the productized wrapper, not just the local renderer,
 can create a task and emit every fixed handoff artifact:
 
-  deck.json, index.html, texts.md, FEEDBACK.md, assets-manifest.yaml, editable zip
+  deck.json, index.html, texts.md, FEEDBACK.md, assets-manifest.yaml,
+  journey artifacts, editable zip
 """
 
 from __future__ import annotations
@@ -20,8 +21,26 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 GENERATOR = REPO / "server/generator.py"
 REQUEST = REPO / "server/examples/brief-request.json"
-REQUIRED = ["deck.json", "index.html", "texts.md", "FEEDBACK.md", "assets-manifest.yaml"]
-ZIP_REQUIRED = ["index.html", "texts.md", "assets-manifest.yaml", "FEEDBACK.md", "deck.json"]
+REQUIRED = [
+    "deck.json",
+    "index.html",
+    "texts.md",
+    "FEEDBACK.md",
+    "assets-manifest.yaml",
+    "journey.json",
+    "JOURNEY.md",
+    "quality-insights.json",
+]
+ZIP_REQUIRED = [
+    "index.html",
+    "texts.md",
+    "assets-manifest.yaml",
+    "FEEDBACK.md",
+    "deck.json",
+    "journey.json",
+    "JOURNEY.md",
+    "quality-insights.json",
+]
 
 
 def main() -> int:
@@ -66,7 +85,16 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         patch_path = Path(td) / "edit.json"
         patch_path.write_text(
-            json.dumps({"updates": {"title": "连锁零售 AI 知识库 pitch v2"}}, ensure_ascii=False),
+            json.dumps(
+                {
+                    "updates": {"title": "连锁零售 AI 知识库 pitch v2"},
+                    "client_events": [
+                        {"type": "global_edit", "active_key": "cover", "detail": {"field": "deck-title"}},
+                        {"type": "save", "active_key": "cover", "detail": {"count": 2}},
+                    ],
+                },
+                ensure_ascii=False,
+            ),
             encoding="utf-8",
         )
         edit_proc = subprocess.run(
@@ -103,15 +131,29 @@ def main() -> int:
     if not edited_task.get("artifacts", {}).get("preview_url", "").startswith("http://127.0.0.1:8765/decks/"):
         print("edited task preview_url missing base URL", file=sys.stderr)
         return 1
+    edited_output_dir = Path(edited_task["output_dir"])
+    journey = json.loads((edited_output_dir / "journey.json").read_text(encoding="utf-8"))
+    insights = json.loads((edited_output_dir / "quality-insights.json").read_text(encoding="utf-8"))
+    if not journey.get("edit_sessions") or not insights.get("recommendations"):
+        print("edited task missing journey learning signals", file=sys.stderr)
+        return 1
+    if insights.get("action_counts", {}).get("global_edit") != 1:
+        print("edited task did not preserve sanitized client edit events", file=sys.stderr)
+        return 1
 
     sys.path.insert(0, str(REPO / "server"))
     import generator  # noqa: PLC0415
 
     status_page = generator.render_status_page(edited_task["id"]).decode("utf-8")
     edit_page = generator.render_edit_page(edited_task["id"]).decode("utf-8")
-    expected_status = ["Validator 报告", "版本", edited_task["id"]]
+    journey_page = generator.render_journey_page(edited_task["id"]).decode("utf-8")
+    expected_status = ["Validator 报告", "版本", "用户旅程", "精调信号", edited_task["id"]]
     expected_editor = ["轻量编辑", "全局信息", "素材库", "插入已有 slide", "保存并生成新版本", "slide-editor"]
-    if any(phrase not in status_page for phrase in expected_status) or any(phrase not in edit_page for phrase in expected_editor):
+    if (
+        any(phrase not in status_page for phrase in expected_status)
+        or any(phrase not in edit_page for phrase in expected_editor)
+        or "对下一次生成的改进建议" not in journey_page
+    ):
         print("status/edit HTML pages did not render expected content", file=sys.stderr)
         return 1
     if not generator.slide_library_items():
