@@ -445,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
         write_json(deck_path, case["deck"])
 
         outline_proc = run(["python3", str(OUTLINE_VALIDATOR), str(outline_path)])
-        render_proc = run(["python3", str(RENDERER), str(deck_path), str(output_dir), "--shared=link"])
+        render_proc = run(["python3", str(RENDERER), str(deck_path), str(output_dir), "--shared=link", "--offline-cache"])
         check_proc = run(["bash", str(CHECK_ONLY), str(output_dir / "index.html"), "--strict"]) if (output_dir / "index.html").exists() else subprocess.CompletedProcess([], 1, "", "index.html missing")
         rehearsal_path = output_dir / "pitch-rehearsal.json"
         rehearsal_md_path = output_dir / "PITCH_REHEARSAL.md"

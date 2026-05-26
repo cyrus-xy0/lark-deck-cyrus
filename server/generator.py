@@ -12,7 +12,9 @@ the current repo already runs.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
+import html
 import json
 import mimetypes
 import os
@@ -79,9 +81,12 @@ def normalize_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
-        return [str(v).strip() for v in value if str(v).strip()]
+        parts: list[str] = []
+        for item in value:
+            parts.extend(normalize_list(item))
+        return parts
     if isinstance(value, str):
-        parts = re.split(r"[,;，；\n]+", value)
+        parts = re.split(r"[,;，；、\n]+", value)
         return [p.strip() for p in parts if p.strip()]
     return [str(value).strip()]
 
@@ -96,6 +101,14 @@ def brief_value(brief: dict[str, Any], *keys: str, default: str = "") -> str:
 
 def base_identity() -> str:
     return os.environ.get("LARK_LIBRARY_AS", "user")
+
+
+def use_base_library() -> bool:
+    return os.environ.get("GENERATOR_USE_BASE_LIBRARY", "").lower() in {"1", "true", "yes"}
+
+
+def sync_base_assets() -> bool:
+    return os.environ.get("GENERATOR_SYNC_BASE_ASSETS", "").lower() in {"1", "true", "yes"}
 
 
 def query_base_library(command: str, keyword: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -121,7 +134,38 @@ def query_base_library(command: str, keyword: str, limit: int = 5) -> list[dict[
     return json.loads(proc.stdout)
 
 
+def local_knowledge_refs(industry: str, business_moment: str, product_scope: list[str]) -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    retail = REPO / "knowledge/industries/retail-consumer.md"
+    text = " ".join([industry, business_moment, *product_scope]).lower()
+    if retail.exists() and any(term in text for term in ["消费零售", "零售", "餐饮", "retail", "consumer"]):
+        refs.append(
+            {
+                "source": "feishu-base",
+                "query": "消费零售 连锁餐饮 行业包",
+                "title": "行业包 · 消费零售 / 连锁餐饮",
+                "cache_path": "knowledge/industries/retail-consumer.md",
+                "used_for": "作为场景痛点、证据纪律和推荐页型参考；不得把通用行业知识写成客户事实。",
+            }
+        )
+    if not refs and (REPO / "knowledge/README.md").exists():
+        refs.append(
+            {
+                "source": "feishu-base",
+                "query": "知识库 使用说明",
+                "title": "知识库使用说明",
+                "cache_path": "knowledge/README.md",
+                "used_for": "作为生成链路的知识来源纪律参考；缺少行业包时保留待确认问题。",
+            }
+        )
+    return refs
+
+
 def base_knowledge_refs(industry: str, business_moment: str, product_scope: list[str]) -> list[dict[str, Any]]:
+    fallback_refs = local_knowledge_refs(industry, business_moment, product_scope)
+    if not use_base_library():
+        return fallback_refs
+
     keyword_candidates = [
         " ".join([industry, business_moment, *product_scope]).strip(),
         industry,
@@ -132,7 +176,11 @@ def base_knowledge_refs(industry: str, business_moment: str, product_scope: list
     rows: list[dict[str, Any]] = []
     seen_records: set[str] = set()
     for keyword in [k for k in keyword_candidates if k]:
-        for row in query_base_library("search-knowledge", keyword, limit=3):
+        try:
+            found_rows = query_base_library("search-knowledge", keyword, limit=3)
+        except Exception:
+            return fallback_refs
+        for row in found_rows:
             record_id = str(row.get("_record_id") or row.get("文档ID") or row.get("标题") or "")
             if record_id in seen_records:
                 continue
@@ -156,7 +204,7 @@ def base_knowledge_refs(industry: str, business_moment: str, product_scope: list
                 "used_for": "作为场景痛点、证据纪律和素材计划参考；不得把通用知识写成客户事实。",
             }
         )
-    return refs
+    return refs or fallback_refs
 
 
 def high_value_questions(brief: dict[str, Any]) -> list[str]:
@@ -546,6 +594,188 @@ def assert_required_outputs(output_dir: Path) -> list[str]:
     return missing
 
 
+def html_page(title: str, body: str) -> bytes:
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html.escape(title)}</title>
+  <style>
+    :root {{ color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    body {{ margin: 0; background: #f6f8fb; color: #202733; }}
+    main {{ max-width: 1040px; margin: 0 auto; padding: 32px 20px 56px; }}
+    header {{ background: #eaf1ff; border-bottom: 1px solid #d8e2f3; }}
+    header .inner {{ max-width: 1040px; margin: 0 auto; padding: 24px 20px; }}
+    h1 {{ margin: 0; font-size: 28px; line-height: 1.25; color: #1457d9; }}
+    h2 {{ margin: 28px 0 12px; font-size: 18px; }}
+    a {{ color: #1457d9; text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+    .panel {{ background: #fff; border: 1px solid #d9dee8; border-radius: 8px; padding: 18px; margin-top: 18px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }}
+    .metric {{ background: #f8fafc; border: 1px solid #e1e6ef; border-radius: 8px; padding: 12px; }}
+    .label {{ color: #657186; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
+    .value {{ margin-top: 6px; font-weight: 650; word-break: break-word; }}
+    .badge {{ display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 650; }}
+    .succeeded {{ background: #e9f8ef; color: #137333; }}
+    .failed {{ background: #fdeaea; color: #b42318; }}
+    .running {{ background: #fff6db; color: #8a5a00; }}
+    pre {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 14px; }}
+    textarea {{ width: 100%; min-height: 420px; box-sizing: border-box; border: 1px solid #cfd7e6; border-radius: 8px; padding: 12px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }}
+    input {{ width: 100%; box-sizing: border-box; border: 1px solid #cfd7e6; border-radius: 8px; padding: 10px; font: inherit; }}
+    button {{ border: 0; border-radius: 8px; padding: 10px 14px; background: #1457d9; color: white; font-weight: 650; cursor: pointer; }}
+    button.secondary {{ background: #e8edf6; color: #202733; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }}
+    .muted {{ color: #657186; }}
+  </style>
+</head>
+<body>
+  <header><div class="inner"><h1>{html.escape(title)}</h1></div></header>
+  <main>{body}</main>
+</body>
+</html>
+""".encode("utf-8")
+
+
+def artifact_links(task: dict[str, Any]) -> str:
+    artifacts = task.get("artifacts") or {}
+    rows = []
+    for label, key in [
+        ("预览", "preview_url"),
+        ("编辑包", "edit_url"),
+        ("下载包", "download_url"),
+        ("Validator 报告", "validator-report.md"),
+    ]:
+        value = artifacts.get(key)
+        if value:
+            rows.append(f'<li><a href="{html.escape(value)}">{html.escape(label)}</a></li>')
+    return "<ul>" + "".join(rows) + "</ul>" if rows else '<p class="muted">暂无产物链接。</p>'
+
+
+def render_status_page(task_id: str) -> bytes:
+    task = load_task(task_id)
+    status = html.escape(str(task.get("status") or "unknown"))
+    badge_class = status if status in {"succeeded", "failed", "running"} else "running"
+    logs = task.get("logs") or {}
+    log_rows = "".join(
+        f"<li><code>{html.escape(name)}</code>: {html.escape(str(path))}</li>"
+        for name, path in sorted(logs.items())
+    )
+    error = task.get("error")
+    output_dir = Path(task.get("output_dir", ""))
+    report_text = ""
+    report = output_dir / "validator-report.md"
+    if report.exists():
+        report_text = html.escape(report.read_text(encoding="utf-8")[:12000])
+    body = f"""
+<section class="panel">
+  <div class="grid">
+    <div class="metric"><div class="label">Task</div><div class="value"><code>{html.escape(task_id)}</code></div></div>
+    <div class="metric"><div class="label">Status</div><div class="value"><span class="badge {badge_class}">{status}</span></div></div>
+    <div class="metric"><div class="label">Source</div><div class="value">{html.escape(str(task.get("source", "")))}</div></div>
+    <div class="metric"><div class="label">Updated</div><div class="value">{html.escape(str(task.get("updated_at", "")))}</div></div>
+  </div>
+  {f'<h2>失败原因</h2><pre>{html.escape(str(error))}</pre>' if error else ''}
+</section>
+<section class="panel">
+  <h2>产物</h2>
+  {artifact_links(task)}
+  <div class="actions">
+    <a href="/decks/{html.escape(task_id)}/edit"><button>打开轻量编辑</button></a>
+    <a href="/decks/{html.escape(task_id)}"><button class="secondary">查看 JSON 状态</button></a>
+  </div>
+</section>
+<section class="panel">
+  <h2>日志</h2>
+  {"<ul>" + log_rows + "</ul>" if log_rows else '<p class="muted">暂无日志。</p>'}
+</section>
+{f'<section class="panel"><h2>Validator 报告</h2><pre>{report_text}</pre></section>' if report_text else ''}
+"""
+    return html_page(f"Deck Task · {task_id}", body)
+
+
+def render_edit_page(task_id: str) -> bytes:
+    task = load_task(task_id)
+    deck_path = Path(task["output_dir"]) / "deck.json"
+    if not deck_path.exists():
+        raise FileNotFoundError("deck.json")
+    deck = read_json(deck_path)
+    deck_json = html.escape(json.dumps(deck, ensure_ascii=False, indent=2))
+    title = html.escape(deck.get("deck", {}).get("title", ""))
+    slides = deck.get("slides", [])
+    slide_rows = "".join(
+        f"<li><code>{html.escape(str(slide.get('key', '')))}</code> · "
+        f"{html.escape(str(slide.get('layout', '')))}"
+        f"{('/' + html.escape(str(slide.get('variant')))) if slide.get('variant') else ''}</li>"
+        for slide in slides
+    )
+    body = f"""
+<section class="panel">
+  <h2>轻量编辑</h2>
+  <p class="muted">修改标题或 DeckJSON 后保存；系统会生成新版本任务，不覆盖当前任务。</p>
+  <label class="label" for="deck-title">Deck 标题</label>
+  <input id="deck-title" value="{title}">
+  <div class="actions">
+    <button onclick="applyTitle()">同步标题到 JSON</button>
+    <button class="secondary" onclick="formatJson()">格式化 JSON</button>
+  </div>
+  <h2>DeckJSON</h2>
+  <textarea id="deck-json">{deck_json}</textarea>
+  <div class="actions">
+    <button onclick="saveDeck()">保存并生成新版本</button>
+    <a href="/decks/{html.escape(task_id)}/status"><button class="secondary" type="button">返回状态页</button></a>
+  </div>
+  <pre id="result" style="display:none"></pre>
+</section>
+<section class="panel">
+  <h2>当前页面</h2>
+  {"<ul>" + slide_rows + "</ul>" if slide_rows else '<p class="muted">暂无页面。</p>'}
+</section>
+<script>
+function currentDeck() {{
+  return JSON.parse(document.getElementById('deck-json').value);
+}}
+function setDeck(deck) {{
+  document.getElementById('deck-json').value = JSON.stringify(deck, null, 2);
+}}
+function applyTitle() {{
+  const deck = currentDeck();
+  deck.deck = deck.deck || {{}};
+  deck.deck.title = document.getElementById('deck-title').value;
+  const cover = (deck.slides || []).find(s => s.layout === 'cover');
+  if (cover) {{
+    cover.data = cover.data || {{}};
+    cover.data.title = deck.deck.title;
+  }}
+  setDeck(deck);
+}}
+function formatJson() {{
+  setDeck(currentDeck());
+}}
+async function saveDeck() {{
+  applyTitle();
+  const result = document.getElementById('result');
+  result.style.display = 'block';
+  result.textContent = 'Saving...';
+  const response = await fetch('/decks/{task_id}/edits', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{deck_json: currentDeck()}})
+  }});
+  const body = await response.json();
+  result.textContent = JSON.stringify(body, null, 2);
+  if (body.id) {{
+    const a = document.createElement('a');
+    a.href = '/decks/' + body.id + '/status';
+    a.textContent = '打开新版本状态页';
+    result.after(a);
+  }}
+}}
+</script>
+"""
+    return html_page(f"Edit Deck · {task_id}", body)
+
+
 def task_paths(task_id: str) -> tuple[Path, Path, Path, Path]:
     task_dir = RUNS_DIR / task_id
     input_dir = task_dir / "input"
@@ -566,11 +796,130 @@ def load_task(task_id: str) -> dict[str, Any]:
     return read_json(task_path)
 
 
+def deep_merge(target: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    for key, value in patch.items():
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            deep_merge(target[key], value)
+        else:
+            target[key] = value
+    return target
+
+
+def apply_edit_payload(deck: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("deck_json"):
+        edited = copy.deepcopy(payload["deck_json"])
+    else:
+        edited = copy.deepcopy(deck)
+
+    updates = payload.get("updates") or {}
+    if not isinstance(updates, dict):
+        raise ValueError("updates must be an object")
+    meta = edited.setdefault("deck", {})
+    for key in ["title", "author", "date", "presentation_date", "customer_slug", "language", "mode", "title_style", "logo_position"]:
+        if key in updates:
+            meta[key] = updates[key]
+    if "logo" in updates:
+        edited.setdefault("assets", {}).setdefault("logos", {})["customer"] = updates["logo"]
+
+    slides = edited.setdefault("slides", [])
+    delete_keys = set(normalize_list(payload.get("delete_slide_keys")))
+    if delete_keys:
+        slides[:] = [slide for slide in slides if slide.get("key") not in delete_keys]
+
+    slide_by_key = {slide.get("key"): slide for slide in slides if slide.get("key")}
+    for patch in payload.get("slide_updates") or []:
+        if not isinstance(patch, dict) or not patch.get("key"):
+            raise ValueError("each slide update must include key")
+        slide = slide_by_key.get(patch["key"])
+        if not slide:
+            raise ValueError(f"slide not found: {patch['key']}")
+        deep_merge(slide, {k: v for k, v in patch.items() if k != "key"})
+
+    insert_slides = payload.get("insert_slides") or []
+    if not isinstance(insert_slides, list):
+        raise ValueError("insert_slides must be an array")
+    existing = {slide.get("key") for slide in slides}
+    for slide in insert_slides:
+        if not isinstance(slide, dict) or not slide.get("key"):
+            raise ValueError("each inserted slide must include key")
+        if slide["key"] in existing:
+            raise ValueError(f"duplicate inserted slide key: {slide['key']}")
+        slides.append(copy.deepcopy(slide))
+        existing.add(slide["key"])
+
+    order = normalize_list(payload.get("slide_order"))
+    if order:
+        by_key = {slide.get("key"): slide for slide in slides if slide.get("key")}
+        missing = [key for key in order if key not in by_key]
+        if missing:
+            raise ValueError("slide_order references missing keys: " + ", ".join(missing))
+        ordered = [by_key[key] for key in order]
+        ordered_keys = set(order)
+        ordered.extend(slide for slide in slides if slide.get("key") not in ordered_keys)
+        edited["slides"] = ordered
+
+    return edited
+
+
+def base_task_id(task_id: str) -> str:
+    return re.sub(r"-v\d{3}$", "", task_id)
+
+
+def next_version_id(task_id: str) -> tuple[str, int]:
+    base = base_task_id(task_id)
+    max_version = 0
+    for path in RUNS_DIR.glob(f"{base}-v[0-9][0-9][0-9]"):
+        match = re.search(r"-v(\d{3})$", path.name)
+        if match:
+            max_version = max(max_version, int(match.group(1)))
+    version = max_version + 1
+    return f"{base}-v{version:03d}", version
+
+
+def edit_task(task_id: str, payload: dict[str, Any], *, base_url: str | None = None) -> dict[str, Any]:
+    task = load_task(task_id)
+    task_dir = RUNS_DIR / task_id
+    deck_path = Path(task["output_dir"]) / "deck.json"
+    if not deck_path.exists():
+        raise FileNotFoundError(f"deck.json not found for task: {task_id}")
+
+    source_deck = read_json(deck_path)
+    edited_deck = apply_edit_payload(source_deck, payload)
+    request_path = task_dir / "input" / "request.json"
+    original_request = read_json(request_path) if request_path.exists() else {}
+    outline_path = task_dir / "input" / "outline.json"
+    if outline_path.exists():
+        outline = read_json(outline_path)
+    else:
+        outline = original_request.get("outline") or brief_to_outline(original_request.get("brief") or {})
+
+    new_task_id, version = next_version_id(task_id)
+    new_request = {
+        "brief": original_request.get("brief", {}),
+        "outline": outline,
+        "deck_json": edited_deck,
+    }
+    new_task = create_or_run_task(
+        new_request,
+        task_id=new_task_id,
+        base_url=base_url,
+        metadata={"parent_task_id": task_id, "version": version, "edit_source": "deck_json"},
+    )
+    new_task_dir = RUNS_DIR / new_task_id
+    write_json(new_task_dir / "input" / "edit.json", payload)
+    new_task["parent_task_id"] = task_id
+    new_task["version"] = version
+    new_task["edit_source"] = "deck_json"
+    save_task(new_task_dir, new_task)
+    return new_task
+
+
 def create_or_run_task(
     request: dict[str, Any],
     *,
     task_id: str | None = None,
     base_url: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     brief = request.get("brief") or {}
     if not isinstance(brief, dict):
@@ -602,6 +951,8 @@ def create_or_run_task(
         "artifacts": {},
         "error": None,
     }
+    if metadata:
+        task.update(metadata)
     save_task(task_dir, task)
     write_json(input_dir / "request.json", request)
 
@@ -625,16 +976,10 @@ def create_or_run_task(
             raise RuntimeError("outline validation failed")
 
         render_log = log_dir / "render.txt"
-        proc = run_command(
-            [
-                "python3",
-                str(RENDERER),
-                str(output_dir / "deck.json"),
-                str(output_dir),
-                "--shared=copy",
-            ],
-            render_log,
-        )
+        render_cmd = ["python3", str(RENDERER), str(output_dir / "deck.json"), str(output_dir), "--shared=copy"]
+        if not sync_base_assets():
+            render_cmd.append("--offline-cache")
+        proc = run_command(render_cmd, render_log)
         task["logs"]["render"] = str(render_log)
         if proc.returncode != 0:
             raise RuntimeError("render failed")
@@ -696,6 +1041,13 @@ class GeneratorHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def send_html(self, status: int, body: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def read_body_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or "0")
         if length <= 0:
@@ -707,6 +1059,18 @@ class GeneratorHandler(BaseHTTPRequestHandler):
         parts = [unquote(p) for p in parsed.path.strip("/").split("/") if p]
         if parsed.path == "/health":
             self.send_json(200, {"ok": True})
+            return
+        if len(parts) == 3 and parts[0] == "decks" and parts[2] == "status":
+            try:
+                self.send_html(200, render_status_page(parts[1]))
+            except FileNotFoundError:
+                self.send_json(404, {"error": "task not found", "id": parts[1]})
+            return
+        if len(parts) == 3 and parts[0] == "decks" and parts[2] == "edit":
+            try:
+                self.send_html(200, render_edit_page(parts[1]))
+            except FileNotFoundError:
+                self.send_json(404, {"error": "deck not found", "id": parts[1]})
             return
         if len(parts) == 2 and parts[0] == "decks":
             try:
@@ -749,6 +1113,11 @@ class GeneratorHandler(BaseHTTPRequestHandler):
                 task = create_or_run_task(read_json(request_path), task_id=task_id, base_url=self.base_url())
                 self.send_json(200 if task["status"] == "succeeded" else 500, task)
                 return
+            if len(parts) == 3 and parts[0] == "decks" and parts[2] in {"edits", "edit"}:
+                task_id = parts[1]
+                task = edit_task(task_id, self.read_body_json(), base_url=self.base_url())
+                self.send_json(201 if task["status"] == "succeeded" else 500, task)
+                return
         except Exception as exc:  # noqa: BLE001
             self.send_json(400, {"error": str(exc)})
             return
@@ -788,6 +1157,13 @@ def cmd_regenerate(args: argparse.Namespace) -> int:
     return 0 if task["status"] == "succeeded" else 1
 
 
+def cmd_edit(args: argparse.Namespace) -> int:
+    payload = read_json(args.patch)
+    task = edit_task(args.task_id, payload, base_url=args.base_url)
+    print(json.dumps(task, ensure_ascii=False, indent=2))
+    return 0 if task["status"] == "succeeded" else 1
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     httpd = ThreadingHTTPServer((args.host, args.port), GeneratorHandler)
     host, port = httpd.server_address[:2]
@@ -818,6 +1194,12 @@ def main(argv: list[str] | None = None) -> int:
     regen.add_argument("task_id")
     regen.add_argument("--base-url", help="external base URL used to populate preview/edit links")
     regen.set_defaults(func=cmd_regenerate)
+
+    edit = sub.add_parser("edit", help="create a new version from a DeckJSON edit payload")
+    edit.add_argument("task_id")
+    edit.add_argument("--patch", required=True, type=Path, help="JSON payload with deck_json or structured updates")
+    edit.add_argument("--base-url", help="external base URL used to populate preview/edit links")
+    edit.set_defaults(func=cmd_edit)
 
     serve = sub.add_parser("serve", help="run the HTTP wrapper")
     serve.add_argument("--host", default="127.0.0.1")

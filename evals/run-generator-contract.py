@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -60,6 +61,56 @@ def main() -> int:
             print(f"  missing: {', '.join(missing_in_zip)}", file=sys.stderr)
         if not has_assets:
             print("  missing asset files under assets/", file=sys.stderr)
+        return 1
+
+    with tempfile.TemporaryDirectory() as td:
+        patch_path = Path(td) / "edit.json"
+        patch_path.write_text(
+            json.dumps({"updates": {"title": "连锁零售 AI 知识库 pitch v2"}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        edit_proc = subprocess.run(
+            [
+                "python3",
+                str(GENERATOR),
+                "edit",
+                task["id"],
+                "--patch",
+                str(patch_path),
+                "--base-url",
+                "http://127.0.0.1:8765",
+            ],
+            cwd=REPO,
+            text=True,
+            capture_output=True,
+        )
+    if edit_proc.returncode != 0:
+        print(edit_proc.stdout)
+        print(edit_proc.stderr, file=sys.stderr)
+        return edit_proc.returncode
+
+    edited_task = json.loads(edit_proc.stdout)
+    if edited_task.get("status") != "succeeded":
+        print(json.dumps(edited_task, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+    if edited_task.get("parent_task_id") != task["id"] or edited_task.get("version") != 1:
+        print("edited task is missing parent/version metadata", file=sys.stderr)
+        return 1
+    edited_deck = json.loads((Path(edited_task["output_dir"]) / "deck.json").read_text(encoding="utf-8"))
+    if edited_deck["deck"]["title"] != "连锁零售 AI 知识库 pitch v2":
+        print("edited deck title did not update", file=sys.stderr)
+        return 1
+    if not edited_task.get("artifacts", {}).get("preview_url", "").startswith("http://127.0.0.1:8765/decks/"):
+        print("edited task preview_url missing base URL", file=sys.stderr)
+        return 1
+
+    sys.path.insert(0, str(REPO / "server"))
+    import generator  # noqa: PLC0415
+
+    status_page = generator.render_status_page(edited_task["id"]).decode("utf-8")
+    edit_page = generator.render_edit_page(edited_task["id"]).decode("utf-8")
+    if "Validator 报告" not in status_page or "轻量编辑" not in edit_page:
+        print("status/edit HTML pages did not render expected content", file=sys.stderr)
         return 1
 
     print(output_dir)

@@ -28,6 +28,12 @@ Run the P0 generator wrapper contract check:
 python3 evals/run-generator-contract.py
 ```
 
+Run the Feishu Bot MVP contract check:
+
+```bash
+python3 evals/run-feishu-bot-contract.py
+```
+
 The script writes ignored artifacts to `runs/product-evals/<run-id>/`:
 
 - `input/outline.json`
@@ -38,9 +44,14 @@ The script writes ignored artifacts to `runs/product-evals/<run-id>/`:
 - `screenshots/slide-*.png` for first / middle / last slide
 - `EVAL_REPORT.md`
 
-The generator contract eval creates a real wrapper task under `runs/` and
-asserts the fixed handoff artifacts plus an editable zip that contains runtime
-assets.
+The generator contract eval creates a real wrapper task under `runs/`, asserts
+the fixed handoff artifacts plus an editable zip that contains runtime assets,
+then applies a lightweight edit and verifies the generated `v001` task plus the
+status/edit HTML pages.
+
+The bot contract simulates a natural Feishu brief, verifies the 3-5 question
+follow-up behavior, then answers the missing fields and asserts the bot returns
+status, preview, edit, and download links for a succeeded generator task.
 
 ## Current 5 Rounds
 

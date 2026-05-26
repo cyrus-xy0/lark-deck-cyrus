@@ -78,7 +78,7 @@ class TextIdRoundtripTest(unittest.TestCase):
             # Render with assets-copy off (faster, doesn't matter for parsing)
             proc = subprocess.run(
                 [sys.executable, str(RENDER), str(SAMPLE), str(out_dir),
-                 "--skip-copy-assets", "--skip-validate-html"],
+                 "--skip-copy-assets", "--skip-validate-html", "--offline-cache"],
                 capture_output=True, text=True,
             )
             if proc.returncode != 0:

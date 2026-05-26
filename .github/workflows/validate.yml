@@ -73,6 +73,10 @@ jobs:
         run: |
           python3 ../../evals/run-generator-contract.py
 
+      - name: Feishu bot MVP contract
+        run: |
+          python3 ../../evals/run-feishu-bot-contract.py
+
       - name: Preflight self-test (CI environment is non-Cowork — should still pass)
         run: |
           # CI runs in a fresh GitHub runner, not a Cowork session. The preflight
