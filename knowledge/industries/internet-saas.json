@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "id": "internet-saas",
+  "name": "互联网 / SaaS 支持",
+  "aliases": [
+    "互联网",
+    "SaaS",
+    "客服",
+    "客户成功",
+    "支持"
+  ],
+  "business_moments": [
+    "客服知识运营",
+    "客户成功续约",
+    "工单复盘",
+    "产品反馈闭环"
+  ],
+  "key_roles": [
+    "客服负责人",
+    "客户成功负责人",
+    "产品运营",
+    "支持团队"
+  ],
+  "core_pains": [
+    "知识更新慢",
+    "工单重复",
+    "反馈进产品慢",
+    "续约价值难证明"
+  ],
+  "evidence_suggestions": [
+    "工单分类",
+    "知识命中率",
+    "重复问题排行",
+    "续约健康度"
+  ],
+  "recommended_layouts": [
+    "content/3up",
+    "flow/process",
+    "stats/row",
+    "content/story-case"
+  ],
+  "library_queries": [
+    {
+      "industry": "互联网",
+      "layout": "content",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "互联网",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "互联网",
+      "layout": "stats",
+      "reason": "行业包推荐页型"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "id": "education",
+  "name": "教育",
+  "aliases": [
+    "教育",
+    "学校",
+    "教培",
+    "校园"
+  ],
+  "business_moments": [
+    "招生咨询",
+    "教学教务协同",
+    "家校沟通",
+    "校园知识问答"
+  ],
+  "key_roles": [
+    "校长",
+    "教务负责人",
+    "招生负责人",
+    "信息化负责人"
+  ],
+  "core_pains": [
+    "咨询分散",
+    "教务排课复杂",
+    "家校反馈慢",
+    "知识沉淀弱"
+  ],
+  "evidence_suggestions": [
+    "咨询转化漏斗",
+    "排课表",
+    "家校反馈记录",
+    "知识问答日志"
+  ],
+  "recommended_layouts": [
+    "flow/timeline",
+    "content/3up",
+    "table",
+    "stats/row"
+  ],
+  "library_queries": [
+    {
+      "industry": "教育",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "教育",
+      "layout": "content",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "教育",
+      "layout": "table",
+      "reason": "行业包推荐页型"
+    }
+  ]
+}

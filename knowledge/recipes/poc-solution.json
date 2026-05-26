@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "id": "poc-solution",
+  "name": "POC 方案介绍",
+  "triggers": [
+    "POC",
+    "试点",
+    "验证",
+    "方案介绍"
+  ],
+  "deck_type": [
+    "POC方案",
+    "项目启动"
+  ],
+  "required_questions": [
+    "POC 成功标准是什么?",
+    "试点范围和参与角色是谁?",
+    "哪些数据/系统允许接入?",
+    "验收节奏和负责人是谁?"
+  ],
+  "recommended_layouts": [
+    "cover",
+    "content/matrix",
+    "flow/process",
+    "stats/row",
+    "flow/timeline",
+    "end"
+  ],
+  "narrative_arc": [
+    "成功标准",
+    "范围边界",
+    "试点流程",
+    "指标口径",
+    "验收节奏"
+  ],
+  "library_queries": [
+    {
+      "query": "流程",
+      "layout": "flow",
+      "value_prop": "任务拆解",
+      "reason": "POC 需要把交付动作拆清楚。"
+    },
+    {
+      "query": "指标",
+      "layout": "stats",
+      "reason": "POC 必须先定义验证指标。"
+    },
+    {
+      "query": "路线图",
+      "layout": "flow",
+      "reason": "用时间线固定节奏。"
+    }
+  ],
+  "template_backlog_seed": [
+    "新增 POC 风险/依赖矩阵",
+    "新增验收 checklist block"
+  ]
+}

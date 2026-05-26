@@ -14,6 +14,22 @@
       "type": "array",
       "items": { "$ref": "#/$defs/knowledge_ref" }
     },
+    "recipe_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recipe_ref" }
+    },
+    "library_suggestions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/library_suggestion" }
+    },
+    "product_module_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/product_module_ref" }
+    },
+    "template_backlog_seed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "outline": { "$ref": "#/$defs/outline" },
     "asset_plan": {
       "type": "array",
@@ -98,6 +114,58 @@
         "title": { "type": "string" },
         "summary": { "type": "string" },
         "used_for": { "type": "string", "minLength": 1 }
+      }
+    },
+    "recipe_ref": {
+      "type": "object",
+      "required": ["id", "name", "used_for"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "used_for": { "type": "string", "minLength": 1 },
+        "narrative_arc": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "recommended_layouts": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "library_suggestion": {
+      "type": "object",
+      "required": ["id", "title", "layout", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "layout": { "type": "string", "minLength": 1 },
+        "variant": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "source": { "type": "object" },
+        "reason": { "type": "string", "minLength": 1 },
+        "insert_suggestion": { "type": "string" }
+      }
+    },
+    "product_module_ref": {
+      "type": "object",
+      "required": ["id", "name", "narrative"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "narrative": { "type": "string", "minLength": 1 },
+        "proof_suggestions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "recommended_layouts": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     },
     "outline": {

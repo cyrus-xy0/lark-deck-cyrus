@@ -1,0 +1,159 @@
+{
+  "version": "1.0",
+  "modules": [
+    {
+      "id": "base",
+      "name": "Base / 多维表格",
+      "aliases": [
+        "Base",
+        "多维表格",
+        "飞书Base"
+      ],
+      "narrative": "把流程对象化,让责任、状态、数据在同一张业务表里流转。",
+      "proof_suggestions": [
+        "流程表",
+        "自动化规则",
+        "视图/仪表盘截图"
+      ],
+      "recommended_layouts": [
+        "content/2col",
+        "flow/process",
+        "stats/row"
+      ]
+    },
+    {
+      "id": "aily",
+      "name": "Aily 智能体",
+      "aliases": [
+        "Aily",
+        "aily",
+        "智能体"
+      ],
+      "narrative": "把知识、工具和业务动作封装成可调用的角色。",
+      "proof_suggestions": [
+        "智能体任务日志",
+        "对话样例",
+        "工具调用记录"
+      ],
+      "recommended_layouts": [
+        "arch-stack",
+        "flow/process"
+      ]
+    },
+    {
+      "id": "knowledge-qa",
+      "name": "知识问答",
+      "aliases": [
+        "知识问答",
+        "知识库",
+        "问答"
+      ],
+      "narrative": "把散落经验变成可检索、可追溯、可复用的答案。",
+      "proof_suggestions": [
+        "知识命中率",
+        "常见问答",
+        "知识来源清单"
+      ],
+      "recommended_layouts": [
+        "flow/tree",
+        "content/3up"
+      ]
+    },
+    {
+      "id": "miaoda",
+      "name": "妙搭",
+      "aliases": [
+        "妙搭",
+        "Miaoda",
+        "应用搭建"
+      ],
+      "narrative": "把轻量业务应用从需求变成可迭代的工作台。",
+      "proof_suggestions": [
+        "应用页面",
+        "表单/流程截图"
+      ],
+      "recommended_layouts": [
+        "image-text",
+        "flow/process"
+      ]
+    },
+    {
+      "id": "projects",
+      "name": "飞书项目",
+      "aliases": [
+        "飞书项目",
+        "项目管理",
+        "项目"
+      ],
+      "narrative": "让计划、里程碑、任务和风险在同一套节奏里推进。",
+      "proof_suggestions": [
+        "项目计划",
+        "风险列表",
+        "里程碑"
+      ],
+      "recommended_layouts": [
+        "flow/timeline",
+        "flow/swim"
+      ]
+    },
+    {
+      "id": "meetings",
+      "name": "飞书会议",
+      "aliases": [
+        "会议",
+        "妙记",
+        "飞书会议"
+      ],
+      "narrative": "把会议从同步动作升级为行动项和知识沉淀入口。",
+      "proof_suggestions": [
+        "会议纪要",
+        "行动项",
+        "参会反馈"
+      ],
+      "recommended_layouts": [
+        "flow/process",
+        "content/before-after"
+      ]
+    },
+    {
+      "id": "people",
+      "name": "People / HR",
+      "aliases": [
+        "People",
+        "HR",
+        "招聘",
+        "员工服务"
+      ],
+      "narrative": "把候选人、员工和业务侧协作变成可追踪流程。",
+      "proof_suggestions": [
+        "候选人状态",
+        "入职任务",
+        "员工问答"
+      ],
+      "recommended_layouts": [
+        "flow/process",
+        "stats/row"
+      ]
+    },
+    {
+      "id": "messenger-docs",
+      "name": "消息 / 文档",
+      "aliases": [
+        "消息",
+        "文档",
+        "Wiki",
+        "飞书文档"
+      ],
+      "narrative": "把沟通和知识沉淀放在同一个协作上下文里。",
+      "proof_suggestions": [
+        "群协作记录",
+        "文档版本",
+        "Wiki 结构"
+      ],
+      "recommended_layouts": [
+        "content/3up",
+        "content/2col"
+      ]
+    }
+  ]
+}

@@ -75,6 +75,9 @@ class Validator:
         self.validate_scene(data.get("scene"))
         self.validate_thesis(data.get("thesis"))
         self.validate_knowledge_refs(data.get("knowledge_refs", []))
+        self.validate_recipe_refs(data.get("recipe_refs", []))
+        self.validate_library_suggestions(data.get("library_suggestions", []))
+        self.validate_product_module_refs(data.get("product_module_refs", []))
         asset_ids = self.validate_assets(data.get("asset_plan"))
         self.validate_outline(data.get("outline"), asset_ids)
         self.validate_handoff(data.get("handoff"))
@@ -116,6 +119,27 @@ class Validator:
                 self.error(f"{where}.source", "must be feishu-base")
             if not any(ref.get(key) for key in ["record_id", "doc_id", "query", "title"]):
                 self.error(where, "must include at least one Base locator: record_id, doc_id, query, or title")
+
+    def validate_recipe_refs(self, refs: object) -> None:
+        if not isinstance(refs, list):
+            self.error("$.recipe_refs", "must be an array when present")
+            return
+        for i, ref in enumerate(refs):
+            self.require(ref, f"$.recipe_refs[{i}]", ["id", "name", "used_for"])
+
+    def validate_library_suggestions(self, rows: object) -> None:
+        if not isinstance(rows, list):
+            self.error("$.library_suggestions", "must be an array when present")
+            return
+        for i, row in enumerate(rows):
+            self.require(row, f"$.library_suggestions[{i}]", ["id", "title", "layout", "reason"])
+
+    def validate_product_module_refs(self, rows: object) -> None:
+        if not isinstance(rows, list):
+            self.error("$.product_module_refs", "must be an array when present")
+            return
+        for i, row in enumerate(rows):
+            self.require(row, f"$.product_module_refs[{i}]", ["id", "name", "narrative"])
 
     def validate_assets(self, assets: object) -> set[str]:
         if not isinstance(assets, list):

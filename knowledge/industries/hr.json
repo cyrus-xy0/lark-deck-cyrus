@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "id": "hr",
+  "name": "HR / 人才管理",
+  "aliases": [
+    "HR",
+    "人力",
+    "招聘",
+    "校园招聘",
+    "People",
+    "员工"
+  ],
+  "business_moments": [
+    "校园招聘",
+    "入职培训",
+    "员工服务",
+    "绩效复盘"
+  ],
+  "key_roles": [
+    "HRBP",
+    "招聘负责人",
+    "People 团队",
+    "业务面试官"
+  ],
+  "core_pains": [
+    "候选人等待久",
+    "面试反馈漏",
+    "员工答疑重复",
+    "流程状态不透明"
+  ],
+  "evidence_suggestions": [
+    "候选人状态",
+    "面试反馈 SLA",
+    "问答命中率",
+    "入职任务完成率"
+  ],
+  "recommended_layouts": [
+    "flow/process",
+    "content/3up",
+    "stats/row",
+    "flow/timeline"
+  ],
+  "library_queries": [
+    {
+      "industry": "HR",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "HR",
+      "layout": "content",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "HR",
+      "layout": "stats",
+      "reason": "行业包推荐页型"
+    }
+  ]
+}

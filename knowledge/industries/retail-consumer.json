@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "id": "retail-consumer",
+  "name": "消费零售 / 餐饮",
+  "aliases": [
+    "消费零售",
+    "零售",
+    "餐饮",
+    "连锁",
+    "门店"
+  ],
+  "business_moments": [
+    "门店 SOP 执行",
+    "营销活动落地",
+    "新品培训",
+    "巡店复盘"
+  ],
+  "key_roles": [
+    "COO",
+    "运营负责人",
+    "区域经理",
+    "门店店长",
+    "信息化负责人"
+  ],
+  "core_pains": [
+    "门店动作不可追踪",
+    "经验散在群聊",
+    "活动复盘慢",
+    "一线培训不一致"
+  ],
+  "evidence_suggestions": [
+    "门店 SOP 完成率",
+    "活动执行截图",
+    "巡店问题分类",
+    "培训问答记录"
+  ],
+  "recommended_layouts": [
+    "content/before-after",
+    "flow/timeline",
+    "stats/row",
+    "content/story-case"
+  ],
+  "library_queries": [
+    {
+      "industry": "消费零售",
+      "layout": "content",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "消费零售",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "消费零售",
+      "layout": "stats",
+      "reason": "行业包推荐页型"
+    }
+  ]
+}

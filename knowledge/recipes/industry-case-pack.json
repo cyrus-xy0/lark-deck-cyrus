@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "id": "industry-case-pack",
+  "name": "行业案例包",
+  "triggers": [
+    "案例包",
+    "行业案例",
+    "案例集",
+    "标杆"
+  ],
+  "deck_type": [
+    "案例包",
+    "行业方案"
+  ],
+  "required_questions": [
+    "目标行业和客户阶段是什么?",
+    "哪些案例可公开引用?",
+    "案例要证明哪条价值主张?",
+    "是否需要隐藏客户名?"
+  ],
+  "recommended_layouts": [
+    "cover",
+    "logo-wall",
+    "content/story-case",
+    "content/3up",
+    "table",
+    "end"
+  ],
+  "narrative_arc": [
+    "行业共性",
+    "客户矩阵",
+    "案例证明",
+    "价值归纳",
+    "下一步"
+  ],
+  "library_queries": [
+    {
+      "query": "客户矩阵",
+      "layout": "logo-wall",
+      "reason": "案例包需要快速建立行业覆盖感。"
+    },
+    {
+      "query": "案例",
+      "layout": "content",
+      "reason": "用一页纸案例承载证据。"
+    },
+    {
+      "query": "对比",
+      "layout": "table",
+      "reason": "归纳案例共性和差异。"
+    }
+  ],
+  "template_backlog_seed": [
+    "新增行业案例三连页",
+    "新增匿名案例卡片"
+  ]
+}

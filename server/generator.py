@@ -30,6 +30,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 import slide_library
+import pitch_recipes
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -115,6 +116,7 @@ def sync_base_assets() -> bool:
 
 def health_payload() -> dict[str, Any]:
     gate = slide_library.validate_library(include_candidates=False)
+    p3 = pitch_recipes.validate()
     return {
         "ok": True,
         "service": "lark-deck-generator",
@@ -133,6 +135,12 @@ def health_payload() -> dict[str, Any]:
             "business_entries": gate["entries"],
             "gate_ok": gate["ok"],
             "design_kit": str(slide_library.DESIGN_KIT),
+        },
+        "recipes": {
+            "ok": p3["ok"],
+            "recipes": p3["recipes"],
+            "industries": p3["industries"],
+            "product_modules": p3["product_modules"],
         },
     }
 
@@ -162,8 +170,23 @@ def query_base_library(command: str, keyword: str, limit: int = 5) -> list[dict[
 
 def local_knowledge_refs(industry: str, business_moment: str, product_scope: list[str]) -> list[dict[str, Any]]:
     refs: list[dict[str, Any]] = []
-    retail = REPO / "knowledge/industries/retail-consumer.md"
     text = " ".join([industry, business_moment, *product_scope]).lower()
+    try:
+        pack = pitch_recipes.select_industry_pack({"industry": industry, "business_moment": business_moment})
+    except Exception:
+        pack = {}
+    if pack:
+        refs.append(
+            {
+                "source": "feishu-base",
+                "query": f"行业包 {pack.get('name')}",
+                "title": f"行业包 · {pack.get('name')}",
+                "cache_path": pack.get("_path", ""),
+                "summary": "本地 P3 行业知识包,等待进入 Base 知识库正式表。",
+                "used_for": "作为业务时刻、关键角色、核心痛点、证据建议和推荐页型参考；不得把通用行业知识写成客户事实。",
+            }
+        )
+    retail = REPO / "knowledge/industries/retail-consumer.md"
     if retail.exists() and any(term in text for term in ["消费零售", "零售", "餐饮", "retail", "consumer"]):
         refs.append(
             {
@@ -247,41 +270,63 @@ def high_value_questions(brief: dict[str, Any]) -> list[str]:
 
 
 def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
+    pitch_plan = pitch_recipes.plan_pitch(brief)
+    recipe = pitch_plan["recipe"]
+    industry_pack = pitch_plan["industry"]
+    product_refs = pitch_plan["products"]
+    library_suggestions = pitch_plan["library_suggestions"]
     title = brief_value(brief, "title", "brief", default="客户 pitch deck")
     customer = brief_value(brief, "customer_name", "customer", default="目标客户")
-    industry = brief_value(brief, "industry", default="未知行业")
-    audience = brief_value(brief, "audience", "target_audience", default="客户业务负责人和项目推动者")
+    industry = brief_value(brief, "industry", default=industry_pack["name"])
+    audience = brief_value(
+        brief,
+        "audience",
+        "target_audience",
+        default="、".join(industry_pack.get("key_roles", [])[:2]) or "客户业务负责人和项目推动者",
+    )
     objective = brief_value(brief, "objective", default="推动客户确认下一步试点")
     success_metric = brief_value(brief, "success_metric", default="确认试点场景、负责人和时间表")
-    product_scope = normalize_list(brief.get("product_scope")) or ["飞书 AI", "多维表格", "知识库", "任务闭环"]
-    business_moment = brief_value(brief, "business_moment", default="方案共创和试点决策")
+    product_scope = normalize_list(brief.get("product_scope")) or [item["name"] for item in product_refs[:3]] or ["飞书 AI", "多维表格", "知识库", "任务闭环"]
+    business_moment = brief_value(
+        brief,
+        "business_moment",
+        default=(industry_pack.get("business_moments") or ["方案共创和试点决策"])[0],
+    )
     core_tension = brief_value(
         brief,
         "core_tension",
-        default="业务目标明确,但流程、知识、数据和复盘尚未形成可追踪闭环",
+        default=";".join(industry_pack.get("core_pains", [])[:2]) or "业务目标明确,但流程、知识、数据和复盘尚未形成可追踪闭环",
     )
     solution_angle = brief_value(
         brief,
         "solution_angle",
-        default="用飞书把入口、任务、知识和数据连成可试点、可复盘的工作流",
+        default=(product_refs[0]["narrative"] if product_refs else "用飞书把入口、任务、知识和数据连成可试点、可复盘的工作流"),
     )
 
-    pain_points = [
-        {
-            "name": "流程断点",
-            "why_now": "业务节奏加快后,靠人工同步很难持续追踪动作。",
-            "impact": "团队容易停留在沟通完成,但责任、异常和复盘没有闭环。",
-            "evidence_level": "hypothesis",
-            "evidence_needed": "需要用户补充真实流程、截图、表格或会议材料。",
-        },
-        {
-            "name": "知识和数据不回流",
-            "why_now": "问题、经验和指标散在不同系统或群聊里。",
-            "impact": "同类问题反复出现,优秀做法难以复用。",
-            "evidence_level": "hypothesis",
-            "evidence_needed": "需要确认可引用的数据源和客户版本边界。",
-        },
-    ]
+    industry_pains = industry_pack.get("core_pains", []) or []
+    evidence_suggestions = industry_pack.get("evidence_suggestions", []) or []
+    pain_points = []
+    for idx, pain in enumerate(industry_pains[:2]):
+        evidence = evidence_suggestions[idx] if idx < len(evidence_suggestions) else "真实流程、截图、表格或会议材料"
+        pain_points.append(
+            {
+                "name": pain[:18],
+                "why_now": f"{business_moment}阶段,这个问题会直接影响推进节奏。",
+                "impact": pain,
+                "evidence_level": "hypothesis",
+                "evidence_needed": f"需要用户补充{evidence}。",
+            }
+        )
+    while len(pain_points) < 2:
+        pain_points.append(
+            {
+                "name": "流程断点",
+                "why_now": "业务节奏加快后,靠人工同步很难持续追踪动作。",
+                "impact": "团队容易停留在沟通完成,但责任、异常和复盘没有闭环。",
+                "evidence_level": "hypothesis",
+                "evidence_needed": "需要用户补充真实流程、截图、表格或会议材料。",
+            }
+        )
 
     slides = [
         {
@@ -346,7 +391,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "objective": objective,
             "success_metric": success_metric,
             "delivery_mode": brief_value(brief, "delivery_mode", default="feishu-bot"),
-            "constraints": ["默认中文", "不能编造客户数据", "缺证据时写成待确认问题"],
+            "constraints": ["默认中文", "不能编造客户数据", "缺证据时写成待确认问题", f"使用 recipe: {recipe['name']}"],
         },
         "scene": {
             "industry": industry,
@@ -363,8 +408,30 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "differentiation": "从单页功能展示升级为可验证、可复盘、可扩展的业务闭环。",
         },
         "knowledge_refs": base_knowledge_refs(industry, business_moment, product_scope),
+        "recipe_refs": [
+            {
+                "id": recipe["id"],
+                "name": recipe["name"],
+                "path": recipe.get("path", ""),
+                "used_for": "决定 pitch 叙事结构、必问问题、推荐页型和素材检索策略。",
+                "narrative_arc": recipe.get("narrative_arc", []),
+                "recommended_layouts": recipe.get("recommended_layouts", []),
+            }
+        ],
+        "library_suggestions": library_suggestions,
+        "product_module_refs": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "narrative": item["narrative"],
+                "proof_suggestions": item.get("proof_suggestions", []),
+                "recommended_layouts": item.get("recommended_layouts", []),
+            }
+            for item in product_refs
+        ],
+        "template_backlog_seed": pitch_plan.get("template_backlog_seed", []),
         "outline": {
-            "arc": "客户场景 -> 业务断点 -> 飞书闭环 -> 试点指标 -> 试点路径 -> 下一步",
+            "arc": " -> ".join(recipe.get("narrative_arc", [])) or "客户场景 -> 业务断点 -> 飞书闭环 -> 试点指标 -> 试点路径 -> 下一步",
             "slides": slides,
         },
         "asset_plan": [
@@ -546,6 +613,18 @@ def write_feedback(output_dir: Path, outline: dict[str, Any], deck: dict[str, An
     meta = deck.get("deck", {})
     questions = outline.get("open_questions") or []
     question_lines = "\n".join(f"- [ ] {q}" for q in questions) if questions else "- 无;本次输入已足够生成初稿。"
+    recipe_refs = outline.get("recipe_refs") or []
+    recipe_lines = "\n".join(
+        f"- {ref.get('name')} (`{ref.get('id')}`): {ref.get('used_for')}"
+        for ref in recipe_refs
+    ) or "- 无"
+    library_suggestions = outline.get("library_suggestions") or []
+    library_lines = "\n".join(
+        f"- `{item.get('id')}` · {item.get('title')} · {item.get('layout')}{('/' + item.get('variant')) if item.get('variant') else ''}: {item.get('reason')}"
+        for item in library_suggestions
+    ) or "- 暂无;需要补充更多 seed 或放宽检索条件。"
+    backlog = outline.get("template_backlog_seed") or []
+    backlog_lines = "\n".join(f"- [ ] {item}" for item in backlog) or "- [ ] 暂无新增模板需求。"
     content = f"""# Run feedback · {meta.get('title', 'deck')}
 
 生成时间: {now_iso()}
@@ -581,6 +660,20 @@ def write_feedback(output_dir: Path, outline: dict[str, Any], deck: dict[str, An
 ## 本次没解决的小毛病
 
 {question_lines}
+
+## Recipe 和素材建议
+
+### 使用的 pitch recipe
+
+{recipe_lines}
+
+### 推荐可复用 slide
+
+{library_lines}
+
+## 模板 backlog seed
+
+{backlog_lines}
 
 ## 你的额外建议
 
@@ -1508,6 +1601,10 @@ class GeneratorHandler(BaseHTTPRequestHandler):
         if parts == ["library", "design-kit"]:
             self.send_json(200, slide_library.load_design_kit())
             return
+        if parts == ["recipes", "validate"]:
+            result = pitch_recipes.validate()
+            self.send_json(200 if result["ok"] else 500, result)
+            return
         if len(parts) >= 2 and parts[0] == "library":
             root = (REPO / "library").resolve()
             target = (REPO / Path(*parts)).resolve()
@@ -1589,6 +1686,9 @@ class GeneratorHandler(BaseHTTPRequestHandler):
                 )
                 has_errors = any(issue["severity"] == "error" for issue in result.get("issues", []))
                 self.send_json(400 if has_errors else 201, result)
+                return
+            if parts == ["recipes", "plan"]:
+                self.send_json(200, pitch_recipes.plan_pitch(self.read_body_json()))
                 return
             if len(parts) == 4 and parts[0] == "library" and parts[1] == "candidates" and parts[3] == "approve":
                 payload = self.read_body_json()

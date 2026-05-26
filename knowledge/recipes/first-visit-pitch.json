@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "id": "first-visit-pitch",
+  "name": "首访客户 pitch",
+  "triggers": [
+    "首访",
+    "初访",
+    "客户pitch",
+    "客户 pitch",
+    "新客户"
+  ],
+  "deck_type": [
+    "客户pitch",
+    "首访"
+  ],
+  "required_questions": [
+    "客户是谁,当前最想推动的业务动作是什么?",
+    "听众角色和决策权是什么?",
+    "希望首访后确认哪一个下一步?",
+    "哪些客户事实可以引用?"
+  ],
+  "recommended_layouts": [
+    "cover",
+    "content/before-after",
+    "arch-stack",
+    "content/3up",
+    "flow/timeline",
+    "end"
+  ],
+  "narrative_arc": [
+    "场景设定",
+    "痛点对齐",
+    "飞书能力闭环",
+    "可验证试点",
+    "下一步确认"
+  ],
+  "library_queries": [
+    {
+      "query": "痛点",
+      "layout": "content",
+      "value_prop": "痛点对比",
+      "reason": "首访需要先让客户确认业务断点。"
+    },
+    {
+      "query": "架构",
+      "layout": "arch-stack",
+      "reason": "用一页说明飞书能力组合。"
+    },
+    {
+      "query": "试点",
+      "layout": "flow",
+      "value_prop": "低风险试点",
+      "reason": "用低风险试点收口。"
+    }
+  ],
+  "template_backlog_seed": [
+    "新增更行业化的痛点对比页",
+    "补客户事实替换位"
+  ]
+}

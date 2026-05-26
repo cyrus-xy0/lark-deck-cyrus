@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "id": "finance",
+  "name": "金融 / 投研与合规",
+  "aliases": [
+    "金融",
+    "投研",
+    "券商",
+    "基金",
+    "银行",
+    "合规"
+  ],
+  "business_moments": [
+    "资料包到汇报",
+    "投研路演",
+    "合规审阅",
+    "客户材料复用"
+  ],
+  "key_roles": [
+    "研究负责人",
+    "合规审阅",
+    "投资顾问",
+    "机构销售"
+  ],
+  "core_pains": [
+    "来源不可追溯",
+    "事实和判断混杂",
+    "审阅耗时",
+    "复用弱"
+  ],
+  "evidence_suggestions": [
+    "引用来源清单",
+    "审阅意见",
+    "材料版本",
+    "风险标注"
+  ],
+  "recommended_layouts": [
+    "table",
+    "content/matrix",
+    "flow/process",
+    "stats/waterfall"
+  ],
+  "library_queries": [
+    {
+      "industry": "金融",
+      "layout": "table",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "金融",
+      "layout": "content",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "金融",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "id": "renewal-review",
+  "name": "复盘/续约",
+  "triggers": [
+    "续约",
+    "复盘",
+    "review",
+    "增长",
+    "扩展"
+  ],
+  "deck_type": [
+    "复盘续约"
+  ],
+  "required_questions": [
+    "已完成范围和实际使用数据是什么?",
+    "哪些正向结果可被客户确认?",
+    "续约/扩展的阻碍是什么?",
+    "下一阶段希望扩到哪些团队?"
+  ],
+  "recommended_layouts": [
+    "cover",
+    "stats/row",
+    "stats/waterfall",
+    "content/story-case",
+    "flow/swim",
+    "end"
+  ],
+  "narrative_arc": [
+    "结果回看",
+    "归因拆解",
+    "客户故事",
+    "扩展路线",
+    "续约动作"
+  ],
+  "library_queries": [
+    {
+      "query": "KPI",
+      "layout": "stats",
+      "reason": "续约先看可确认结果。"
+    },
+    {
+      "query": "桥图",
+      "layout": "stats",
+      "reason": "解释指标变化来源。"
+    },
+    {
+      "query": "案例",
+      "layout": "content",
+      "reason": "把使用经验转成可讲故事。"
+    }
+  ],
+  "template_backlog_seed": [
+    "新增续约 ROI 桥图模板",
+    "新增客户证言合规模板"
+  ]
+}

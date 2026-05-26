@@ -9,6 +9,8 @@ outline skill 判断行业痛点、业务场景、产品主张和证据缺口的
 knowledge/
 ├── README.md
 ├── industries/        # 行业 pain map、场景、常见证据、推荐页型
+├── recipes/           # P3 pitch recipe: 首访、POC、续约、案例包、竞品替代
+├── product-modules.json # Base / Aily / 知识问答 / 妙搭 / 项目 / 会议 / People 等叙事模块
 ├── products/          # 飞书产品能力、边界、适用场景
 ├── stories/           # 已授权客户故事和可引用素材
 ├── objections/        # 常见反对意见与回应框架
@@ -42,4 +44,5 @@ knowledge/
 
 - 新知识优先写成结构化 pain map,而不是一段泛泛描述。
 - 每个行业至少覆盖:业务时刻、关键角色、核心痛点、常见证据、推荐页型、素材提示。
+- 每个 recipe 至少覆盖:触发词、必问问题、叙事结构、推荐 layout、Business Library 检索建议、模板 backlog seed。
 - 每次真实 deck 生成后的 FEEDBACK.md,若出现 3 次以上同类判断,应沉淀进这里。

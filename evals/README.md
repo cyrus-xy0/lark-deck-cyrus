@@ -40,6 +40,12 @@ Run the P2 slide library contract check:
 python3 evals/run-slide-library-contract.py
 ```
 
+Run the P3 pitch recipe contract check:
+
+```bash
+python3 evals/run-p3-recipes-contract.py
+```
+
 The script writes ignored artifacts to `runs/product-evals/<run-id>/`:
 
 - `input/outline.json`
@@ -62,6 +68,11 @@ status, preview, edit, and download links for a succeeded generator task.
 The slide library contract verifies the local Business Library gate, search
 results with thumbnail/insert suggestions, and the "mark worth reusing" flow
 that creates a review candidate from a generated task.
+
+The P3 recipe contract verifies the recipe selector, seven industry packs,
+product narrative modules, Business Library suggestions, and generator handoff
+fields (`recipe_refs`, `library_suggestions`, `product_module_refs`) plus the
+template backlog section in `FEEDBACK.md`.
 
 ## Current 5 Rounds
 

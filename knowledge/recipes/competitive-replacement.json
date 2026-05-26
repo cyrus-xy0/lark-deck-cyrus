@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "id": "competitive-replacement",
+  "name": "竞品替代方案",
+  "triggers": [
+    "竞品",
+    "替代",
+    "迁移",
+    "替换",
+    "对比"
+  ],
+  "deck_type": [
+    "竞品替代方案"
+  ],
+  "required_questions": [
+    "当前使用的竞品/旧系统是什么?",
+    "替代必须保留哪些能力?",
+    "迁移窗口和风险是什么?",
+    "客户最关心成本、体验还是治理?"
+  ],
+  "recommended_layouts": [
+    "cover",
+    "table",
+    "content/before-after",
+    "flow/process",
+    "stats/row",
+    "end"
+  ],
+  "narrative_arc": [
+    "现状对比",
+    "替代收益",
+    "迁移路径",
+    "风险控制",
+    "试点确认"
+  ],
+  "library_queries": [
+    {
+      "query": "对比",
+      "layout": "table",
+      "reason": "竞品替代必须先把差异讲清楚。"
+    },
+    {
+      "query": "痛点",
+      "layout": "content",
+      "reason": "把替代动机从功能转成业务断点。"
+    },
+    {
+      "query": "流程",
+      "layout": "flow",
+      "reason": "降低迁移风险。"
+    }
+  ],
+  "template_backlog_seed": [
+    "新增迁移风险页",
+    "新增总拥有成本页"
+  ]
+}

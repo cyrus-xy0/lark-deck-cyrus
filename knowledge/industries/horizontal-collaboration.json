@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "id": "horizontal-collaboration",
+  "name": "通用协同 / 办公",
+  "aliases": [
+    "通用",
+    "协同",
+    "办公",
+    "知识管理",
+    "项目管理"
+  ],
+  "business_moments": [
+    "跨部门项目",
+    "知识库建设",
+    "会议行动项闭环",
+    "经营复盘"
+  ],
+  "key_roles": [
+    "业务负责人",
+    "PMO",
+    "IT",
+    "知识运营"
+  ],
+  "core_pains": [
+    "会议后动作丢失",
+    "资料版本混乱",
+    "跨团队沟通成本高",
+    "复盘难沉淀"
+  ],
+  "evidence_suggestions": [
+    "任务完成率",
+    "会议 action item",
+    "知识访问",
+    "项目里程碑"
+  ],
+  "recommended_layouts": [
+    "arch-stack",
+    "flow/process",
+    "content/before-after",
+    "stats/row"
+  ],
+  "library_queries": [
+    {
+      "industry": "通用",
+      "layout": "arch-stack",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "通用",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "通用",
+      "layout": "content",
+      "reason": "行业包推荐页型"
+    }
+  ]
+}

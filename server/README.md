@@ -95,6 +95,8 @@ Endpoints:
 - `GET /library/design-kit`
 - `POST /library/candidates`
 - `POST /library/candidates/{candidate-id}/approve`
+- `GET /recipes/validate`
+- `POST /recipes/plan`
 
 `GET /decks/{id}/edit` is the P1 lightweight web editor. It supports:
 
@@ -147,6 +149,32 @@ python3 server/slide_library.py approve-candidate <candidate-id> \
 
 The gate checks unique slide keys, explicit source level, thumbnail/text/tags
 and deck source completeness, plus common sensitive-info patterns.
+
+## Pitch Recipe MVP
+
+P3 adds a deterministic recipe layer on top of the generator:
+
+- `knowledge/recipes/*.json`: first-visit pitch, POC solution, renewal review,
+  industry case pack, and competitive replacement.
+- `knowledge/industries/*.json`: retail/consumer, manufacturing, finance,
+  internet/SaaS support, education, HR, and horizontal collaboration packs.
+- `knowledge/product-modules.json`: Base, Aily, knowledge QA, Miaoda, Projects,
+  Meetings, People, and Messenger/Docs narrative modules.
+
+Plan and validate:
+
+```bash
+python3 server/pitch_recipes.py validate
+python3 server/pitch_recipes.py plan \
+  --brief "制造质量异常 POC 方案介绍" \
+  --industry 制造 \
+  --deck-type POC方案 \
+  --product-scope "知识问答,飞书Base"
+```
+
+Generator tasks now write `recipe_refs`, `library_suggestions`,
+`product_module_refs`, and `template_backlog_seed` into `outline.json`, and
+surface the recipe/library/backlog sections in `FEEDBACK.md`.
 
 The current brief planner is deterministic and conservative. It creates a
 valid first draft and records missing information in `outline.json` and

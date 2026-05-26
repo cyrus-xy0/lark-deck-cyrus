@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "id": "manufacturing",
+  "name": "制造 / 质量管理",
+  "aliases": [
+    "制造",
+    "工厂",
+    "质量",
+    "供应链",
+    "生产"
+  ],
+  "business_moments": [
+    "质量异常复盘",
+    "来料问题处理",
+    "设备巡检",
+    "工艺变更"
+  ],
+  "key_roles": [
+    "质量负责人",
+    "工厂运营",
+    "IT",
+    "供应商质量",
+    "车间主管"
+  ],
+  "core_pains": [
+    "8D/巡检/邮件分散",
+    "纠正动作难追踪",
+    "相似异常难检索",
+    "经验传承慢"
+  ],
+  "evidence_suggestions": [
+    "异常单",
+    "8D 报告",
+    "巡检记录",
+    "纠正动作完成率"
+  ],
+  "recommended_layouts": [
+    "flow/tree",
+    "flow/process",
+    "content/matrix",
+    "stats/row"
+  ],
+  "library_queries": [
+    {
+      "industry": "制造",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "制造",
+      "layout": "flow",
+      "reason": "行业包推荐页型"
+    },
+    {
+      "industry": "制造",
+      "layout": "content",
+      "reason": "行业包推荐页型"
+    }
+  ]
+}
