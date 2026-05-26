@@ -77,6 +77,17 @@ Endpoints:
 - `GET /decks/{id}/files/index.html`
 - `GET /decks/{id}/files/<editable-zip>.zip`
 
+`GET /decks/{id}/edit` is the P1 lightweight web editor. It supports:
+
+- deck title, customer slug, and customer logo edits
+- per-slide title and body text edits
+- delete and reorder pages
+- insert a reusable slide from the local example slide library
+- save as a new task version (`v001`, `v002`, ...)
+
+`GET /decks/{id}/status` shows task state, artifact links, validator report,
+failure log tail, and sibling versions.
+
 The current brief planner is deterministic and conservative. It creates a
 valid first draft and records missing information in `outline.json` and
 `FEEDBACK.md`; richer GTM questioning and recipe selection should layer on top

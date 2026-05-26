@@ -621,12 +621,34 @@ def html_page(title: str, body: str) -> bytes:
     .failed {{ background: #fdeaea; color: #b42318; }}
     .running {{ background: #fff6db; color: #8a5a00; }}
     pre {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 14px; }}
-    textarea {{ width: 100%; min-height: 420px; box-sizing: border-box; border: 1px solid #cfd7e6; border-radius: 8px; padding: 12px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }}
-    input {{ width: 100%; box-sizing: border-box; border: 1px solid #cfd7e6; border-radius: 8px; padding: 10px; font: inherit; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+    th, td {{ border-bottom: 1px solid #e1e6ef; padding: 10px 8px; text-align: left; vertical-align: top; }}
+    textarea {{ width: 100%; min-height: 160px; box-sizing: border-box; border: 1px solid #cfd7e6; border-radius: 8px; padding: 12px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }}
+    input, select {{ width: 100%; box-sizing: border-box; border: 1px solid #cfd7e6; border-radius: 8px; padding: 10px; font: inherit; background: #fff; }}
     button {{ border: 0; border-radius: 8px; padding: 10px 14px; background: #1457d9; color: white; font-weight: 650; cursor: pointer; }}
     button.secondary {{ background: #e8edf6; color: #202733; }}
+    button.danger {{ background: #b42318; }}
+    button.ghost {{ background: transparent; color: #1457d9; border: 1px solid #c7d4ee; }}
     .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }}
     .muted {{ color: #657186; }}
+    .toolbar {{ position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; gap: 16px; align-items: center; background: rgba(246,248,251,.96); border-bottom: 1px solid #d9dee8; padding: 12px 0; margin-bottom: 12px; }}
+    .editor-layout {{ display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }}
+    .sidebar {{ position: sticky; top: 64px; }}
+    .slide-list {{ display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }}
+    .slide-tab {{ display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 10px; border: 1px solid #d9dee8; border-radius: 8px; background: #fff; cursor: pointer; }}
+    .slide-tab.active {{ border-color: #1457d9; box-shadow: 0 0 0 2px rgba(20,87,217,.12); }}
+    .slide-card {{ display: grid; gap: 12px; border: 1px solid #d9dee8; border-radius: 8px; background: #fff; padding: 14px; margin-bottom: 12px; }}
+    .slide-card[hidden] {{ display: none; }}
+    .slide-head {{ display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }}
+    .row {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }}
+    .json-panel textarea {{ min-height: 360px; }}
+    .toast {{ display: none; margin-top: 12px; }}
+    .toast.show {{ display: block; }}
+    @media (max-width: 860px) {{
+      .editor-layout {{ grid-template-columns: 1fr; }}
+      .sidebar, .toolbar {{ position: static; }}
+      .row {{ grid-template-columns: 1fr; }}
+    }}
   </style>
 </head>
 <body>
@@ -652,6 +674,93 @@ def artifact_links(task: dict[str, Any]) -> str:
     return "<ul>" + "".join(rows) + "</ul>" if rows else '<p class="muted">暂无产物链接。</p>'
 
 
+def safe_json_for_script(data: Any) -> str:
+    return json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+
+
+def slide_title(slide: dict[str, Any]) -> str:
+    data = slide.get("data") if isinstance(slide.get("data"), dict) else {}
+    for key in ["title", "slogan", "quote", "lede"]:
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return str(slide.get("key") or slide.get("layout") or "slide")
+
+
+def slide_library_items(limit: int = 36) -> list[dict[str, Any]]:
+    """Small local slide library for the MVP editor.
+
+    P2 will replace this with the Business Library search service. For P1 the
+    editor can reuse valid slides from checked-in example decks.
+    """
+    sources = sorted((REPO / "skills/feishu-deck-h5/deck-json/examples").glob("*.json"))
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source in sources:
+        try:
+            deck = read_json(source)
+        except Exception:
+            continue
+        for slide in deck.get("slides", []):
+            if not isinstance(slide, dict) or not slide.get("key") or not slide.get("layout"):
+                continue
+            if slide.get("layout") in {"cover", "end", "raw", "replica"}:
+                continue
+            identity = f"{source.name}:{slide.get('key')}"
+            if identity in seen:
+                continue
+            seen.add(identity)
+            items.append(
+                {
+                    "id": identity,
+                    "source": source.name,
+                    "key": slide.get("key"),
+                    "layout": slide.get("layout"),
+                    "variant": slide.get("variant", ""),
+                    "title": slide_title(slide),
+                    "slide": slide,
+                }
+            )
+            if len(items) >= limit:
+                return items
+    return items
+
+
+def task_versions(task_id: str) -> list[dict[str, Any]]:
+    base = base_task_id(task_id)
+    candidates = [RUNS_DIR / base, *sorted(RUNS_DIR.glob(f"{base}-v[0-9][0-9][0-9]"))]
+    versions: list[dict[str, Any]] = []
+    for path in candidates:
+        task_path = path / "task.json"
+        if not task_path.exists():
+            continue
+        try:
+            task = read_json(task_path)
+        except Exception:
+            continue
+        versions.append(
+            {
+                "id": task.get("id", path.name),
+                "status": task.get("status", ""),
+                "version": task.get("version", 0),
+                "updated_at": task.get("updated_at", ""),
+                "preview_url": (task.get("artifacts") or {}).get("preview_url", ""),
+            }
+        )
+    return versions
+
+
+def log_tail(task: dict[str, Any], max_chars: int = 12000) -> str:
+    logs = task.get("logs") or {}
+    preferred = ["check_only", "render", "outline_validator", "package"]
+    for key in preferred:
+        path = logs.get(key)
+        if path and Path(path).exists():
+            text = Path(path).read_text(encoding="utf-8", errors="replace")
+            return text[-max_chars:]
+    return ""
+
+
 def render_status_page(task_id: str) -> bytes:
     task = load_task(task_id)
     status = html.escape(str(task.get("status") or "unknown"))
@@ -667,6 +776,22 @@ def render_status_page(task_id: str) -> bytes:
     report = output_dir / "validator-report.md"
     if report.exists():
         report_text = html.escape(report.read_text(encoding="utf-8")[:12000])
+    versions = task_versions(task_id)
+    version_rows = []
+    for item in versions:
+        preview = str(item.get("preview_url", ""))
+        preview_link = f'<a href="{html.escape(preview)}">预览</a>' if preview else ""
+        version_rows.append(
+            "<tr>"
+            f"<td><a href=\"/decks/{html.escape(str(item['id']))}/status\"><code>{html.escape(str(item['id']))}</code></a></td>"
+            f"<td>{html.escape(str(item.get('version') or 'base'))}</td>"
+            f"<td>{html.escape(str(item.get('status', '')))}</td>"
+            f"<td>{html.escape(str(item.get('updated_at', '')))}</td>"
+            f"<td>{preview_link}</td>"
+            "</tr>"
+        )
+    version_rows_html = "".join(version_rows)
+    failure_log = html.escape(log_tail(task)) if error else ""
     body = f"""
 <section class="panel">
   <div class="grid">
@@ -686,10 +811,15 @@ def render_status_page(task_id: str) -> bytes:
   </div>
 </section>
 <section class="panel">
+  <h2>版本</h2>
+  {f'<table><thead><tr><th>任务</th><th>版本</th><th>状态</th><th>更新时间</th><th>预览</th></tr></thead><tbody>{version_rows_html}</tbody></table>' if version_rows_html else '<p class="muted">暂无版本记录。</p>'}
+</section>
+<section class="panel">
   <h2>日志</h2>
   {"<ul>" + log_rows + "</ul>" if log_rows else '<p class="muted">暂无日志。</p>'}
 </section>
 {f'<section class="panel"><h2>Validator 报告</h2><pre>{report_text}</pre></section>' if report_text else ''}
+{f'<section class="panel"><h2>失败日志</h2><pre>{failure_log}</pre></section>' if failure_log else ''}
 """
     return html_page(f"Deck Task · {task_id}", body)
 
@@ -700,67 +830,305 @@ def render_edit_page(task_id: str) -> bytes:
     if not deck_path.exists():
         raise FileNotFoundError("deck.json")
     deck = read_json(deck_path)
-    deck_json = html.escape(json.dumps(deck, ensure_ascii=False, indent=2))
-    title = html.escape(deck.get("deck", {}).get("title", ""))
-    slides = deck.get("slides", [])
-    slide_rows = "".join(
-        f"<li><code>{html.escape(str(slide.get('key', '')))}</code> · "
-        f"{html.escape(str(slide.get('layout', '')))}"
-        f"{('/' + html.escape(str(slide.get('variant')))) if slide.get('variant') else ''}</li>"
-        for slide in slides
-    )
+    preview_url = (task.get("artifacts") or {}).get("preview_url", "")
+    deck_payload = safe_json_for_script(deck)
+    library_payload = safe_json_for_script(slide_library_items())
+    task_id_js = safe_json_for_script(task_id)
+    title = html.escape(str(deck.get("deck", {}).get("title", "")))
+    customer_slug = html.escape(str(deck.get("deck", {}).get("customer_slug", "")))
+    logo_value = html.escape(str(((deck.get("assets") or {}).get("logos") or {}).get("customer", "")))
     body = f"""
-<section class="panel">
-  <h2>轻量编辑</h2>
-  <p class="muted">修改标题或 DeckJSON 后保存；系统会生成新版本任务，不覆盖当前任务。</p>
-  <label class="label" for="deck-title">Deck 标题</label>
-  <input id="deck-title" value="{title}">
-  <div class="actions">
-    <button onclick="applyTitle()">同步标题到 JSON</button>
-    <button class="secondary" onclick="formatJson()">格式化 JSON</button>
+<div class="toolbar">
+  <div>
+    <strong>轻量编辑</strong>
+    <div class="muted">保存会生成新版本，不覆盖当前任务。</div>
   </div>
-  <h2>DeckJSON</h2>
-  <textarea id="deck-json">{deck_json}</textarea>
   <div class="actions">
     <button onclick="saveDeck()">保存并生成新版本</button>
-    <a href="/decks/{html.escape(task_id)}/status"><button class="secondary" type="button">返回状态页</button></a>
+    <a href="/decks/{html.escape(task_id)}/status"><button class="secondary" type="button">状态页</button></a>
+    {f'<a href="{html.escape(preview_url)}"><button class="secondary" type="button">预览当前版</button></a>' if preview_url else ''}
   </div>
-  <pre id="result" style="display:none"></pre>
-</section>
+</div>
+
 <section class="panel">
-  <h2>当前页面</h2>
-  {"<ul>" + slide_rows + "</ul>" if slide_rows else '<p class="muted">暂无页面。</p>'}
+  <h2>全局信息</h2>
+  <div class="row">
+    <label>
+      <span class="label">Deck 标题</span>
+      <input id="deck-title" value="{title}">
+    </label>
+    <label>
+      <span class="label">客户名 / 文件标识</span>
+      <input id="customer-name" value="{customer_slug}">
+    </label>
+  </div>
+  <label>
+    <span class="label">客户 logo 路径或 URL</span>
+    <input id="customer-logo" value="{logo_value}" placeholder="例如 https://.../logo.png 或 shared/clientlogo/customer.png">
+  </label>
 </section>
+
+<div class="editor-layout">
+  <aside class="sidebar">
+    <section class="panel">
+      <h2>页面</h2>
+      <ul id="slide-list" class="slide-list"></ul>
+    </section>
+    <section class="panel">
+      <h2>素材库</h2>
+      <select id="library-select"></select>
+      <div class="actions">
+        <button class="secondary" onclick="insertLibrarySlide()">插入已有 slide</button>
+      </div>
+      <p class="muted">当前读取本地示例 deck；P2 再替换为 Business Library 检索。</p>
+    </section>
+  </aside>
+  <section id="slide-editor"></section>
+</div>
+
+<section class="panel json-panel">
+  <details>
+    <summary>高级 DeckJSON</summary>
+    <p class="muted">用于排查或批量编辑；保存前会以这里的 JSON 为准。</p>
+    <div class="actions">
+      <button class="secondary" onclick="refreshJson()">从表单同步到 JSON</button>
+      <button class="secondary" onclick="loadJson()">从 JSON 载入表单</button>
+    </div>
+    <textarea id="deck-json"></textarea>
+  </details>
+</section>
+
+<pre id="result" class="toast"></pre>
+
+<script type="application/json" id="deck-source">{deck_payload}</script>
+<script type="application/json" id="library-source">{library_payload}</script>
 <script>
-function currentDeck() {{
-  return JSON.parse(document.getElementById('deck-json').value);
+let deck = JSON.parse(document.getElementById('deck-source').textContent);
+const library = JSON.parse(document.getElementById('library-source').textContent);
+let activeKey = (deck.slides && deck.slides[0] && deck.slides[0].key) || '';
+
+function esc(value) {{
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[ch]));
 }}
-function setDeck(deck) {{
-  document.getElementById('deck-json').value = JSON.stringify(deck, null, 2);
+
+function slugify(value) {{
+  const raw = String(value || '').trim().toLowerCase();
+  const ascii = raw.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (ascii && /^[a-z]/.test(ascii)) return ascii.slice(0, 48);
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) hash = ((hash << 5) - hash + raw.charCodeAt(i)) >>> 0;
+  return 'customer-' + hash.toString(16).slice(0, 8);
 }}
-function applyTitle() {{
-  const deck = currentDeck();
+
+function getAt(obj, path) {{
+  return path.reduce((node, key) => node && node[key], obj);
+}}
+
+function setAt(obj, path, value) {{
+  let node = obj;
+  for (let i = 0; i < path.length - 1; i += 1) node = node[path[i]];
+  node[path[path.length - 1]] = value;
+}}
+
+function editableTextLeaf(key, value) {{
+  if (typeof value !== 'string' || !value.trim()) return false;
+  if (key === 'title' || key === 'icon' || key === 'img' || key === 'image' || key === 'src' || key === 'url' || key === 'href' || key === 'company_logo') return false;
+  if (/^https?:\\/\\//.test(value)) return false;
+  return true;
+}}
+
+function collectTextRefs(node, path = []) {{
+  const refs = [];
+  if (!node || typeof node !== 'object') return refs;
+  if (Array.isArray(node)) {{
+    node.forEach((item, index) => {{
+      if (typeof item === 'string' && editableTextLeaf(String(index), item)) refs.push({{ path: [...path, index], text: item }});
+      else refs.push(...collectTextRefs(item, [...path, index]));
+    }});
+    return refs;
+  }}
+  Object.entries(node).forEach(([key, value]) => {{
+    if (typeof value === 'string' && editableTextLeaf(key, value)) refs.push({{ path: [...path, key], text: value }});
+    else refs.push(...collectTextRefs(value, [...path, key]));
+  }});
+  return refs;
+}}
+
+function slideLabel(slide, index) {{
+  const data = slide.data || {{}};
+  return data.title || data.slogan || data.quote || slide.key || ('slide-' + (index + 1));
+}}
+
+function syncGlobal() {{
   deck.deck = deck.deck || {{}};
-  deck.deck.title = document.getElementById('deck-title').value;
+  deck.deck.title = document.getElementById('deck-title').value.trim() || deck.deck.title || 'Untitled deck';
+  deck.deck.customer_slug = slugify(document.getElementById('customer-name').value || deck.deck.customer_slug || deck.deck.title);
+  const logo = document.getElementById('customer-logo').value.trim();
+  if (logo) {{
+    deck.assets = deck.assets || {{}};
+    deck.assets.logos = deck.assets.logos || {{}};
+    deck.assets.logos.customer = logo;
+  }}
   const cover = (deck.slides || []).find(s => s.layout === 'cover');
   if (cover) {{
     cover.data = cover.data || {{}};
     cover.data.title = deck.deck.title;
   }}
-  setDeck(deck);
 }}
-function formatJson() {{
-  setDeck(currentDeck());
+
+function syncSlides() {{
+  document.querySelectorAll('.slide-card').forEach(card => {{
+    const slide = (deck.slides || []).find(item => item.key === card.dataset.key);
+    if (!slide) return;
+    slide.data = slide.data || {{}};
+    const title = card.querySelector('.slide-title').value.trim();
+    if (title) slide.data.title = title;
+    const refs = JSON.parse(card.dataset.refs || '[]');
+    const lines = card.querySelector('.slide-body').value.split('\\n');
+    refs.forEach((ref, index) => {{
+      if (index < lines.length) setAt(slide.data, ref.path, lines[index].trim());
+    }});
+  }});
 }}
+
+function syncFromForm() {{
+  syncGlobal();
+  syncSlides();
+}}
+
+function renderLibrary() {{
+  const select = document.getElementById('library-select');
+  select.innerHTML = library.map((item, index) => (
+    `<option value="${{index}}">${{esc(item.title)}} · ${{esc(item.layout)}}${{item.variant ? '/' + esc(item.variant) : ''}}</option>`
+  )).join('');
+}}
+
+function renderSlideList() {{
+  const list = document.getElementById('slide-list');
+  list.innerHTML = (deck.slides || []).map((slide, index) => `
+    <li class="slide-tab ${{slide.key === activeKey ? 'active' : ''}}" onclick="setActive('${{esc(slide.key)}}')">
+      <span>${{index + 1}}. ${{esc(slideLabel(slide, index))}}</span>
+      <code>${{esc(slide.layout)}}${{slide.variant ? '/' + esc(slide.variant) : ''}}</code>
+    </li>
+  `).join('');
+}}
+
+function renderSlides() {{
+  const root = document.getElementById('slide-editor');
+  root.innerHTML = (deck.slides || []).map((slide, index) => {{
+    const refs = collectTextRefs(slide.data || {{}});
+    const body = refs.map(ref => ref.text).join('\\n');
+    return `
+      <article class="slide-card" data-key="${{esc(slide.key)}}" data-refs="${{esc(JSON.stringify(refs))}}" ${{slide.key === activeKey ? '' : 'hidden'}}>
+        <div class="slide-head">
+          <div>
+            <div class="label">页面 ${{index + 1}} · <code>${{esc(slide.key)}}</code> · ${{esc(slide.layout)}}${{slide.variant ? '/' + esc(slide.variant) : ''}}</div>
+            <strong>${{esc(slideLabel(slide, index))}}</strong>
+          </div>
+          <div class="actions">
+            <button class="ghost" onclick="moveSlide('${{esc(slide.key)}}', -1)">上移</button>
+            <button class="ghost" onclick="moveSlide('${{esc(slide.key)}}', 1)">下移</button>
+            <button class="danger" onclick="deleteSlide('${{esc(slide.key)}}')">删除</button>
+          </div>
+        </div>
+        <label>
+          <span class="label">页面标题</span>
+          <input class="slide-title" value="${{esc((slide.data || {{}}).title || '')}}">
+        </label>
+        <label>
+          <span class="label">正文</span>
+          <textarea class="slide-body" placeholder="当前页面没有可直接编辑的正文文本。">${{esc(body)}}</textarea>
+        </label>
+      </article>
+    `;
+  }}).join('');
+}}
+
+function render() {{
+  document.getElementById('deck-title').value = (deck.deck && deck.deck.title) || '';
+  document.getElementById('customer-name').value = (deck.deck && deck.deck.customer_slug) || '';
+  document.getElementById('customer-logo').value = (((deck.assets || {{}}).logos || {{}}).customer) || '';
+  renderLibrary();
+  renderSlideList();
+  renderSlides();
+  refreshJson();
+}}
+
+function setActive(key) {{
+  syncFromForm();
+  activeKey = key;
+  renderSlideList();
+  renderSlides();
+}}
+
+function moveSlide(key, delta) {{
+  syncFromForm();
+  const slides = deck.slides || [];
+  const index = slides.findIndex(slide => slide.key === key);
+  const next = index + delta;
+  if (index < 0 || next < 0 || next >= slides.length) return;
+  const [item] = slides.splice(index, 1);
+  slides.splice(next, 0, item);
+  activeKey = key;
+  render();
+}}
+
+function deleteSlide(key) {{
+  syncFromForm();
+  if ((deck.slides || []).length <= 1) {{
+    alert('至少保留一页。');
+    return;
+  }}
+  deck.slides = deck.slides.filter(slide => slide.key !== key);
+  activeKey = (deck.slides[0] && deck.slides[0].key) || '';
+  render();
+}}
+
+function uniqueKey(base) {{
+  const existing = new Set((deck.slides || []).map(slide => slide.key));
+  let key = slugify(base || 'library-slide');
+  let i = 1;
+  while (existing.has(key)) {{
+    i += 1;
+    key = slugify(base || 'library-slide') + '-' + i;
+  }}
+  return key;
+}}
+
+function insertLibrarySlide() {{
+  syncFromForm();
+  const item = library[Number(document.getElementById('library-select').value)];
+  if (!item) return;
+  const slide = JSON.parse(JSON.stringify(item.slide));
+  slide.key = uniqueKey(slide.key);
+  const slides = deck.slides || (deck.slides = []);
+  const activeIndex = slides.findIndex(existing => existing.key === activeKey);
+  slides.splice(activeIndex >= 0 ? activeIndex + 1 : slides.length, 0, slide);
+  activeKey = slide.key;
+  render();
+}}
+
+function refreshJson() {{
+  syncGlobal();
+  document.getElementById('deck-json').value = JSON.stringify(deck, null, 2);
+}}
+
+function loadJson() {{
+  deck = JSON.parse(document.getElementById('deck-json').value);
+  activeKey = (deck.slides && deck.slides[0] && deck.slides[0].key) || '';
+  render();
+}}
+
 async function saveDeck() {{
-  applyTitle();
+  syncFromForm();
+  refreshJson();
   const result = document.getElementById('result');
-  result.style.display = 'block';
+  result.classList.add('show');
   result.textContent = 'Saving...';
-  const response = await fetch('/decks/{task_id}/edits', {{
+  const response = await fetch('/decks/' + {task_id_js} + '/edits', {{
     method: 'POST',
     headers: {{'Content-Type': 'application/json'}},
-    body: JSON.stringify({{deck_json: currentDeck()}})
+    body: JSON.stringify({{deck_json: deck}})
   }});
   const body = await response.json();
   result.textContent = JSON.stringify(body, null, 2);
@@ -771,6 +1139,8 @@ async function saveDeck() {{
     result.after(a);
   }}
 }}
+
+render();
 </script>
 """
     return html_page(f"Edit Deck · {task_id}", body)

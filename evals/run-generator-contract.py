@@ -109,8 +109,13 @@ def main() -> int:
 
     status_page = generator.render_status_page(edited_task["id"]).decode("utf-8")
     edit_page = generator.render_edit_page(edited_task["id"]).decode("utf-8")
-    if "Validator 报告" not in status_page or "轻量编辑" not in edit_page:
+    expected_status = ["Validator 报告", "版本", edited_task["id"]]
+    expected_editor = ["轻量编辑", "全局信息", "素材库", "插入已有 slide", "保存并生成新版本", "slide-editor"]
+    if any(phrase not in status_page for phrase in expected_status) or any(phrase not in edit_page for phrase in expected_editor):
         print("status/edit HTML pages did not render expected content", file=sys.stderr)
+        return 1
+    if not generator.slide_library_items():
+        print("local slide library is empty", file=sys.stderr)
         return 1
 
     print(output_dir)
