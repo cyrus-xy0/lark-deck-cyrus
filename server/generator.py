@@ -29,7 +29,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import slide_library
 import pitch_recipes
@@ -48,6 +48,7 @@ PITCH_REHEARSAL_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py
 DECK_INGESTOR = REPO / "skills/deck-ingestor/ingest.py"
 BASE_LIBRARY = REPO / "scripts/base_library.py"
 DEFAULT_TOS_UPLOADER = Path("/Users/bytedance/.codex/skills/upload-file-to-tos/upload.js")
+DEFAULT_MAGIC_PUBLISHER = Path("/Users/bytedance/.codex/skills/publish-magic-page/publish.js")
 
 REQUIRED_OUTPUTS = [
     "deck.json",
@@ -142,6 +143,18 @@ def inline_delivery_html() -> bool:
     return raw.lower() not in {"0", "false", "no", "linked"}
 
 
+def publish_magic_enabled() -> bool:
+    raw = os.environ.get("CYRUS_PUBLISH_MAGIC")
+    if raw is None:
+        return True
+    return raw.lower() not in {"0", "false", "no", "local", "file"}
+
+
+def magic_dry_run() -> bool:
+    raw = os.environ.get("CYRUS_MAGIC_DRY_RUN") or os.environ.get("MAGIC_DRY_RUN")
+    return str(raw).lower() in {"1", "true", "yes", "mock"}
+
+
 def success_like_status(status: str) -> bool:
     return status in {
         "succeeded",
@@ -167,6 +180,11 @@ def health_payload() -> dict[str, Any]:
             "enabled": use_base_library(),
             "sync_assets": sync_base_assets(),
             "identity": base_identity(),
+        },
+        "magic_publish": {
+            "enabled": publish_magic_enabled(),
+            "dry_run": magic_dry_run(),
+            "publisher": str(DEFAULT_MAGIC_PUBLISHER),
         },
         "output_contract": REQUIRED_OUTPUTS + ["editable zip", "validator-report.md", "task.json"],
         "library": {
@@ -1165,18 +1183,29 @@ def output_artifacts(task_id: str, output_dir: Path, base_url: str | None = None
     root = base_url.rstrip("/") if base_url else ""
     for path in sorted(output_dir.iterdir()):
         if path.is_file():
+            if path.name == "index.html" or path.suffix == ".zip":
+                continue
             artifacts[path.name] = f"{root}/decks/{task_id}/files/{path.name}" if root else str(path)
-    zip_files = sorted(output_dir.glob("*.zip"))
-    preview = output_dir / "index.html"
-    editable = zip_files[0] if zip_files else output_dir / "deck-editable.zip"
+    magic_url = ""
+    magic_path = output_dir / "magic-publish.json"
+    if magic_path.exists():
+        try:
+            magic = read_json(magic_path)
+            if magic.get("ok") and magic.get("url"):
+                magic_url = str(magic["url"])
+        except Exception:
+            magic_url = ""
     if base_url:
-        artifacts["preview_url"] = f"{root}/decks/{task_id}/files/index.html"
-        artifacts["edit_url"] = f"{root}/decks/{task_id}/files/{editable.name}"
-        artifacts["download_url"] = artifacts["edit_url"]
+        artifacts["status_url"] = f"{root}/decks/{task_id}/status"
+        artifacts["editor_url"] = f"{root}/decks/{task_id}/edit"
     else:
-        artifacts["preview_url"] = preview.resolve().as_uri() if preview.exists() else ""
-        artifacts["edit_url"] = editable.resolve().as_uri() if editable.exists() else ""
-        artifacts["download_url"] = artifacts["edit_url"]
+        artifacts["status_url"] = ""
+        artifacts["editor_url"] = ""
+    artifacts["magic_url"] = magic_url
+    artifacts["miaobi_url"] = magic_url
+    artifacts["preview_url"] = magic_url
+    artifacts["edit_url"] = artifacts.get("editor_url", "")
+    artifacts["download_url"] = ""
     return artifacts
 
 
@@ -1661,14 +1690,12 @@ def artifact_links(task: dict[str, Any]) -> str:
     artifacts = task.get("artifacts") or {}
     rows = []
     for label, key in [
-        ("预览", "preview_url"),
-        ("编辑包", "edit_url"),
-        ("下载包", "download_url"),
+        ("妙笔链接", "magic_url"),
         ("素材识别", "SOURCE_DOSSIER.md"),
         ("Validator 报告", "validator-report.md"),
         ("Pitch 预演", "PITCH_REHEARSAL.md"),
+        ("妙笔发布报告", "MAGIC_PUBLISH.md"),
         ("最终解析", "FINAL_SOURCE_DOSSIER.md"),
-        ("TOS 上传", "TOS_UPLOAD.md"),
         ("入库报告", "INGESTION_REPORT.md"),
         ("用户旅程", "JOURNEY.md"),
         ("质量洞察", "quality-insights.json"),
@@ -1834,7 +1861,7 @@ async function confirmOutline() {{
         confirmation_panel = f"""
 <section class="panel">
   <h2>等待确认预演</h2>
-  <p class="muted">deckhtml 已生成,并已触发 pitch simulator。你可以按反馈回到规划确认环节,也可以暂不修改并进入入库确认。</p>
+  <p class="muted">deckhtml 已生成并发布到妙笔,同时已触发 pitch simulator。你可以按反馈回到规划确认环节,也可以暂不修改并进入入库确认。</p>
   <div class="actions">
     <button type="button" onclick="acceptRehearsal()">不用修改,进入入库确认</button>
     <button class="secondary" type="button" onclick="reviseFromRehearsal()">按预演反馈重做大纲</button>
@@ -1860,7 +1887,7 @@ async function reviseFromRehearsal() {{
         confirmation_panel = f"""
 <section class="panel">
   <h2>等待确认入库</h2>
-  <p class="muted">当前成稿已通过预演确认。确认入库后会先按配置上传最终 deckhtml 到 TOS,再调用解析器丰富知识/素材,并优先写入云端知识库和素材库;若当前 user 身份无权限,会明文记录并落到本地候选库。</p>
+  <p class="muted">当前成稿已通过预演确认,并已发布到妙笔。确认入库后会使用已发布的妙笔 deckhtml,再调用解析器丰富知识/素材,并优先写入云端知识库和素材库;若当前 user 身份无权限,会明文记录并落到本地候选库。</p>
   <div class="actions">
     <button type="button" onclick="confirmDeck()">确认入库</button>
     <button class="secondary" type="button" onclick="skipIngest()">不入库,结束</button>
@@ -2717,6 +2744,100 @@ def build_ingest_metadata(task: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def magic_publish_config(request: dict[str, Any]) -> dict[str, Any]:
+    magic = request.get("magic") if isinstance(request.get("magic"), dict) else {}
+    delivery = request.get("delivery") if isinstance(request.get("delivery"), dict) else {}
+    delivery_magic = delivery.get("magic") if isinstance(delivery.get("magic"), dict) else {}
+    magic = {**magic, **delivery_magic}
+    return {
+        "enabled": publish_magic_enabled() and str(magic.get("enabled", "true")).lower() not in {"0", "false", "no"},
+        "dry_run": magic_dry_run() or str(magic.get("dry_run", "")).lower() in {"1", "true", "yes", "mock"},
+        "base_url": str(magic.get("base_url") or magic.get("magic_base_url") or os.environ.get("MAGIC_BASE_URL") or "https://magic.solutionsuite.cn"),
+        "script": str(magic.get("script") or os.environ.get("CYRUS_MAGIC_PUBLISHER") or DEFAULT_MAGIC_PUBLISHER),
+        "open_source": bool(magic.get("open_source") or magic.get("openSource")),
+    }
+
+
+def normalize_magic_base_url(value: str) -> str:
+    raw = (value or "https://magic.solutionsuite.cn").strip().rstrip("/")
+    if not raw:
+        raw = "https://magic.solutionsuite.cn"
+    return raw if re.match(r"https?://", raw, re.I) else f"https://{raw}"
+
+
+def parse_magic_publish_stdout(stdout: str) -> dict[str, str]:
+    url = ""
+    app_id = ""
+    for line in stdout.splitlines():
+        if "Independent Page:" in line:
+            url = line.split("Independent Page:", 1)[1].strip()
+        elif "App ID:" in line:
+            app_id = line.split("App ID:", 1)[1].strip()
+    if not url:
+        match = re.search(r"https?://\S+", stdout)
+        url = match.group(0).rstrip() if match else ""
+    return {"url": url, "app_id": app_id}
+
+
+def write_magic_publish_report(output_dir: Path, payload: dict[str, Any]) -> None:
+    write_json(output_dir / "magic-publish.json", payload)
+    lines = [
+        "# Magic Publish",
+        "",
+        f"- enabled: {payload.get('enabled')}",
+        f"- ok: {payload.get('ok')}",
+        f"- dry_run: {payload.get('dry_run')}",
+        f"- url: {payload.get('url') or ''}",
+        f"- app_id: {payload.get('app_id') or ''}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    (output_dir / "MAGIC_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def publish_deck_to_magic(task: dict[str, Any], request: dict[str, Any], deck: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
+    output_dir = Path(task.get("output_dir", ""))
+    config = magic_publish_config(request)
+    title = ((deck.get("deck") or {}).get("title") or (request.get("brief") or {}).get("title") or str(task.get("id") or "deck")).strip()
+    base_url = normalize_magic_base_url(config["base_url"])
+    if not config["enabled"]:
+        payload = {"enabled": False, "ok": False, "dry_run": False, "url": "", "app_id": "", "reason": "disabled"}
+        write_magic_publish_report(output_dir, payload)
+        return payload
+
+    if config["dry_run"]:
+        token = hashlib.sha1(f"{task.get('id')}:{title}".encode("utf-8")).hexdigest()[:12]
+        url = f"{base_url}/r?title={quote(title)}&fid={token}"
+        payload = {"enabled": True, "ok": True, "dry_run": True, "url": url, "app_id": token, "reason": "dry-run"}
+        write_magic_publish_report(output_dir, payload)
+        return payload
+
+    script = Path(config["script"])
+    html_path = output_dir / "index.html"
+    if not script.exists():
+        payload = {"enabled": True, "ok": False, "dry_run": False, "url": "", "app_id": "", "reason": f"Magic publisher not found: {script}"}
+        write_magic_publish_report(output_dir, payload)
+        return payload
+
+    cmd = ["node", str(script), "publish", str(html_path), "--title", title, "--base-url", base_url]
+    if config["open_source"]:
+        cmd.append("--open-source")
+    log = log_dir / "magic-publish.txt"
+    proc = run_command(cmd, log)
+    task.setdefault("logs", {})["magic_publish"] = str(log)
+    parsed = parse_magic_publish_stdout(proc.stdout)
+    payload = {
+        "enabled": True,
+        "ok": proc.returncode == 0 and bool(parsed["url"]),
+        "dry_run": False,
+        "url": parsed["url"],
+        "app_id": parsed["app_id"],
+        "reason": "" if proc.returncode == 0 and parsed["url"] else (proc.stderr.strip() or proc.stdout.strip() or "publish failed"),
+    }
+    write_magic_publish_report(output_dir, payload)
+    return payload
+
+
 def tos_upload_config(request: dict[str, Any]) -> dict[str, Any]:
     ingestion = request.get("ingestion") if isinstance(request.get("ingestion"), dict) else {}
     tos = request.get("tos") if isinstance(request.get("tos"), dict) else {}
@@ -3194,6 +3315,21 @@ def create_or_run_task(
                 "已把 CSS/JS/图片内联到 index.html,对齐原版 H5 的单文件交付习惯。",
                 {"size_kb": round((output_dir / "index.html").stat().st_size / 1024, 1)},
             )
+        magic_publish = publish_deck_to_magic(task, request, deck, log_dir=log_dir)
+        task["magic_publish"] = magic_publish
+        if magic_publish.get("ok"):
+            task.setdefault("artifacts", {})["magic_url"] = magic_publish.get("url", "")
+            task.setdefault("artifacts", {})["miaobi_url"] = magic_publish.get("url", "")
+            append_journey_event(
+                journey,
+                "magic_published",
+                "system",
+                "已将生成的 htmldeck 发布到妙笔空间,用户交付入口为妙笔链接。",
+                {"url": magic_publish.get("url", ""), "dry_run": magic_publish.get("dry_run", False)},
+            )
+        elif magic_publish.get("enabled"):
+            append_journey_event(journey, "magic_publish_failed", "system", "妙笔发布失败,本轮不返回文件链接。", {"reason": magic_publish.get("reason", "")})
+            raise RuntimeError("magic publish failed: " + str(magic_publish.get("reason") or "unknown"))
         upsert_journey_version(journey, task, deck)
         write_journey_artifacts(output_dir, journey)
 
@@ -3218,7 +3354,7 @@ def create_or_run_task(
         else:
             task["status"] = "succeeded"
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
-        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、预览链接、编辑器、预演报告和下载包拿到结果。")
+        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、妙笔链接和预演报告拿到结果。")
     except Exception as exc:  # noqa: BLE001 - task wrapper should persist any failure.
         task["status"] = "failed"
         task["error"] = str(exc)

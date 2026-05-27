@@ -5,7 +5,7 @@
 ## 一句话提示词
 
 ```text
-请部署 lark-deck-cyrus：获取或更新 https://github.com/cyrus-xy0/lark-deck-cyrus，运行 bash install.sh；如果云端不能下载浏览器组件，先设置 LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1。然后运行 python3 scripts/cloud_agent_deploy.py --output deploy/cloud-agent --base-url <你的公网访问域名>，复制 deploy/cloud-agent/env.example 为 .env 并填好必要环境变量，启动 bash deploy/cloud-agent/start-generator.sh，确认 deploy/cloud-agent/healthcheck.sh 通过。部署完成后，我可以直接对你说“给某客户/主题做一份飞书风格 H5 deck”，你调用 POST /decks 生成 deckhtml，并返回 preview_url、download_url 和 edit_url。
+请部署 lark-deck-cyrus：获取或更新 https://github.com/cyrus-xy0/lark-deck-cyrus，运行 bash install.sh；如果云端不能下载浏览器组件，先设置 LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1。然后运行 python3 scripts/cloud_agent_deploy.py --output deploy/cloud-agent --base-url <你的公网访问域名>，复制 deploy/cloud-agent/env.example 为 .env 并填好必要环境变量，启动 bash deploy/cloud-agent/start-generator.sh，确认 deploy/cloud-agent/healthcheck.sh 通过。部署完成后，我可以直接对你说“给某客户/主题做一份飞书风格 H5 deck”，你调用 POST /decks 生成 deckhtml，发布到妙笔，并只把妙笔链接、状态页和预演报告返回给我。
 ```
 
 注意:默认用 HTTPS 地址,不要把仓库地址改成 `git@github.com:...`。多数云端 agent
@@ -26,7 +26,7 @@ python3 scripts/cloud_agent_deploy.py \
 4. 配置环境:复制 `deploy/cloud-agent/env.example` 为 `.env`。如果 bundle 被复制到仓库外,设置 `LARK_DECK_CYRUS_ROOT` 指回仓库根目录。
 5. 启动服务:运行 `bash deploy/cloud-agent/start-generator.sh`。需要飞书 bot 收消息时,再配置飞书事件订阅并启动 `bash deploy/cloud-agent/start-feishu-bot.sh`。
 6. 验证:运行 `bash deploy/cloud-agent/healthcheck.sh`,或访问 `<base-url>/health`。
-7. 使用:agent 收到用户 brief 和素材后调用 `POST /decks`;如有 `sources` / `attachments`,服务端会先跑 recognizer 并在 run 内创建临时知识/素材库。先把 outline / 状态页发给用户确认;用户确认后调用 `POST /decks/{id}/confirm-outline` 生成 deckhtml 和预演报告。用户回复要改时调用 `POST /decks/{id}/revise-from-rehearsal` 回到新 outline;用户回复不用改时调用 `POST /decks/{id}/accept-rehearsal` 进入入库确认;确认入库后调用 `POST /decks/{id}/confirm-deck`。
+7. 使用:agent 收到用户 brief 和素材后调用 `POST /decks`;如有 `sources` / `attachments`,服务端会先跑 recognizer 并在 run 内创建临时知识/素材库。先把 outline / 状态页发给用户确认;用户确认后调用 `POST /decks/{id}/confirm-outline` 生成 deckhtml、发布到妙笔并生成预演报告。后续用户侧只返回 `magic_url` / `preview_url` 妙笔链接。用户回复要改时调用 `POST /decks/{id}/revise-from-rehearsal` 回到新 outline;用户回复不用改时调用 `POST /decks/{id}/accept-rehearsal` 进入入库确认;确认入库后调用 `POST /decks/{id}/confirm-deck`。
 
 ## 环境变量
 
@@ -36,6 +36,8 @@ python3 scripts/cloud_agent_deploy.py \
 - `LARK_LIBRARY_MODE`:默认 `auto`。`base` 表示 live Base 不可用时直接失败。
 - `LARK_LIBRARY_AS`:默认 `user`;云端 bot 写 Base 时可设为 `bot`。
 - `LARK_LIBRARY_BASE_TOKEN`:一般不用配置。当前仓库默认配置已指向用户指定 Base `DBtybdvHYaovVwsWLatcipJBnrg`,真实读写使用云端 agent 当前 `lark-cli` user 身份;没有权限时系统会明文提示并回退本地候选库。
+- `MAGIC_TOKEN`:妙笔发布 token。生成后的 deckhtml 会发布到妙笔;缺失或失效时生成任务会失败并提示修复认证。
+- `MAGIC_BASE_URL`:妙笔服务域名,默认 `https://magic.solutionsuite.cn`。
 
 ## Base 策略
 

@@ -36,6 +36,13 @@ GENERATOR_PUBLIC_BASE_URL={base_url}
 LARK_LIBRARY_MODE=auto
 LARK_LIBRARY_AS=user
 
+# Magic Pen delivery. Generated deckhtml is published to Magic and user-facing
+# replies should return the Magic link rather than local files.
+MAGIC_BASE_URL=https://magic.solutionsuite.cn
+MAGIC_TOKEN=
+CYRUS_PUBLISH_MAGIC=1
+CYRUS_MAGIC_DRY_RUN=0
+
 # Feishu bot mode.
 FEISHU_DECK_BOT_STATE=runs/feishu-bot-state.json
 FEISHU_DECK_BOT_DRY_RUN=0
@@ -102,7 +109,7 @@ cp deploy/cloud-agent/env.example deploy/cloud-agent/.env
 bash deploy/cloud-agent/start-generator.sh
 ```
 
-启动后运行 `bash deploy/cloud-agent/healthcheck.sh` 验证。部署完成后，用户可以直接说“给某客户/主题做一份飞书风格 H5 deck”，agent 调用 `POST /decks`，并把返回的 `preview_url`、`download_url`、`edit_url` 发给用户。
+启动后运行 `bash deploy/cloud-agent/healthcheck.sh` 验证。部署完成后，用户可以直接说“给某客户/主题做一份飞书风格 H5 deck”，agent 调用 `POST /decks`，生成后发布到妙笔，并把返回的 `magic_url` / `preview_url` 妙笔链接发给用户，不返回本地文件包。
 
 注意：Slide Library 保持本地；飞书 Base 只写 `知识库` 和 `素材库`。默认优先使用云端 Base,不要求用户配置 token；如果云端 agent 的 `lark-cli` user 身份没有权限,系统会明文提示并回退本地候选库。
 """
@@ -140,7 +147,8 @@ Generated bundle for exposing Cyrus from a user's cloud agent.
 ## Files
 
 - `env.example`: copy to `.env` and fill secrets. Set `LARK_DECK_CYRUS_ROOT`
-  if this bundle is copied outside the repository.
+  if this bundle is copied outside the repository. Set `MAGIC_TOKEN` so
+  generated deckhtml can be published to Magic Pen Space.
 - `start-generator.sh`: starts `server/generator.py serve`.
 - `start-feishu-bot.sh`: starts the Feishu bot listener.
 - `healthcheck.sh`: checks `{base_url}/health`.
@@ -160,7 +168,9 @@ In a second process, after Feishu event auth is configured:
 bash deploy/cloud-agent/start-feishu-bot.sh
 ```
 
-Slide Library stays local. `--write-base` writes only `知识库` and `素材库`.
+User-facing delivery is the Magic link (`magic_url` / `preview_url`), not local
+HTML or zip files. Slide Library stays local. `--write-base` writes only
+`知识库` and `素材库`.
 """
     write(output / "README.md", readme)
     return {key: str(output / value) for key, value in {

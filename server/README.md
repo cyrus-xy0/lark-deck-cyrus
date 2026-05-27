@@ -124,11 +124,11 @@ Endpoints:
 - `GET /recipes/validate`
 - `POST /recipes/plan`
 
+Generated deckhtml is published to Magic Pen Space before the user sees the
+preview. `preview_url` / `magic_url` are the Magic links; local HTML and zip
+files remain internal run artifacts for validation, editing, and audit.
 Ingestion confirmation (`confirm-deck`) runs the final deck parser and then
-the Base/local ingestor. TOS upload is opt-in via request payload
-`{ "ingestion": { "tos": { "enabled": true, "key": "..." } } }` or
-`CYRUS_UPLOAD_TOS=1`; when no TOS target is configured it records a skipped
-upload report and continues with library ingestion.
+the Base/local ingestor using that published Magic deck as the delivery source.
 
 `GET /decks/{id}/edit` is the P1 lightweight web editor. It supports:
 

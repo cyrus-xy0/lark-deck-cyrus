@@ -31,7 +31,7 @@ Slide Library 的含义不是把所有东西塞进第三张表。`知识库` 表
 ## 前置条件
 
 - 上传 HTML deck 入库:必须先走 `deck-auditor`;通过才入 slide / 素材库,失败只返回失败理由。
-- 新生成 deck 入库:标准链路是 `deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认不改稿 -> 用户确认入库 -> TOS 上传/最终解析 -> deck-ingestor`。
+- 新生成 deck 入库:标准链路是 `deck-renderer -> deck-auditor -> 妙笔发布 -> pitch-simulator -> 用户确认不改稿 -> 用户确认入库 -> 最终 deckhtml 解析 -> deck-ingestor`。
 - brief + 素材场景:优先读取 `upload-recognizer` 的 source dossier,再结合 `deck.json`、`FEEDBACK.md`、audit report 和 rehearsal report。
 - 涉及客户真实数据、商标、截图、内部文档时,必须保留来源和权限状态;不确定就标为 `needs_review`。
 
@@ -68,7 +68,7 @@ python3 skills/deck-ingestor/ingest.py \
 
 默认会读取 `runs/<task-id>/output/deck.json`,把可复用的非封面/封底页写入本地候选库,并在同一 run 输出 `ingestion-manifest.json` 和 `INGESTION_REPORT.md`。只入指定页时重复传 `--slide-key <key>`。
 
-用户确认入库后,总控应先按配置把最终 `index.html` 上传到指定 TOS,再调用 recognizer 解析最终 deckhtml,随后默认带 `--write-base` 同步飞书 Base;这会调用 `scripts/base_library.py create-knowledge` 写入知识库,调用 `create-asset-record` 把每页 DeckJSON fragment 作为素材元数据写入素材库。Slide Library 暂时只保存在本地候选库,不会写云端 Slide 表。默认使用当前沙箱 agent 的 user 身份和仓库配置的 Base,不要要求用户配置 token。没有 live Base 权限时必须明文失败并由总控回退本地候选库,不能伪造云端记录:
+用户确认入库后,总控使用已发布的妙笔 deckhtml 作为最终交付入口,再调用 recognizer 解析最终 deckhtml,随后默认带 `--write-base` 同步飞书 Base;这会调用 `scripts/base_library.py create-knowledge` 写入知识库,调用 `create-asset-record` 把每页 DeckJSON fragment 作为素材元数据写入素材库。Slide Library 暂时只保存在本地候选库,不会写云端 Slide 表。默认使用当前沙箱 agent 的 user 身份和仓库配置的 Base,不要要求用户配置 token。没有 live Base 权限时必须明文失败并由总控回退本地候选库,不能伪造云端记录:
 
 ```bash
 python3 skills/deck-ingestor/ingest.py \

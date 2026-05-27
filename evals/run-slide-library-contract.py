@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import sys
+import os
 import tempfile
 from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "server"))
+os.environ.setdefault("CYRUS_MAGIC_DRY_RUN", "1")
 
 import generator  # noqa: E402
 import slide_library  # noqa: E402
