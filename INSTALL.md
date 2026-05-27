@@ -13,6 +13,12 @@ Tell your Claude agent:
 
 > "帮我安装 lark-deck-cyrus 这个 skill：`https://github.com/cyrus-xy0/lark-deck-cyrus`"
 
+Use the HTTPS URL above by default. If the user pasted
+`git@github.com:cyrus-xy0/lark-deck-cyrus.git`, replace it with
+`https://github.com/cyrus-xy0/lark-deck-cyrus.git` before cloning. Do not ask
+the user for an SSH key or Personal Access Token for the public repository
+unless the HTTPS clone also fails.
+
 The agent will detect your harness, install the product skills, and verify.
 
 ---

@@ -8,6 +8,9 @@
 请部署 lark-deck-cyrus：获取或更新 https://github.com/cyrus-xy0/lark-deck-cyrus，运行 bash install.sh；如果云端不能下载浏览器组件，先设置 LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1。然后运行 python3 scripts/cloud_agent_deploy.py --output deploy/cloud-agent --base-url <你的公网访问域名>，复制 deploy/cloud-agent/env.example 为 .env 并填好必要环境变量，启动 bash deploy/cloud-agent/start-generator.sh，确认 deploy/cloud-agent/healthcheck.sh 通过。部署完成后，我可以直接对你说“给某客户/主题做一份飞书风格 H5 deck”，你调用 POST /decks 生成 deckhtml，并返回 preview_url、download_url 和 edit_url。
 ```
 
+注意:默认用 HTTPS 地址,不要把仓库地址改成 `git@github.com:...`。多数云端 agent
+没有 GitHub SSH key,使用 SSH 会在 clone 前卡住。
+
 ## Agent 执行流程
 
 1. 获取代码:使用用户有权限的 GitHub URL clone 或 pull 仓库。
