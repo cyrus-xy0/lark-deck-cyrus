@@ -42,8 +42,8 @@ Cyrus 对外只保留三个主入口。不要再把“PPT/PDF 转 HTML”、“H
 | 场景 | 用户信号 | 路由 |
 |---|---|---|
 | **1. 上传 HTML deck 做检查 / 入库** | 用户给出一个已有 HTML deck,只问是否合格、能否入库、哪里失败 | `lark-deck-cyrus -> deck-auditor -> deck-ingestor`。auditor 通过才调用 ingestor;失败则返回失败理由和修复路由,不自动改稿 |
-| **2. 只有 brief,新建 deckhtml** | 用户只有文字 brief、主题、销售想法、客户提案方向 | `lark-deck-cyrus -> deck-planner -> deck-renderer -> deck-auditor -> pitch-simulator -> deck-ingestor`。planner 直接基于知识库和 brief 生成 outline;不要在 planner 后插 simulator |
-| **3. brief + 其他素材,新建或改成新 deckhtml** | 用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包,并要求转换、改版、重做或基于材料生成 | `lark-deck-cyrus -> upload-recognizer -> deck-planner -> deck-renderer -> deck-auditor -> pitch-simulator -> deck-ingestor`。先识别上传物并拆成知识层和素材层,再由 planner 结合 brief 生成 outline |
+| **2. 只有 brief,新建 deckhtml** | 用户只有文字 brief、主题、销售想法、客户提案方向 | `lark-deck-cyrus -> deck-planner -> 用户确认 outline -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。planner 直接基于知识库和 brief 生成 outline;不要在 planner 后插 simulator |
+| **3. brief + 其他素材,新建或改成新 deckhtml** | 用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包,并要求转换、改版、重做或基于材料生成 | `lark-deck-cyrus -> upload-recognizer -> 临时知识/素材库 -> deck-planner -> 用户确认 outline -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。先识别上传物并拆成知识层和素材层,在 agent runtime 本轮 run 内保存临时库,再由 planner 结合 brief 生成 outline |
 
 场景 3 中的 PDF / PPT / HTML / 飞书文档处理原则:
 
@@ -64,7 +64,7 @@ Cyrus 对外只保留三个主入口。不要再把“PPT/PDF 转 HTML”、“H
 
 H5 生成流程的硬顺序:
 
-1. **Design-first:**在 chat 里先给出页级设计方案,明确每页角色、唯一重点、A/B/C/D 信息层级、气质冲突、layout path 和素材计划。全 schema 且低风险时可记录假设后继续;任何 `layout: raw`、bespoke hero、replica、iframe/demo、证据不足或高密度页面都必须先得到用户确认,再写文件或跑 `new-run.sh`。
+1. **Design-first + outline confirmation:**在 chat / 状态页里先给出 planner outline 和页级设计方案,明确每页角色、唯一重点、A/B/C/D 信息层级、气质冲突、layout path 和素材计划。无论是否低风险,都必须等用户确认当前大纲框架后,才能写 deck.json、生成 HTML 或跑 `new-run.sh`。
 2. **PREFLIGHT:**确认本地持久化工作区可写,不能把 deck 生成到临时会话目录。
 3. **Workspace:**为本次任务创建 `runs/<timestamp>-<slug>/`,把用户输入、outline、deck.json、HTML、texts.md、FEEDBACK.md 和报告放在同一 run 内。
 4. **DeckJSON-first:**默认写 `deck.json` 并用 `deck-json/render-deck.py` 渲染。只有 schema / `raw` / `replica` / `iframe-embed` 都无法表达时,才允许完整 raw HTML。
@@ -137,6 +137,7 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 3. **上传识别**
    - 仅在用户提供 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包且不是单纯检查 HTML deck 时调用 `upload-recognizer`。
    - 输出必须拆成知识层和素材层,并保留来源、页码、文件名、置信度和缺口。
+   - 总控必须在本轮 run 内创建临时知识/素材库,例如 `input/runtime-library/knowledge.json`、`materials.json`、`slides.json` 和 `manifest.json`;后续 planner、renderer、ingestor 均以这些结构化结果为本轮事实源之一。
    - 不在识别阶段决定最终 deck 结构,也不直接渲染 HTML。
 
 4. **规划讲法**
@@ -144,11 +145,12 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
    - planner 基于知识库、用户 brief 和 upload-recognizer 的知识层生成 outline;不要在 planner 后先跑 simulator。
    - 输出必须说明整套 deck 的主线、每页职责、页级重点、关键 idea、建议讲法、证据缺口、素材需求和候选 DeckJSON layout。
    - 规划不是排版草稿,而是后续生产、验收、预演和迭代的事实源。
+   - 输出后必须暂停,让用户确认目标受众、行业痛点、主张、证据缺口、素材计划和页序;用户确认前不得渲染 deckhtml。
 
 5. **H5 设计确认**
    - 根据 planner outline 和 H5 DESIGN-FIRST POLICY 输出页级设计方案。
    - 明确哪些页用 H5 标准 layout,哪些页需要 `raw` / `replica` / `iframe-embed`,以及为什么。
-   - 若方案全是标准 schema 且风险低,可把设计假设落入 `DESIGN-PLAN.md` 后继续;若存在 raw / replica / iframe / demo / 证据缺口 / 用户素材权限不明,用户确认前不要创建 run、不要写 deck.json、不要生成 HTML。
+   - 所有场景都必须等用户确认 outline / 设计框架;即使方案全是标准 schema 且风险低,也只能把假设写入 `OUTLINE_REVIEW.md` / `DESIGN-PLAN.md`,不得直接创建最终 deckjson 或生成 HTML。
 
 6. **生成和渲染**
    - 调用 `deck-renderer`。
@@ -162,11 +164,14 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 
 8. **预演和改稿**
    - deck-auditor 通过后调用 `pitch-simulator`,生成最终对客讲法预演、异议地图和改稿队列。
+   - 预演报告必须作为用户可见产物返回,不能只作为内部日志存在。
    - 预演结果是 scenario forecast,不是实际客户研究。
-   - `pitch-simulator` 输出的 revision queue 只作为建议;必须等用户确认后,才能作为上下文重新输入 `deck-planner` 和 `deck-renderer` 进入下一轮迭代。
+   - `pitch-simulator` 输出的 revision queue 只作为建议;必须等用户确认“修改”后,才能作为上下文重新输入 `deck-planner` 并生成新的 outline 给用户确认。用户确认“不用改”时,才进入是否入库确认。
 
-9. **入库和最终交付**
-   - 调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
+9. **成稿确认、入库和最终交付**
+   - deckhtml 生成、验收和预演完成后,必须先让用户确认是否按预演反馈修改;不修改时再询问是否入库。用户确认入库前不得自动入库。
+   - 用户确认入库后,先按配置把最终 deckhtml 上传到指定 TOS;随后调用 recognizer 解析最终 deckhtml,再调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
+   - 默认优先使用云端素材库和知识库,以当前沙箱 agent 的 user 身份访问;不要要求用户配置 token。只有云端不可访问或无权限时才回退本地缓存,并用明文告诉用户“已回退本地”及原因。
    - 如果 simulator 发现必须修改的问题,先等待用户确认是否迭代;不要把未确认的模拟建议直接入库为事实。
    - 最终状态应是一份用户可以直接拿去讲的 H5 pitch deck。
    - 交付时说明当前版本、编辑入口、验收结果、预演摘要、入库结果和仍需用户确认的素材/事实缺口。

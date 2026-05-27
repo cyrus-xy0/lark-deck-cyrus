@@ -100,12 +100,17 @@ scripts/run-p1-smoke.sh
 Endpoints:
 
 - `GET /health`
-- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ..., "deck_json": ... }`, or `{ "deck_json": ... }`
+- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ... }`, or `{ "brief": ..., "sources": [...] }` creates an outline-confirmation task by default. When sources/attachments are present, the server runs `upload-recognizer` first and writes a temporary `input/runtime-library/` for this run. Pass `{ "auto_confirm_outline": true }` to render immediately, or call `POST /decks/{id}/confirm-outline` after user confirmation.
 - `GET /decks/{id}`
 - `GET /decks/{id}/status`
 - `GET /decks/{id}/edit`
 - `GET /decks/{id}/journey`
 - `GET /decks/{id}/insights`
+- `POST /decks/{id}/confirm-outline`
+- `POST /decks/{id}/accept-rehearsal`
+- `POST /decks/{id}/revise-from-rehearsal`
+- `POST /decks/{id}/confirm-deck`
+- `POST /decks/{id}/skip-ingest`
 - `POST /decks/{id}/regenerate`
 - `POST /decks/{id}/edits`
 - `GET /decks/{id}/files/index.html`
@@ -118,6 +123,12 @@ Endpoints:
 - `POST /library/candidates/{candidate-id}/approve`
 - `GET /recipes/validate`
 - `POST /recipes/plan`
+
+Ingestion confirmation (`confirm-deck`) runs the final deck parser and then
+the Base/local ingestor. TOS upload is opt-in via request payload
+`{ "ingestion": { "tos": { "enabled": true, "key": "..." } } }` or
+`CYRUS_UPLOAD_TOS=1`; when no TOS target is configured it records a skipped
+upload report and continues with library ingestion.
 
 `GET /decks/{id}/edit` is the P1 lightweight web editor. It supports:
 
@@ -240,17 +251,15 @@ Generator tasks now write `recipe_refs`, `library_suggestions`,
 surface the recipe/library/backlog sections in `FEEDBACK.md`.
 
 The current brief planner is deterministic and conservative. It creates a
-valid first draft and records missing information in `outline.json` and
-`FEEDBACK.md`; richer GTM questioning and recipe selection should layer on top
-of this wrapper rather than bypass it.
+valid outline and pauses for user confirmation before rendering. After render,
+the wrapper runs validation and pitch rehearsal, then pauses again for deckhtml
+confirmation before ingestion.
 
-For service-side stability, Feishu Base access is opt-in. By default the
-wrapper uses local knowledge cache files and runs the renderer with
-`--offline-cache`, so CI and sandboxed workers do not need a local keychain.
-Set `GENERATOR_USE_BASE_LIBRARY=1` plus `LARK_LIBRARY_AS=bot` for Feishu bot
-workers that should query the live Base tables. Set
-`GENERATOR_SYNC_BASE_ASSETS=1` only when the worker should refresh shared
-assets from live Base during rendering.
+Feishu Base access is cloud-first by default. The wrapper uses the configured
+Base and current `lark-cli` user identity for `知识库` / `素材库`; if cloud access is
+unavailable or unauthorized, the task records a clear warning and falls back to
+local cache/candidates. Set `GENERATOR_USE_BASE_LIBRARY=0` or
+`GENERATOR_SYNC_BASE_ASSETS=0` only for explicit local/offline runs.
 
 ## Feishu Bot MVP
 

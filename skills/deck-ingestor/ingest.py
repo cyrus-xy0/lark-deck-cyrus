@@ -9,7 +9,8 @@ This script is the executable bridge behind the deck-ingestor skill:
 - --ppt-library registers a user-selected PPT/PPTX as selectable Slide-library
   candidates without converting it yet. Slide Library remains local-only for now.
 
-Base writes fail explicitly when LARK_LIBRARY_BASE_TOKEN or lark-cli is absent.
+Base writes use the configured Base and current lark-cli user identity. The
+caller can fall back to local candidates when that identity has no cloud access.
 """
 
 from __future__ import annotations

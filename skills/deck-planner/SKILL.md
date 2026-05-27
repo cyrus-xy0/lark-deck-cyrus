@@ -75,7 +75,7 @@ python3 skills/deck-planner/validate-outline.py \
 
 3. **读取知识库**
    - 默认通过仓库根目录的 `python3 scripts/base_library.py search-knowledge "<关键词>" --limit 10` 检索。
-   - 外部 GitHub 安装默认使用随包 `knowledge/` 本地知识;有 `lark-cli`、`LARK_LIBRARY_BASE_TOKEN` 或 `LARK_LIBRARY_MODE=base` 时才查 live Feishu Base。
+   - 默认优先查 live Feishu Base 的 `知识库`;使用当前沙箱 agent 的 user 身份,不要要求用户配置 token。若 lark-cli 身份无权限、网络不可达或云端未命中,再回退随包 `knowledge/` 本地知识,并在输出中明文说明。
    - 根据行业、飞书产品、客户名分别搜索;客户故事只使用用户提供、公开来源、live Base 授权记录或本地明确标注的素材。
    - 如果存在 `upload-recognizer` 结果,把其中的知识层当作用户提供素材,优先级高于通用知识库,但仍要保留来源和置信度。
    - 没有知识就暴露缺口,不要编。
@@ -97,7 +97,7 @@ python3 skills/deck-planner/validate-outline.py \
 
 7. **生成素材计划**
    - logo/icon/demo 先查统一入口: `python3 scripts/base_library.py search-assets "<关键词>" --limit 20`。
-   - 外部安装默认读取 `assets/shared/asset-index.generated.json`;内部配置 live Base 后会优先查 Base。
+   - 默认优先查云端 `素材库`;云端不可用或无权限时才读取 `assets/shared/asset-index.generated.json`,并明文提示已回退本地缓存。
    - 现场图片、客户截图、真实 demo 优先用户提供。
    - `upload-recognizer` 的素材层可直接进入 `asset_plan`,但 planner 只引用素材,不移动文件、不上传云端库。
    - 找不到素材时明确 fallback,不要让模型临时画商标或伪造客户现场。
@@ -112,7 +112,7 @@ python3 skills/deck-planner/validate-outline.py \
 
 ## Renderer handoff
 
-用户确认 outline 后:
+用户确认 outline 后才允许 handoff;确认前只交付 outline / OUTLINE_REVIEW,不生成 deckhtml:
 
 1. 把 outline JSON 放进本次 run 的 `input/` 或 `output/`。
 2. 调用 `deck-renderer` 的 DeckJSON-first 流程。

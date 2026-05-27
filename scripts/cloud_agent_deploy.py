@@ -32,8 +32,7 @@ GENERATOR_HOST=0.0.0.0
 GENERATOR_PORT={port}
 GENERATOR_PUBLIC_BASE_URL={base_url}
 
-# Required only when writing knowledge/assets to Feishu Base.
-LARK_LIBRARY_BASE_TOKEN=
+# Optional overrides. Default uses the configured Base and current lark-cli user identity.
 LARK_LIBRARY_MODE=auto
 LARK_LIBRARY_AS=user
 
@@ -105,7 +104,7 @@ bash deploy/cloud-agent/start-generator.sh
 
 启动后运行 `bash deploy/cloud-agent/healthcheck.sh` 验证。部署完成后，用户可以直接说“给某客户/主题做一份飞书风格 H5 deck”，agent 调用 `POST /decks`，并把返回的 `preview_url`、`download_url`、`edit_url` 发给用户。
 
-注意：Slide Library 保持本地；飞书 Base 只写 `知识库` 和 `素材库`。如果需要 live Base 或 Feishu bot，先确保云端的 `lark-cli` 身份有权限并完成事件订阅。
+注意：Slide Library 保持本地；飞书 Base 只写 `知识库` 和 `素材库`。默认优先使用云端 Base,不要求用户配置 token；如果云端 agent 的 `lark-cli` user 身份没有权限,系统会明文提示并回退本地候选库。
 """
     manifest = {
         "version": "1.0",

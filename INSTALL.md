@@ -96,10 +96,11 @@ bash ~/.claude/skills/deck-renderer/assets/preflight.sh
   `.deps/ms-playwright` by default. For offline installs, set
   `LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1` and visual audits will be skipped
   until dependencies are installed.
-- No Feishu/Lark Base access is required for first use. The package falls back
-  to local `knowledge/` and `assets/shared/` cache files. Internal users can set
-  `LARK_LIBRARY_BASE_TOKEN` and `LARK_LIBRARY_MODE=base` to require live Base.
-  The default internal Base is `DBtybdvHYaovVwsWLatcipJBnrg` and covers only
+- No separate Feishu/Lark token is required for first use. The package tries
+  the default internal Base (`DBtybdvHYaovVwsWLatcipJBnrg`) with the current
+  `lark-cli` user identity, then falls back to local `knowledge/` and
+  `assets/shared/` cache files with a visible warning. Set `LARK_LIBRARY_MODE=base`
+  only when you want missing cloud permission to fail fast. The Base covers only
   `知识库` / `素材库`; Slide Library remains a local candidate library.
 - To hand the same generator/bot to a cloud agent, run
   `python3 scripts/cloud_agent_deploy.py --output deploy/cloud-agent --base-url <public-url>`.

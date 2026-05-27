@@ -87,8 +87,8 @@
     "asset_index": "skills/deck-renderer/assets/shared/asset-index.generated.json"
   },
   "policy": {
-    "default": "local package cache",
-    "live_base": "optional via LARK_LIBRARY_BASE_TOKEN and lark-cli",
-    "offline_usage": "allowed by default for external installs"
+    "default": "live Base first with current user identity, then local package cache",
+    "live_base": "uses configured Base token and lark-cli user permission; env vars only override defaults",
+    "offline_usage": "fallback is allowed and must be reported clearly"
   }
 }

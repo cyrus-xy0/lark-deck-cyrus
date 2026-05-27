@@ -50,14 +50,14 @@ Slide Library 的复用也拆成三层:
 
 1. 若用户带 PDF / PPT / HTML / 飞书文档,先由 `upload-recognizer` 拆成知识层和素材层。
 2. `deck-planner` 读取 brief + 知识库 + 识别结果,产出结构化 outline。
-3. 用户确认关键判断:目标受众、行业痛点、主张、证据缺口、素材计划。
+3. 用户确认关键判断:目标受众、行业痛点、主张、证据缺口、素材计划。确认前不生成 deckhtml。
 4. `deck-renderer` 消费 outline,优先走 DeckJSON-first 生成和渲染。
 5. `server/generator.py` 或本地 skill runner 输出 H5、texts.md、FEEDBACK.md、asset manifest 和可编辑 zip。
 6. `deck-auditor` 做 validator / screenshot / gate / 交付包 / 可讲性验收。
 7. `pitch-simulator` 模拟目标客户听这套片子的反应,输出异议地图、
    结果预测和改稿队列。
-8. `deck-ingestor` 将高质量页面、素材和知识分层沉淀:知识/素材可写 Base,整页 slide 暂留本地候选库。
-9. 用户确认采纳预演建议后,反馈回流 `deck-planner` / `deck-renderer` 迭代。
+8. 用户根据预演报告选择“修改”或“不用改”:修改则把反馈回流 `deck-planner` 生成新 outline 给用户确认;不用改则进入入库确认。
+9. 用户确认入库后,最终 deckhtml 按配置上传 TOS,再由 recognizer 解析,`deck-ingestor` 将高质量页面、素材和知识分层沉淀:知识/素材优先写 Base,整页 slide 暂留本地候选库;无云端权限时明文回退本地。
 
 ### 2. 飞书 bot
 
@@ -70,7 +70,7 @@ Slide Library 的复用也拆成三层:
 3. bot 调用 H5 生成链路,默认返回 remote zip 或在线预览链接。
 4. bot 可追加讲前预演:按参会角色模拟反应、追问、阻力和下一步概率。
 5. 用户在飞书里反馈页级修改,bot 回写 deck.json/texts.md,再生成新版。
-6. bot 将最终 deck、素材引用、预演摘要和反馈摘要分层写回:讲法/场景/证据进入知识库,版式/素材/DeckJSON 片段进入素材库。
+6. bot 在用户确认入库后,将最终 deck、素材引用、预演摘要和反馈摘要分层写回:讲法/场景/证据进入知识库,版式/素材/DeckJSON 片段进入素材库。
 
 ## 系统分层
 

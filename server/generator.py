@@ -3,7 +3,8 @@
 
 This is the productized P0 path around the existing local skills:
 
-  Brief -> Outline -> DeckJSON -> renderer -> validator -> editable zip
+  Sources -> recognizer -> Outline -> user confirm -> renderer -> validator
+  -> pitch rehearsal -> user revise/ingest decision -> ingestion
 
 It intentionally uses only the Python standard library so it can run anywhere
 the current repo already runs.
@@ -40,7 +41,13 @@ OUTLINE_VALIDATOR = REPO / "skills/deck-planner/validate-outline.py"
 RENDERER = REPO / "skills/deck-renderer/deck-json/render-deck.py"
 CHECK_ONLY = REPO / "skills/deck-renderer/assets/check-only.sh"
 PACKAGE = REPO / "skills/deck-renderer/assets/package-deliverable.sh"
+INLINE_ASSETS = REPO / "skills/deck-renderer/assets/inline-assets.py"
+UPLOAD_RECOGNIZER = REPO / "skills/upload-recognizer/recognize.py"
+PITCH_SIMULATOR = REPO / "skills/pitch-simulator/simulate-pitch.py"
+PITCH_REHEARSAL_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py"
+DECK_INGESTOR = REPO / "skills/deck-ingestor/ingest.py"
 BASE_LIBRARY = REPO / "scripts/base_library.py"
+DEFAULT_TOS_UPLOADER = Path("/Users/bytedance/.codex/skills/upload-file-to-tos/upload.js")
 
 REQUIRED_OUTPUTS = [
     "deck.json",
@@ -48,6 +55,8 @@ REQUIRED_OUTPUTS = [
     "texts.md",
     "FEEDBACK.md",
     "assets-manifest.yaml",
+    "pitch-rehearsal.json",
+    "PITCH_REHEARSAL.md",
     "journey.json",
     "JOURNEY.md",
     "quality-insights.json",
@@ -113,11 +122,34 @@ def base_identity() -> str:
 
 
 def use_base_library() -> bool:
-    return os.environ.get("GENERATOR_USE_BASE_LIBRARY", "").lower() in {"1", "true", "yes"}
+    raw = os.environ.get("GENERATOR_USE_BASE_LIBRARY")
+    if raw is None:
+        return True
+    return raw.lower() not in {"0", "false", "no", "local"}
 
 
 def sync_base_assets() -> bool:
-    return os.environ.get("GENERATOR_SYNC_BASE_ASSETS", "").lower() in {"1", "true", "yes"}
+    raw = os.environ.get("GENERATOR_SYNC_BASE_ASSETS")
+    if raw is None:
+        return True
+    return raw.lower() not in {"0", "false", "no", "local"}
+
+
+def inline_delivery_html() -> bool:
+    raw = os.environ.get("GENERATOR_INLINE_HTML")
+    if raw is None:
+        return True
+    return raw.lower() not in {"0", "false", "no", "linked"}
+
+
+def success_like_status(status: str) -> bool:
+    return status in {
+        "succeeded",
+        "awaiting_outline_confirmation",
+        "awaiting_rehearsal_decision",
+        "awaiting_deck_confirmation",
+        "completed_without_ingestion",
+    }
 
 
 def health_payload() -> dict[str, Any]:
@@ -328,6 +360,23 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
         "solution_angle",
         default=(product_refs[0]["narrative"] if product_refs else "用飞书把入口、任务、知识和数据连成可试点、可复盘的工作流"),
     )
+    source_dossier = brief.get("source_dossier") if isinstance(brief.get("source_dossier"), dict) else {}
+    source_knowledge = list(source_dossier.get("knowledge_layer") or [])[:8]
+    source_materials = list(source_dossier.get("material_layer") or [])[:8]
+    source_slides = list(source_dossier.get("slide_layer") or [])[:6]
+    source_needs_confirmation = list((source_dossier.get("confidence") or {}).get("needs_confirmation") or [])
+    source_knowledge_refs = [
+        {
+            "source": "user-provided",
+            "provider": "upload-recognizer",
+            "title": item.get("title") or item.get("id") or "用户素材知识",
+            "summary": str(item.get("content") or "")[:300],
+            "cache_path": ((item.get("provenance") or {}).get("source") or ""),
+            "used_for": "来自用户上传/链接素材,优先作为 planner 的事实和证据线索。",
+        }
+        for item in source_knowledge
+        if isinstance(item, dict)
+    ]
 
     industry_pains = industry_pack.get("core_pains", []) or []
     evidence_suggestions = industry_pack.get("evidence_suggestions", []) or []
@@ -364,6 +413,15 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "assets": ["customer-logo"],
         },
         {
+            "key": "agenda",
+            "title": "讨论路径",
+            "role": "agenda",
+            "message": "先对齐业务断点,再看闭环方案、相邻证据、试点口径和下一步。",
+            "content_beats": ["业务断点", "工作流闭环", "角色关切", "相邻证据", "试点路径"],
+            "layout_candidate": {"layout": "agenda"},
+            "assets": [],
+        },
+        {
             "key": "business-gap",
             "title": "业务断点",
             "role": "pain",
@@ -381,6 +439,27 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "content_beats": product_scope,
             "layout_candidate": {"layout": "arch-stack"},
             "assets": ["product-icons"],
+        },
+        {
+            "key": "role-lens",
+            "title": "不同角色关心什么",
+            "role": "insight",
+            "message": "同一套试点要同时回答业务、使用、技术三类问题。",
+            "content_beats": ["业务负责人要看到推进价值", "一线负责人要确认操作负担", "技术负责人要判断边界和权限"],
+            "layout_candidate": {"layout": "content", "variant": "3up"},
+            "assets": [],
+            "risk_flags": ["若真实参会角色不同,这一页需要按用户补充调整。"],
+        },
+        {
+            "key": "adjacent-proof",
+            "title": "用户素材与相邻场景",
+            "role": "evidence",
+            "message": "优先使用用户素材作为证据,再用素材库中的相邻行业页做讲法参考。",
+            "content_beats": [str(item.get("title") or item.get("slide_key") or "用户素材")[:20] for item in source_slides][:3]
+            or ["连锁零售", "餐饮茶饮", "投资机构"],
+            "layout_candidate": {"layout": "logo-wall"},
+            "assets": ["user-source-materials", "adjacent-logo-wall"] if source_materials else ["adjacent-logo-wall"],
+            "risk_flags": ["用户素材中的推断必须保留来源;相邻素材只作启发,不能替代客户事实。"],
         },
         {
             "key": "pilot-metrics",
@@ -434,7 +513,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "solution_angle": solution_angle,
             "differentiation": "从单页功能展示升级为可验证、可复盘、可扩展的业务闭环。",
         },
-        "knowledge_refs": base_knowledge_refs(industry, business_moment, product_scope),
+        "knowledge_refs": [*source_knowledge_refs, *base_knowledge_refs(industry, business_moment, product_scope)],
         "recipe_refs": [
             {
                 "id": recipe["id"],
@@ -481,6 +560,15 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
                 "required": False,
             },
             {
+                "id": "adjacent-logo-wall",
+                "type": "logo",
+                "need": "云端素材库或本地素材池中的相邻行业 logo wall,用于提示可检索素材而不是客户背书。",
+                "query": f"{industry} 相邻客户 logo wall",
+                "preferred_source": "feishu-base",
+                "fallback": "使用本地素材池中已存在且可追溯的 logo;若缺失则删除该页。",
+                "required": False,
+            },
+            {
                 "id": "pilot-data",
                 "type": "data",
                 "need": "试点指标口径和基线数据",
@@ -488,11 +576,24 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
                 "fallback": "只写指标定义和待确认项。",
                 "required": False,
             },
+            *[
+                {
+                    "id": str(item.get("id") or f"user-material-{idx}"),
+                    "type": str(item.get("type") or "material"),
+                    "need": "用户上传/链接素材,优先用于填充页面或支撑证据。",
+                    "query": str(item.get("path") or ""),
+                    "preferred_source": "agent-runtime-temp-library",
+                    "fallback": "无法读取时只保留来源说明,不伪造素材。",
+                    "required": False,
+                }
+                for idx, item in enumerate(source_materials, 1)
+                if isinstance(item, dict)
+            ],
         ],
-        "open_questions": high_value_questions(brief),
+        "open_questions": [*source_needs_confirmation, *high_value_questions(brief)],
         "claim_discipline": {
             "unsupported_claims": ["不能声明客户已经实现的百分比提升或具名访谈结论。"],
-            "needs_user_confirmation": high_value_questions(brief)
+            "needs_user_confirmation": [*source_needs_confirmation, *high_value_questions(brief)]
             or ["试点范围、指标口径和客户版本边界。"],
         },
         "handoff": {
@@ -510,7 +611,9 @@ def outline_to_deck(outline: dict[str, Any]) -> dict[str, Any]:
     customer = "目标客户"
     title = brief["title"]
     slug = slugify(title)
-    product_scope = outline["outline"]["slides"][2].get("content_beats") or ["飞书 AI", "多维表格", "知识库", "任务"]
+    outline_slides = outline.get("outline", {}).get("slides", [])
+    solution_plan = next((slide for slide in outline_slides if slide.get("key") == "solution-loop"), {})
+    product_scope = solution_plan.get("content_beats") or ["飞书 AI", "多维表格", "知识库", "任务"]
     product_scope = product_scope[:4]
 
     before_items = [p["impact"] for p in thesis.get("pain_points", [])][:3]
@@ -544,6 +647,21 @@ def outline_to_deck(outline: dict[str, Any]) -> dict[str, Any]:
                 },
             },
             {
+                "key": "agenda",
+                "layout": "agenda",
+                "accent": "blue",
+                "data": {
+                    "items": [
+                        {"title_zh": "业务断点"},
+                        {"title_zh": "飞书工作流闭环"},
+                        {"title_zh": "角色关切"},
+                        {"title_zh": "相邻素材与证据"},
+                        {"title_zh": "试点指标与路径"},
+                        {"title_zh": "下一步确认"},
+                    ]
+                },
+            },
+            {
                 "key": "business-gap",
                 "layout": "content",
                 "variant": "before-after",
@@ -566,6 +684,64 @@ def outline_to_deck(outline: dict[str, Any]) -> dict[str, Any]:
                         {"name": {"title": "产品能力", "sub": "重点范围"}, "modules": product_scope},
                         {"name": {"title": "业务对象", "sub": "可追踪"}, "modules": ["任务", "知识", "数据", "复盘"]},
                         {"name": {"title": "治理底座", "sub": "可交付"}, "modules": ["权限", "来源", "版本", "看板"]},
+                    ],
+                },
+            },
+            {
+                "key": "role-lens",
+                "layout": "content",
+                "variant": "3up",
+                "accent": "blue",
+                "data": {
+                    "title": "一套试点,要同时回答三类关切",
+                    "cards": [
+                        {
+                            "num": "01",
+                            "icon": "trending-up",
+                            "title_zh": "业务负责人",
+                            "body": "关心为什么现在要做、是否能推动当前业务时刻,以及下一步投入是否可控。",
+                            "footer_label": "VALUE · URGENCY",
+                        },
+                        {
+                            "num": "02",
+                            "icon": "users",
+                            "title_zh": "一线 / 运营负责人",
+                            "body": "关心入口是否简单、动作是否真的闭环,以及知识维护会不会变成额外负担。",
+                            "footer_label": "ADOPTION · WORKFLOW",
+                        },
+                        {
+                            "num": "03",
+                            "icon": "check-circle",
+                            "title_zh": "技术 / 实施负责人",
+                            "body": "关心权限、数据来源、系统边界和上线节奏,避免试点变成大规模改造。",
+                            "footer_label": "SECURITY · SCOPE",
+                        },
+                    ],
+                    "body_blocks": [
+                        {
+                            "type": "pullquote",
+                            "text": "先把角色关切说清楚,后面的方案才不会变成单向产品宣讲。",
+                            "tone": "default",
+                        }
+                    ],
+                },
+            },
+            {
+                "key": "adjacent-proof",
+                "layout": "logo-wall",
+                "accent": "blue",
+                "data": {
+                    "title": "素材库里先找相邻场景,不把它写成客户事实",
+                    "lede": "这些 logo 仅用于提示可检索素材方向;正式客户背书、案例数字和截图必须由用户或授权记录确认。",
+                    "industries": [
+                        {
+                            "name": "连锁零售 / 餐饮茶饮",
+                            "logos": ["瑞幸咖啡", "霸王茶姬", "茶百道", "益禾堂"],
+                        },
+                        {
+                            "name": "投资机构 / 复杂协同",
+                            "logos": ["IDG资本", "KKR", "PAG", "CPE源峰"],
+                        },
                     ],
                 },
             },
@@ -627,6 +803,192 @@ def run_command(cmd: list[str], log_path: Path, cwd: Path = REPO) -> subprocess.
         encoding="utf-8",
     )
     return proc
+
+
+def source_candidates_from_value(value: Any) -> list[str]:
+    if value in (None, "", [], {}):
+        return []
+    if isinstance(value, dict):
+        out: list[str] = []
+        for key in ["path", "url", "href", "file", "local_path", "localPath", "download_url", "downloadUrl"]:
+            if value.get(key):
+                out.extend(source_candidates_from_value(value[key]))
+        return out
+    if isinstance(value, list):
+        out = []
+        for item in value:
+            out.extend(source_candidates_from_value(item))
+        return out
+    text = str(value).strip()
+    if not text or text.lower() in {"无", "none", "no", "n/a", "na", "null"}:
+        return []
+    urls = re.findall(r"https?://[^\s,，;；]+", text)
+    if urls:
+        return urls
+    parts = re.split(r"[\n,，;；]+", text)
+    return [part.strip() for part in parts if part.strip() and part.strip().lower() not in {"无", "none", "no"}]
+
+
+def request_sources(request: dict[str, Any]) -> list[str]:
+    brief = request.get("brief") if isinstance(request.get("brief"), dict) else {}
+    values: list[Any] = []
+    for key in ["sources", "source_files", "sourceFiles", "materials", "uploads", "attachments", "files"]:
+        if request.get(key):
+            values.append(request[key])
+    for key in ["attachments", "sources", "source_files", "sourceFiles", "materials", "uploads", "files"]:
+        if brief.get(key):
+            values.append(brief[key])
+    seen: set[str] = set()
+    sources: list[str] = []
+    for value in values:
+        for item in source_candidates_from_value(value):
+            if item not in seen:
+                seen.add(item)
+                sources.append(item)
+    return sources
+
+
+def brief_text_for_recognizer(brief: dict[str, Any]) -> str:
+    if not brief:
+        return ""
+    compact = {
+        key: brief.get(key)
+        for key in [
+            "title",
+            "customer_name",
+            "industry",
+            "audience",
+            "objective",
+            "product_scope",
+            "business_moment",
+            "core_tension",
+        ]
+        if brief.get(key)
+    }
+    return json.dumps(compact or brief, ensure_ascii=False)
+
+
+def cache_runtime_sources(sources: list[str], library_dir: Path) -> list[dict[str, Any]]:
+    cached: list[dict[str, Any]] = []
+    source_dir = library_dir / "sources"
+    for source in sources:
+        if re.match(r"https?://", source):
+            cached.append({"source": source, "kind": "url", "cached": False})
+            continue
+        path = Path(source)
+        if not path.is_absolute():
+            path = (REPO / path).resolve()
+        if not path.exists() or not path.is_file():
+            cached.append({"source": source, "kind": "file", "cached": False, "reason": "not-found"})
+            continue
+        digest = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:10]
+        target = source_dir / f"{digest}-{path.name}"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+        cached.append({"source": str(path), "kind": "file", "cached": True, "cache_path": str(target)})
+    return cached
+
+
+def write_runtime_library(input_dir: Path, dossier: dict[str, Any], sources: list[str]) -> dict[str, Any]:
+    library_dir = input_dir / "runtime-library"
+    library_dir.mkdir(parents=True, exist_ok=True)
+    knowledge = dossier.get("knowledge_layer") or []
+    materials = dossier.get("material_layer") or []
+    slides = dossier.get("slide_layer") or []
+    write_json(library_dir / "knowledge.json", {"items": knowledge})
+    write_json(library_dir / "materials.json", {"items": materials})
+    write_json(library_dir / "slides.json", {"items": slides})
+    manifest = {
+        "created_at": now_iso(),
+        "mode": "agent-runtime-temp",
+        "sources": sources,
+        "source_cache": cache_runtime_sources(sources, library_dir),
+        "knowledge_count": len(knowledge),
+        "material_count": len(materials),
+        "slide_count": len(slides),
+    }
+    write_json(library_dir / "manifest.json", manifest)
+    return {"path": str(library_dir), **manifest}
+
+
+def attach_source_dossier_to_brief(brief: dict[str, Any], dossier: dict[str, Any], runtime_library: dict[str, Any]) -> dict[str, Any]:
+    enriched = copy.deepcopy(brief)
+    enriched["source_dossier"] = dossier
+    enriched["runtime_library"] = runtime_library
+    enriched["source_knowledge_count"] = len(dossier.get("knowledge_layer") or [])
+    enriched["source_material_count"] = len(dossier.get("material_layer") or [])
+    enriched["source_slide_count"] = len(dossier.get("slide_layer") or [])
+    return enriched
+
+
+def run_upload_recognizer(
+    request: dict[str, Any],
+    *,
+    task_id: str,
+    input_dir: Path,
+    output_dir: Path,
+    log_dir: Path,
+    journey: dict[str, Any],
+    task: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    brief = request.get("brief") if isinstance(request.get("brief"), dict) else {}
+    sources = request_sources(request)
+    if not sources:
+        return request, None
+    if not UPLOAD_RECOGNIZER.exists():
+        raise RuntimeError(f"upload recognizer missing: {UPLOAD_RECOGNIZER}")
+
+    recognizer_dir = output_dir / "source-recognizer"
+    recognizer_log = log_dir / "upload-recognizer.txt"
+    proc = run_command(
+        [
+            "python3",
+            str(UPLOAD_RECOGNIZER),
+            *sources,
+            "--brief",
+            brief_text_for_recognizer(brief),
+            "--output-dir",
+            str(recognizer_dir),
+            "--task-id",
+            task_id,
+        ],
+        recognizer_log,
+    )
+    task["logs"]["upload_recognizer"] = str(recognizer_log)
+    if proc.returncode != 0:
+        append_journey_event(journey, "upload_recognizer_failed", "system", "上传素材识别失败。", {"exit": proc.returncode})
+        raise RuntimeError("upload recognizer failed")
+    dossier_path = recognizer_dir / "source-dossier.json"
+    if not dossier_path.exists():
+        raise RuntimeError("upload recognizer did not write source-dossier.json")
+    dossier = read_json(dossier_path)
+    runtime_library = write_runtime_library(input_dir, dossier, sources)
+    shutil.copy2(dossier_path, output_dir / "source-dossier.json")
+    report_path = recognizer_dir / "SOURCE_DOSSIER.md"
+    if report_path.exists():
+        shutil.copy2(report_path, output_dir / "SOURCE_DOSSIER.md")
+
+    enriched_request = copy.deepcopy(request)
+    enriched_request["brief"] = attach_source_dossier_to_brief(brief, dossier, runtime_library)
+    enriched_request["source_dossier"] = dossier
+    enriched_request["runtime_library"] = runtime_library
+    task["source_dossier"] = {
+        "sources": len(sources),
+        "knowledge_items": len(dossier.get("knowledge_layer") or []),
+        "material_items": len(dossier.get("material_layer") or []),
+        "slide_items": len(dossier.get("slide_layer") or []),
+        "runtime_library": runtime_library["path"],
+    }
+    if task.get("source") == "brief":
+        task["source"] = "materials+brief"
+    append_journey_event(
+        journey,
+        "upload_recognized",
+        "system",
+        "已调用 upload-recognizer,并在本轮 run 内创建 agent runtime 临时知识/素材库。",
+        task["source_dossier"],
+    )
+    return enriched_request, dossier
 
 
 def delivery_name(deck: dict[str, Any]) -> str:
@@ -723,16 +1085,91 @@ def write_feedback(output_dir: Path, outline: dict[str, Any], deck: dict[str, An
     (output_dir / "FEEDBACK.md").write_text(content, encoding="utf-8")
 
 
+def library_usage_summary(outline: dict[str, Any]) -> dict[str, Any]:
+    knowledge_refs = outline.get("knowledge_refs") or []
+    sources = {ref.get("source") for ref in knowledge_refs if isinstance(ref, dict)}
+    if "feishu-base" in sources:
+        return {
+            "mode": "cloud",
+            "message": "已优先使用云端知识库/素材库检索结果。",
+            "needs_user_action": False,
+        }
+    if use_base_library():
+        return {
+            "mode": "local-fallback",
+            "message": "已优先尝试云端知识库/素材库,但未命中或当前身份无权限;本轮使用本地缓存继续生成。",
+            "needs_user_action": False,
+        }
+    return {
+        "mode": "local-configured",
+        "message": "当前配置为本地缓存模式,未访问云端知识库/素材库。",
+        "needs_user_action": False,
+    }
+
+
+def outline_review_markdown(outline: dict[str, Any]) -> str:
+    brief = outline.get("brief") or {}
+    scene = outline.get("scene") or {}
+    slides = (outline.get("outline") or {}).get("slides") or []
+    library = library_usage_summary(outline)
+    lines = [
+        f"# Outline Review · {brief.get('title', 'deck')}",
+        "",
+        f"- 受众: {brief.get('audience', '')}",
+        f"- 目标: {brief.get('objective', '')}",
+        f"- 行业/场景: {scene.get('industry', '')} · {scene.get('business_moment', '')}",
+        f"- 云端库状态: {library['message']}",
+        "",
+        "## 主线",
+        "",
+        (outline.get("outline") or {}).get("arc", ""),
+        "",
+        "## 页级框架",
+        "",
+    ]
+    for index, slide in enumerate(slides, start=1):
+        layout = slide.get("layout_candidate") or {}
+        layout_label = str(layout.get("layout") or "")
+        if layout.get("variant"):
+            layout_label += "/" + str(layout.get("variant"))
+        risk = "；".join(slide.get("risk") or slide.get("risk_flags") or []) or "无明显风险"
+        lines.extend(
+            [
+                f"### {index:02d}. {slide.get('title', '')} · `{slide.get('key', '')}`",
+                "",
+                f"- 角色: {slide.get('role', '')}",
+                f"- 重点: {slide.get('message', '')}",
+                f"- 讲法: {slide.get('talk_track', '')}",
+                f"- 候选 layout: `{layout_label}`",
+                f"- 风险/待确认: {risk}",
+                "",
+            ]
+        )
+    questions = outline.get("open_questions") or []
+    if questions:
+        lines.extend(["## 需要确认", ""])
+        lines.extend(f"- {item}" for item in questions)
+        lines.append("")
+    lines.extend(
+        [
+            "## 下一步",
+            "",
+            "请确认这个大纲框架后再生成 deckhtml。确认后系统会渲染 H5、运行验收、生成 pitch 预演;成稿还会再等你确认后才入库。",
+        ]
+    )
+    return "\n".join(lines).strip() + "\n"
+
+
 def output_artifacts(task_id: str, output_dir: Path, base_url: str | None = None) -> dict[str, str]:
     artifacts: dict[str, str] = {}
+    root = base_url.rstrip("/") if base_url else ""
     for path in sorted(output_dir.iterdir()):
         if path.is_file():
-            artifacts[path.name] = str(path)
+            artifacts[path.name] = f"{root}/decks/{task_id}/files/{path.name}" if root else str(path)
     zip_files = sorted(output_dir.glob("*.zip"))
     preview = output_dir / "index.html"
     editable = zip_files[0] if zip_files else output_dir / "deck-editable.zip"
     if base_url:
-        root = base_url.rstrip("/")
         artifacts["preview_url"] = f"{root}/decks/{task_id}/files/index.html"
         artifacts["edit_url"] = f"{root}/decks/{task_id}/files/{editable.name}"
         artifacts["download_url"] = artifacts["edit_url"]
@@ -1179,6 +1616,8 @@ def html_page(title: str, body: str) -> bytes:
     .succeeded {{ background: #e9f8ef; color: #137333; }}
     .failed {{ background: #fdeaea; color: #b42318; }}
     .running {{ background: #fff6db; color: #8a5a00; }}
+    .awaiting_outline_confirmation, .awaiting_rehearsal_decision, .awaiting_deck_confirmation {{ background: #eaf1ff; color: #1457d9; }}
+    .completed_without_ingestion {{ background: #eef6f1; color: #236b3a; }}
     pre {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 14px; }}
     table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
     th, td {{ border-bottom: 1px solid #e1e6ef; padding: 10px 8px; text-align: left; vertical-align: top; }}
@@ -1225,7 +1664,12 @@ def artifact_links(task: dict[str, Any]) -> str:
         ("预览", "preview_url"),
         ("编辑包", "edit_url"),
         ("下载包", "download_url"),
+        ("素材识别", "SOURCE_DOSSIER.md"),
         ("Validator 报告", "validator-report.md"),
+        ("Pitch 预演", "PITCH_REHEARSAL.md"),
+        ("最终解析", "FINAL_SOURCE_DOSSIER.md"),
+        ("TOS 上传", "TOS_UPLOAD.md"),
+        ("入库报告", "INGESTION_REPORT.md"),
         ("用户旅程", "JOURNEY.md"),
         ("质量洞察", "quality-insights.json"),
     ]:
@@ -1290,7 +1734,15 @@ def log_tail(task: dict[str, Any], max_chars: int = 12000) -> str:
 def render_status_page(task_id: str) -> bytes:
     task = load_task(task_id)
     status = html.escape(str(task.get("status") or "unknown"))
-    badge_class = status if status in {"succeeded", "failed", "running"} else "running"
+    badge_class = status if status in {
+        "succeeded",
+        "failed",
+        "running",
+        "awaiting_outline_confirmation",
+        "awaiting_rehearsal_decision",
+        "awaiting_deck_confirmation",
+        "completed_without_ingestion",
+    } else "running"
     logs = task.get("logs") or {}
     log_rows = "".join(
         f"<li><code>{html.escape(name)}</code>: {html.escape(str(path))}</li>"
@@ -1319,6 +1771,7 @@ def render_status_page(task_id: str) -> bytes:
     version_rows_html = "".join(version_rows)
     insights_path = output_dir / "quality-insights.json"
     journey_summary = ""
+    deck_exists = (output_dir / "deck.json").exists()
     if insights_path.exists():
         try:
             insights = read_json(insights_path)
@@ -1352,6 +1805,82 @@ def render_status_page(task_id: str) -> bytes:
         except Exception:
             journey_summary = ""
     failure_log = html.escape(log_tail(task)) if error else ""
+    warning_rows = "".join(f"<li>{html.escape(str(item))}</li>" for item in (task.get("warnings") or []))
+    confirmation_panel = ""
+    if task.get("status") == "awaiting_outline_confirmation":
+        outline_review = output_dir / "OUTLINE_REVIEW.md"
+        outline_text = html.escape(outline_review.read_text(encoding="utf-8")[:18000]) if outline_review.exists() else ""
+        confirmation_panel = f"""
+<section class="panel">
+  <h2>等待确认大纲</h2>
+  <p class="muted">planner 已输出当前框架。确认后才会生成 deckhtml。</p>
+  <div class="actions">
+    <button type="button" onclick="confirmOutline()">确认大纲并生成</button>
+  </div>
+  {f'<pre>{outline_text}</pre>' if outline_text else ''}
+</section>
+<script>
+async function confirmOutline() {{
+  const response = await fetch('/decks/{html.escape(task_id)}/confirm-outline', {{ method: 'POST' }});
+  const body = await response.json();
+  if (body.id) window.location.href = '/decks/' + body.id + '/status';
+  else alert(JSON.stringify(body));
+}}
+</script>
+"""
+    elif task.get("status") == "awaiting_rehearsal_decision":
+        rehearsal = output_dir / "PITCH_REHEARSAL.md"
+        rehearsal_text = html.escape(rehearsal.read_text(encoding="utf-8")[:14000]) if rehearsal.exists() else ""
+        confirmation_panel = f"""
+<section class="panel">
+  <h2>等待确认预演</h2>
+  <p class="muted">deckhtml 已生成,并已触发 pitch simulator。你可以按反馈回到规划确认环节,也可以暂不修改并进入入库确认。</p>
+  <div class="actions">
+    <button type="button" onclick="acceptRehearsal()">不用修改,进入入库确认</button>
+    <button class="secondary" type="button" onclick="reviseFromRehearsal()">按预演反馈重做大纲</button>
+  </div>
+  {f'<pre>{rehearsal_text}</pre>' if rehearsal_text else ''}
+</section>
+<script>
+async function acceptRehearsal() {{
+  const response = await fetch('/decks/{html.escape(task_id)}/accept-rehearsal', {{ method: 'POST' }});
+  const body = await response.json();
+  if (body.id) window.location.href = '/decks/' + body.id + '/status';
+  else alert(JSON.stringify(body));
+}}
+async function reviseFromRehearsal() {{
+  const response = await fetch('/decks/{html.escape(task_id)}/revise-from-rehearsal', {{ method: 'POST' }});
+  const body = await response.json();
+  if (body.id) window.location.href = '/decks/' + body.id + '/status';
+  else alert(JSON.stringify(body));
+}}
+</script>
+"""
+    elif task.get("status") == "awaiting_deck_confirmation":
+        confirmation_panel = f"""
+<section class="panel">
+  <h2>等待确认入库</h2>
+  <p class="muted">当前成稿已通过预演确认。确认入库后会先按配置上传最终 deckhtml 到 TOS,再调用解析器丰富知识/素材,并优先写入云端知识库和素材库;若当前 user 身份无权限,会明文记录并落到本地候选库。</p>
+  <div class="actions">
+    <button type="button" onclick="confirmDeck()">确认入库</button>
+    <button class="secondary" type="button" onclick="skipIngest()">不入库,结束</button>
+  </div>
+</section>
+<script>
+async function confirmDeck() {{
+  const response = await fetch('/decks/{html.escape(task_id)}/confirm-deck', {{ method: 'POST' }});
+  const body = await response.json();
+  if (body.id) window.location.href = '/decks/' + body.id + '/status';
+  else alert(JSON.stringify(body));
+}}
+async function skipIngest() {{
+  const response = await fetch('/decks/{html.escape(task_id)}/skip-ingest', {{ method: 'POST' }});
+  const body = await response.json();
+  if (body.id) window.location.href = '/decks/' + body.id + '/status';
+  else alert(JSON.stringify(body));
+}}
+</script>
+"""
     body = f"""
 <section class="panel">
   <div class="grid">
@@ -1361,12 +1890,14 @@ def render_status_page(task_id: str) -> bytes:
     <div class="metric"><div class="label">Updated</div><div class="value">{html.escape(str(task.get("updated_at", "")))}</div></div>
   </div>
   {f'<h2>失败原因</h2><pre>{html.escape(str(error))}</pre>' if error else ''}
+  {f'<h2>提示</h2><ul>{warning_rows}</ul>' if warning_rows else ''}
 </section>
+{confirmation_panel}
 <section class="panel">
   <h2>产物</h2>
   {artifact_links(task)}
   <div class="actions">
-    <a href="/decks/{html.escape(task_id)}/edit"><button>打开轻量编辑</button></a>
+    {f'<a href="/decks/{html.escape(task_id)}/edit"><button>打开轻量编辑</button></a>' if deck_exists else ''}
     <a href="/decks/{html.escape(task_id)}"><button class="secondary">查看 JSON 状态</button></a>
   </div>
 </section>
@@ -1993,8 +2524,8 @@ def update_edit_journey(
         "已分析版本差异和编辑器动作,生成下一轮质量改进信号。",
         {"diff_totals": diff.get("totals", {})},
     )
-    if new_task.get("status") == "succeeded":
-        append_journey_event(journey, "edited_result_ready", "system", "精调后的新版本已可预览、编辑和下载。")
+    if new_task.get("status") in {"succeeded", "awaiting_rehearsal_decision", "awaiting_deck_confirmation"}:
+        append_journey_event(journey, "edited_result_ready", "system", "精调后的新版本已可预览、编辑、预演和下载。")
     else:
         append_journey_event(journey, "edited_result_failed", "system", "精调后的新版本生成失败。", {"error": new_task.get("error")})
 
@@ -2034,6 +2565,7 @@ def edit_task(task_id: str, payload: dict[str, Any], *, base_url: str | None = N
         task_id=new_task_id,
         base_url=base_url,
         metadata={"parent_task_id": task_id, "version": version, "edit_source": "deck_json"},
+        require_deck_confirmation=True,
     )
     new_task_dir = RUNS_DIR / new_task_id
     write_json(new_task_dir / "input" / "edit.json", payload)
@@ -2045,12 +2577,439 @@ def edit_task(task_id: str, payload: dict[str, Any], *, base_url: str | None = N
     return new_task
 
 
+def create_outline_task(
+    request: dict[str, Any],
+    *,
+    task_id: str | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    brief = request.get("brief") or {}
+    if not isinstance(brief, dict):
+        raise ValueError("request.brief must be an object when provided")
+    source = "outline" if request.get("outline") else "brief"
+    title_source = brief_value(brief, "customer_name", "title", "brief", default="deck")
+    task_id = task_id or unique_generated_task_id(str(title_source))
+    task_dir, input_dir, output_dir, log_dir = task_paths(task_id)
+    if task_dir.exists():
+        shutil.rmtree(task_dir)
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    task = {
+        "id": task_id,
+        "status": "running",
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        "source": source,
+        "input_dir": str(input_dir),
+        "output_dir": str(output_dir),
+        "logs": {},
+        "artifacts": {},
+        "error": None,
+        "warnings": [],
+        "confirmation_required": "outline",
+    }
+    save_task(task_dir, task)
+    write_json(input_dir / "request.raw.json", request)
+    journey = new_journey(task, request, source)
+
+    try:
+        request, _dossier = run_upload_recognizer(
+            request,
+            task_id=task_id,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            log_dir=log_dir,
+            journey=journey,
+            task=task,
+        )
+        brief = request.get("brief") or {}
+        write_json(input_dir / "request.json", request)
+        if request.get("outline"):
+            outline = request["outline"]
+            append_journey_event(journey, "outline_loaded", "system", "使用请求中提供的 outline,等待用户确认。")
+        else:
+            outline = brief_to_outline(brief)
+            append_journey_event(
+                journey,
+                "outline_created",
+                "system",
+                "根据 brief 生成 outline,在渲染前暂停等待用户确认。",
+                {"open_questions": len(outline.get("open_questions") or [])},
+            )
+        write_json(input_dir / "outline.json", outline)
+        write_json(output_dir / "outline.json", outline)
+        (output_dir / "OUTLINE_REVIEW.md").write_text(outline_review_markdown(outline), encoding="utf-8")
+
+        outline_log = log_dir / "outline-validator.txt"
+        proc = run_command(["python3", str(OUTLINE_VALIDATOR), str(input_dir / "outline.json")], outline_log)
+        task["logs"]["outline_validator"] = str(outline_log)
+        if proc.returncode != 0:
+            append_journey_event(journey, "outline_validation_failed", "system", "outline validator 未通过。", {"exit": proc.returncode})
+            raise RuntimeError("outline validation failed")
+        append_journey_event(journey, "outline_validated", "system", "outline validator 通过。")
+
+        library = library_usage_summary(outline)
+        task["library"] = library
+        if library["mode"] != "cloud":
+            task["warnings"].append(library["message"])
+        task["status"] = "awaiting_outline_confirmation"
+        task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+        append_journey_event(journey, "awaiting_outline_confirmation", "system", "已暂停在 planner 后,等待用户确认大纲框架。")
+    except Exception as exc:  # noqa: BLE001
+        task["status"] = "failed"
+        task["error"] = str(exc)
+        task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+        append_journey_event(journey, "task_failed", "system", "大纲任务失败。", {"error": str(exc)})
+        if not (input_dir / "request.json").exists():
+            write_json(input_dir / "request.json", request)
+    try:
+        write_journey_artifacts(output_dir, journey)
+    except Exception:
+        pass
+    save_task(task_dir, task)
+    return task
+
+
+def confirm_outline_task(task_id: str, *, base_url: str | None = None) -> dict[str, Any]:
+    task = load_task(task_id)
+    request_path = RUNS_DIR / task_id / "input" / "request.json"
+    outline_path = RUNS_DIR / task_id / "input" / "outline.json"
+    if not request_path.exists() or not outline_path.exists():
+        raise FileNotFoundError(f"outline task not found: {task_id}")
+    request = read_json(request_path)
+    request["outline"] = read_json(outline_path)
+    request["outline_confirmed"] = True
+    request["deck_confirmation_required"] = True
+    return create_or_run_task(
+        request,
+        task_id=task_id,
+        base_url=base_url,
+        metadata={
+            "outline_confirmed": True,
+            "confirmation_history": [
+                {
+                    "stage": "outline",
+                    "confirmed_at": now_iso(),
+                    "previous_status": task.get("status", ""),
+                }
+            ],
+        },
+        require_deck_confirmation=True,
+    )
+
+
+def build_ingest_metadata(task: dict[str, Any]) -> dict[str, Any]:
+    input_dir = Path(task.get("input_dir", ""))
+    request = read_json(input_dir / "request.json") if (input_dir / "request.json").exists() else {}
+    brief = request.get("brief") if isinstance(request.get("brief"), dict) else {}
+    outline = read_json(input_dir / "outline.json") if (input_dir / "outline.json").exists() else {}
+    scene = outline.get("scene") or {}
+    title = brief_value(brief, "title", "customer_name", default=(outline.get("brief") or {}).get("title", "deck"))
+    return {
+        "title": title,
+        "industry": normalize_list(brief.get("industry") or scene.get("industry")) or ["待标注"],
+        "product": normalize_list(brief.get("product_scope")) or ["飞书"],
+        "deck_type": normalize_list(brief.get("deck_type")) or ["客户pitch"],
+        "source_level": "internal-draft",
+        "permission_status": "needs_review",
+    }
+
+
+def tos_upload_config(request: dict[str, Any]) -> dict[str, Any]:
+    ingestion = request.get("ingestion") if isinstance(request.get("ingestion"), dict) else {}
+    tos = request.get("tos") if isinstance(request.get("tos"), dict) else {}
+    tos = {**tos, **(ingestion.get("tos") if isinstance(ingestion.get("tos"), dict) else {})}
+    requested = bool(
+        tos.get("enabled")
+        or tos.get("upload")
+        or request.get("upload_to_tos")
+        or os.environ.get("CYRUS_UPLOAD_TOS", "").lower() in {"1", "true", "yes"}
+    )
+    return {
+        "requested": requested,
+        "key": str(tos.get("key") or os.environ.get("CYRUS_TOS_KEY") or ""),
+        "base_url": str(tos.get("base_url") or tos.get("magic_base_url") or os.environ.get("MAGIC_BASE_URL") or ""),
+        "script": str(tos.get("script") or os.environ.get("CYRUS_TOS_UPLOADER") or DEFAULT_TOS_UPLOADER),
+    }
+
+
+def write_tos_report(output_dir: Path, payload: dict[str, Any]) -> None:
+    write_json(output_dir / "tos-upload.json", payload)
+    lines = [
+        "# TOS Upload",
+        "",
+        f"- requested: {payload.get('requested')}",
+        f"- ok: {payload.get('ok')}",
+        f"- url: {payload.get('url') or ''}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    (output_dir / "TOS_UPLOAD.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def upload_deck_to_tos(task: dict[str, Any], request: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
+    output_dir = Path(task.get("output_dir", ""))
+    config = tos_upload_config(request)
+    if not config["requested"]:
+        payload = {"requested": False, "ok": True, "url": "", "reason": "not-requested"}
+        write_tos_report(output_dir, payload)
+        return payload
+    html_path = output_dir / "index.html"
+    script = Path(config["script"])
+    if not script.exists():
+        payload = {
+            "requested": True,
+            "ok": False,
+            "url": "",
+            "reason": f"TOS uploader not found: {script}",
+        }
+        write_tos_report(output_dir, payload)
+        return payload
+    cmd = ["node", str(script), str(html_path), "-q"]
+    if config["key"]:
+        cmd.extend(["--key", config["key"]])
+    if config["base_url"]:
+        cmd.extend(["--base-url", config["base_url"]])
+    log = log_dir / "tos-upload.txt"
+    proc = run_command(cmd, log)
+    task.setdefault("logs", {})["tos_upload"] = str(log)
+    url = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
+    payload = {
+        "requested": True,
+        "ok": proc.returncode == 0 and bool(url),
+        "url": url,
+        "reason": "" if proc.returncode == 0 and url else (proc.stderr.strip() or proc.stdout.strip() or "upload failed"),
+        "key": config["key"],
+    }
+    write_tos_report(output_dir, payload)
+    return payload
+
+
+def recognize_final_deck_for_ingestion(task: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
+    output_dir = Path(task.get("output_dir", ""))
+    if not UPLOAD_RECOGNIZER.exists():
+        return {"ok": False, "reason": f"upload recognizer missing: {UPLOAD_RECOGNIZER}"}
+    html_path = output_dir / "index.html"
+    if not html_path.exists():
+        return {"ok": False, "reason": "index.html not found"}
+    final_dir = output_dir / "ingestion-recognizer"
+    log = log_dir / "ingestion-recognizer.txt"
+    proc = run_command(
+        [
+            "python3",
+            str(UPLOAD_RECOGNIZER),
+            str(html_path),
+            "--brief",
+            "final deckhtml ingestion parse",
+            "--output-dir",
+            str(final_dir),
+            "--task-id",
+            str(task.get("id") or ""),
+        ],
+        log,
+    )
+    task.setdefault("logs", {})["ingestion_recognizer"] = str(log)
+    if proc.returncode != 0:
+        return {"ok": False, "reason": "final deck parser failed"}
+    dossier_path = final_dir / "source-dossier.json"
+    report_path = final_dir / "SOURCE_DOSSIER.md"
+    if dossier_path.exists():
+        shutil.copy2(dossier_path, output_dir / "FINAL_SOURCE_DOSSIER.json")
+    if report_path.exists():
+        shutil.copy2(report_path, output_dir / "FINAL_SOURCE_DOSSIER.md")
+    dossier = read_json(dossier_path) if dossier_path.exists() else {}
+    return {
+        "ok": True,
+        "dossier": str(output_dir / "FINAL_SOURCE_DOSSIER.json"),
+        "knowledge_items": len(dossier.get("knowledge_layer") or []),
+        "material_items": len(dossier.get("material_layer") or []),
+        "slide_items": len(dossier.get("slide_layer") or []),
+    }
+
+
+def ingest_confirmed_deck(task: dict[str, Any], *, base_url: str | None = None) -> dict[str, Any]:
+    task_id = str(task["id"])
+    task_dir = RUNS_DIR / task_id
+    output_dir = Path(task["output_dir"])
+    log_dir = task_dir / "logs"
+    request_path = task_dir / "input" / "request.json"
+    request = read_json(request_path) if request_path.exists() else {}
+    metadata = build_ingest_metadata(task)
+    task.setdefault("ingestion", {})
+    parser_result = recognize_final_deck_for_ingestion(task, log_dir=log_dir)
+    task["ingestion"]["final_deck_parser"] = parser_result
+    if not parser_result.get("ok"):
+        task.setdefault("warnings", []).append(f"最终 deckhtml 解析器未能完成: {parser_result.get('reason')}")
+    tos_result = upload_deck_to_tos(task, request, log_dir=log_dir)
+    task["ingestion"]["tos_upload"] = tos_result
+    if tos_result.get("requested") and not tos_result.get("ok"):
+        task.setdefault("warnings", []).append(f"TOS 上传失败或未配置,继续执行知识库/素材库入库: {tos_result.get('reason')}")
+    base_cmd = [
+        "python3",
+        str(DECK_INGESTOR),
+        "--task-id",
+        task_id,
+        "--title",
+        metadata["title"],
+        "--source-level",
+        metadata["source_level"],
+        "--permission-status",
+        metadata["permission_status"],
+        "--base-as",
+        base_identity(),
+    ]
+    for industry in metadata["industry"]:
+        base_cmd.extend(["--industry", industry])
+    for product in metadata["product"]:
+        base_cmd.extend(["--product", product])
+    for deck_type in metadata["deck_type"]:
+        base_cmd.extend(["--deck-type", deck_type])
+
+    task.setdefault("warnings", [])
+    cloud_log = log_dir / "ingest-base.txt"
+    proc = run_command([*base_cmd, "--write-base"], cloud_log)
+    task["logs"]["ingest_base"] = str(cloud_log)
+    task["ingestion"].update({"attempted_cloud": True, "cloud_ok": proc.returncode == 0, "fallback_local": False})
+    if proc.returncode != 0:
+        warning = "云端知识库/素材库写入失败,已改用本地候选库完成入库;请检查当前 user 身份对 Base 的权限。"
+        task["warnings"].append(warning)
+        local_log = log_dir / "ingest-local-fallback.txt"
+        local_proc = run_command(base_cmd, local_log)
+        task["logs"]["ingest_local_fallback"] = str(local_log)
+        task["ingestion"]["fallback_local"] = True
+        if local_proc.returncode != 0:
+            task["status"] = "failed"
+            task["error"] = "deck ingestion failed"
+            return task
+
+    task["status"] = "succeeded"
+    task["confirmation_required"] = ""
+    task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+    return task
+
+
+def confirm_deck_task(task_id: str, *, base_url: str | None = None) -> dict[str, Any]:
+    task = load_task(task_id)
+    task_dir = RUNS_DIR / task_id
+    output_dir = Path(task.get("output_dir", ""))
+    journey = load_journey_for_task(task) or new_journey(task, {}, str(task.get("source") or "unknown"))
+    append_journey_event(journey, "deck_confirmed", "user", "用户确认 deckhtml 可以入库。")
+    task = ingest_confirmed_deck(task, base_url=base_url)
+    if task.get("status") == "succeeded":
+        append_journey_event(journey, "ingested", "system", "已按知识库/素材库优先写云端,失败则本地兜底的策略完成入库。", task.get("ingestion", {}))
+    else:
+        append_journey_event(journey, "ingestion_failed", "system", "deck 入库失败。", {"error": task.get("error")})
+    try:
+        write_journey_artifacts(output_dir, journey)
+    except Exception:
+        pass
+    task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+    save_task(task_dir, task)
+    return task
+
+
+def accept_rehearsal_task(task_id: str, *, base_url: str | None = None) -> dict[str, Any]:
+    task = load_task(task_id)
+    task_dir = RUNS_DIR / task_id
+    output_dir = Path(task.get("output_dir", ""))
+    journey = load_journey_for_task(task) or new_journey(task, {}, str(task.get("source") or "unknown"))
+    task["status"] = "awaiting_deck_confirmation"
+    task["confirmation_required"] = "ingestion"
+    task["updated_at"] = now_iso()
+    task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+    append_journey_event(journey, "rehearsal_accepted", "user", "用户确认本轮 pitch simulator 反馈暂不改稿,进入是否入库确认。")
+    append_journey_event(journey, "awaiting_deck_confirmation", "system", "等待用户确认是否把最终 deckhtml 入库。")
+    write_journey_artifacts(output_dir, journey)
+    save_task(task_dir, task)
+    return task
+
+
+def summarize_revision_queue(rehearsal: dict[str, Any]) -> list[str]:
+    items = []
+    for item in rehearsal.get("revision_queue") or []:
+        if not isinstance(item, dict):
+            continue
+        target = item.get("target") or "deck-level"
+        change = item.get("change") or item.get("issue") or ""
+        if change:
+            items.append(f"{target}: {change}")
+    return items[:8]
+
+
+def revise_from_rehearsal_task(task_id: str, *, base_url: str | None = None) -> dict[str, Any]:
+    task = load_task(task_id)
+    task_dir = RUNS_DIR / task_id
+    input_dir = task_dir / "input"
+    output_dir = Path(task.get("output_dir", ""))
+    request_path = input_dir / "request.json"
+    outline_path = input_dir / "outline.json"
+    rehearsal_path = output_dir / "pitch-rehearsal.json"
+    if not request_path.exists() or not outline_path.exists() or not rehearsal_path.exists():
+        raise FileNotFoundError(f"rehearsal revision inputs not found: {task_id}")
+    request = read_json(request_path)
+    outline = read_json(outline_path)
+    rehearsal = read_json(rehearsal_path)
+    revision_items = summarize_revision_queue(rehearsal)
+    outline["simulator_feedback"] = {
+        "source_task_id": task_id,
+        "accepted_for_replan_at": now_iso(),
+        "revision_queue": rehearsal.get("revision_queue") or [],
+        "outcome_forecast": rehearsal.get("outcome_forecast") or {},
+    }
+    outline.setdefault("open_questions", [])
+    for item in revision_items:
+        note = f"来自 pitch simulator 的待确认改稿建议: {item}"
+        if note not in outline["open_questions"]:
+            outline["open_questions"].append(note)
+    outline.setdefault("claim_discipline", {}).setdefault("needs_user_confirmation", [])
+    for item in revision_items:
+        note = f"是否采纳 simulator 建议: {item}"
+        if note not in outline["claim_discipline"]["needs_user_confirmation"]:
+            outline["claim_discipline"]["needs_user_confirmation"].append(note)
+    brief = request.get("brief") if isinstance(request.get("brief"), dict) else {}
+    brief["rehearsal_feedback"] = revision_items
+    new_request = {**request, "brief": brief, "outline": outline}
+    new_task_id, version = next_version_id(task_id)
+    new_task = create_outline_task(new_request, task_id=new_task_id, base_url=base_url)
+    new_task["parent_task_id"] = task_id
+    new_task["version"] = version
+    new_task["source"] = "rehearsal-feedback"
+    new_task["rehearsal_source_task_id"] = task_id
+    new_task["updated_at"] = now_iso()
+    new_task_dir = RUNS_DIR / new_task_id
+    new_output_dir = Path(new_task["output_dir"])
+    journey = load_journey_for_task(new_task) or new_journey(new_task, new_request, "rehearsal-feedback")
+    append_journey_event(journey, "rehearsal_revision_requested", "user", "用户选择按 pitch simulator 反馈回到规划确认环节。", {"source_task_id": task_id})
+    write_journey_artifacts(new_output_dir, journey)
+    save_task(new_task_dir, new_task)
+    return new_task
+
+
+def skip_ingestion_task(task_id: str, *, base_url: str | None = None) -> dict[str, Any]:
+    task = load_task(task_id)
+    task_dir = RUNS_DIR / task_id
+    output_dir = Path(task.get("output_dir", ""))
+    journey = load_journey_for_task(task) or new_journey(task, {}, str(task.get("source") or "unknown"))
+    task["status"] = "completed_without_ingestion"
+    task["confirmation_required"] = ""
+    task["updated_at"] = now_iso()
+    task["ingestion"] = {"skipped": True, "reason": "user-declined"}
+    task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+    append_journey_event(journey, "ingestion_skipped", "user", "用户选择不入库,流程结束。")
+    write_journey_artifacts(output_dir, journey)
+    save_task(task_dir, task)
+    return task
+
+
 def create_or_run_task(
     request: dict[str, Any],
     *,
     task_id: str | None = None,
     base_url: str | None = None,
     metadata: dict[str, Any] | None = None,
+    require_deck_confirmation: bool = False,
 ) -> dict[str, Any]:
     brief = request.get("brief") or {}
     if not isinstance(brief, dict):
@@ -2081,14 +3040,26 @@ def create_or_run_task(
         "logs": {},
         "artifacts": {},
         "error": None,
+        "warnings": [],
     }
     if metadata:
         task.update(metadata)
     save_task(task_dir, task)
-    write_json(input_dir / "request.json", request)
+    write_json(input_dir / "request.raw.json", request)
     journey = new_journey(task, request, source)
 
     try:
+        request, _dossier = run_upload_recognizer(
+            request,
+            task_id=task_id,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            log_dir=log_dir,
+            journey=journey,
+            task=task,
+        )
+        brief = request.get("brief") or {}
+        write_json(input_dir / "request.json", request)
         if request.get("outline"):
             outline = request["outline"]
             append_journey_event(journey, "outline_loaded", "system", "使用请求中提供的 outline。")
@@ -2102,6 +3073,10 @@ def create_or_run_task(
                 {"open_questions": len(outline.get("open_questions") or [])},
             )
         write_json(input_dir / "outline.json", outline)
+        library = library_usage_summary(outline)
+        task["library"] = library
+        if library["mode"] != "cloud":
+            task["warnings"].append(library["message"])
 
         if request.get("deck_json"):
             deck = request["deck_json"]
@@ -2155,8 +3130,70 @@ def create_or_run_task(
         task["artifacts"]["validator-report.md"] = str(validator_report)
         if proc.returncode != 0:
             append_journey_event(journey, "strict_validation_failed", "system", "HTML strict validator 未通过。", {"exit": proc.returncode})
-            raise RuntimeError("validator failed under --strict")
+            rerender_log = log_dir / "render-retry.txt"
+            append_journey_event(journey, "rerender_requested", "system", "质量验收发现问题,自动回到 renderer 重渲染一次。")
+            rerender_proc = run_command(render_cmd, rerender_log)
+            task["logs"]["render_retry"] = str(rerender_log)
+            if rerender_proc.returncode != 0:
+                append_journey_event(journey, "rerender_failed", "system", "自动重渲染失败。", {"exit": rerender_proc.returncode})
+                raise RuntimeError("rerender failed after validator issue")
+            retry_report = output_dir / "validator-report.md"
+            retry_log = log_dir / "check-only-retry.txt"
+            proc = run_command(
+                ["bash", str(CHECK_ONLY), str(output_dir / "index.html"), "--strict", "--report", str(retry_report)],
+                retry_log,
+            )
+            task["logs"]["check_only_retry"] = str(retry_log)
+            if proc.returncode != 0:
+                append_journey_event(journey, "strict_validation_failed_after_rerender", "system", "重渲染后 HTML strict validator 仍未通过。", {"exit": proc.returncode})
+                raise RuntimeError("validator failed under --strict")
+            append_journey_event(journey, "rerendered_after_quality_gate", "system", "重渲染后 strict validator 通过。")
         append_journey_event(journey, "strict_validated", "system", "HTML strict validator 通过。")
+
+        rehearsal_log = log_dir / "pitch-rehearsal.txt"
+        proc = run_command(
+            [
+                "python3",
+                str(PITCH_SIMULATOR),
+                "--outline",
+                str(input_dir / "outline.json"),
+                "--deck-json",
+                str(output_dir / "deck.json"),
+                "--html",
+                str(output_dir / "index.html"),
+                "--out-json",
+                str(output_dir / "pitch-rehearsal.json"),
+                "--out-md",
+                str(output_dir / "PITCH_REHEARSAL.md"),
+            ],
+            rehearsal_log,
+        )
+        task["logs"]["pitch_rehearsal"] = str(rehearsal_log)
+        if proc.returncode != 0:
+            append_journey_event(journey, "pitch_rehearsal_failed", "system", "pitch-simulator 未能生成预演。", {"exit": proc.returncode})
+            raise RuntimeError("pitch rehearsal failed")
+        rehearsal_validate_log = log_dir / "pitch-rehearsal-validator.txt"
+        proc = run_command(["python3", str(PITCH_REHEARSAL_VALIDATOR), str(output_dir / "pitch-rehearsal.json")], rehearsal_validate_log)
+        task["logs"]["pitch_rehearsal_validator"] = str(rehearsal_validate_log)
+        if proc.returncode != 0:
+            append_journey_event(journey, "pitch_rehearsal_validation_failed", "system", "pitch rehearsal validator 未通过。", {"exit": proc.returncode})
+            raise RuntimeError("pitch rehearsal validation failed")
+        append_journey_event(journey, "pitch_rehearsed", "system", "已生成 pitch rehearsal 和异议/改稿队列,等待用户确认是否采纳。")
+
+        if inline_delivery_html():
+            inline_log = log_dir / "inline-assets.txt"
+            proc = run_command(["python3", str(INLINE_ASSETS), str(output_dir / "index.html"), "--out", str(output_dir / "index.html")], inline_log)
+            task["logs"]["inline_assets"] = str(inline_log)
+            if proc.returncode != 0:
+                append_journey_event(journey, "inline_failed", "system", "HTML 资产内联失败。", {"exit": proc.returncode})
+                raise RuntimeError("inline-assets failed")
+            append_journey_event(
+                journey,
+                "html_inlined",
+                "system",
+                "已把 CSS/JS/图片内联到 index.html,对齐原版 H5 的单文件交付习惯。",
+                {"size_kb": round((output_dir / "index.html").stat().st_size / 1024, 1)},
+            )
         upsert_journey_version(journey, task, deck)
         write_journey_artifacts(output_dir, journey)
 
@@ -2174,14 +3211,21 @@ def create_or_run_task(
             append_journey_event(journey, "output_contract_failed", "system", "固定交付契约缺少产物。", {"missing": missing})
             raise RuntimeError("missing required outputs: " + ", ".join(missing))
 
-        task["status"] = "succeeded"
+        if require_deck_confirmation or request.get("deck_confirmation_required"):
+            task["status"] = "awaiting_rehearsal_decision"
+            task["confirmation_required"] = "rehearsal"
+            append_journey_event(journey, "awaiting_rehearsal_decision", "system", "deckhtml 已生成并完成预演,等待用户判断是否按模拟反馈修改。")
+        else:
+            task["status"] = "succeeded"
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
-        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、预览链接、编辑器和下载包拿到结果。")
+        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、预览链接、编辑器、预演报告和下载包拿到结果。")
     except Exception as exc:  # noqa: BLE001 - task wrapper should persist any failure.
         task["status"] = "failed"
         task["error"] = str(exc)
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
         append_journey_event(journey, "task_failed", "system", "任务失败,原因已写入 task.json。", {"error": str(exc)})
+        if not (input_dir / "request.json").exists():
+            write_json(input_dir / "request.json", request)
     try:
         deck_for_summary = read_json(output_dir / "deck.json") if (output_dir / "deck.json").exists() else None
         upsert_journey_version(journey, task, deck_for_summary)
@@ -2332,8 +3376,36 @@ class GeneratorHandler(BaseHTTPRequestHandler):
         parts = [unquote(p) for p in parsed.path.strip("/").split("/") if p]
         try:
             if parts == ["decks"]:
-                task = create_or_run_task(self.read_body_json(), base_url=self.base_url())
-                self.send_json(201 if task["status"] == "succeeded" else 500, task)
+                payload = self.read_body_json()
+                if payload.get("deck_json") or payload.get("auto_confirm_outline") or payload.get("outline_confirmed"):
+                    task = create_or_run_task(
+                        payload,
+                        base_url=self.base_url(),
+                        require_deck_confirmation=bool(payload.get("deck_confirmation_required")),
+                    )
+                else:
+                    task = create_outline_task(payload, base_url=self.base_url())
+                self.send_json(201 if success_like_status(task["status"]) else 500, task)
+                return
+            if len(parts) == 3 and parts[0] == "decks" and parts[2] == "confirm-outline":
+                task = confirm_outline_task(parts[1], base_url=self.base_url())
+                self.send_json(200 if success_like_status(task["status"]) else 500, task)
+                return
+            if len(parts) == 3 and parts[0] == "decks" and parts[2] == "accept-rehearsal":
+                task = accept_rehearsal_task(parts[1], base_url=self.base_url())
+                self.send_json(200 if success_like_status(task["status"]) else 500, task)
+                return
+            if len(parts) == 3 and parts[0] == "decks" and parts[2] == "revise-from-rehearsal":
+                task = revise_from_rehearsal_task(parts[1], base_url=self.base_url())
+                self.send_json(200 if success_like_status(task["status"]) else 500, task)
+                return
+            if len(parts) == 3 and parts[0] == "decks" and parts[2] == "confirm-deck":
+                task = confirm_deck_task(parts[1], base_url=self.base_url())
+                self.send_json(200 if success_like_status(task["status"]) else 500, task)
+                return
+            if len(parts) == 3 and parts[0] == "decks" and parts[2] == "skip-ingest":
+                task = skip_ingestion_task(parts[1], base_url=self.base_url())
+                self.send_json(200 if success_like_status(task["status"]) else 500, task)
                 return
             if len(parts) == 3 and parts[0] == "decks" and parts[2] == "regenerate":
                 task_id = parts[1]
@@ -2341,13 +3413,15 @@ class GeneratorHandler(BaseHTTPRequestHandler):
                 if not request_path.exists():
                     self.send_json(404, {"error": "task not found", "id": task_id})
                     return
-                task = create_or_run_task(read_json(request_path), task_id=task_id, base_url=self.base_url())
-                self.send_json(200 if task["status"] == "succeeded" else 500, task)
+                payload = read_json(request_path)
+                payload["outline_confirmed"] = True
+                task = create_or_run_task(payload, task_id=task_id, base_url=self.base_url(), require_deck_confirmation=True)
+                self.send_json(200 if success_like_status(task["status"]) else 500, task)
                 return
             if len(parts) == 3 and parts[0] == "decks" and parts[2] in {"edits", "edit"}:
                 task_id = parts[1]
                 task = edit_task(task_id, self.read_body_json(), base_url=self.base_url())
-                self.send_json(201 if task["status"] == "succeeded" else 500, task)
+                self.send_json(201 if success_like_status(task["status"]) else 500, task)
                 return
             if parts == ["library", "candidates"]:
                 payload = self.read_body_json()
@@ -2402,9 +3476,14 @@ def cmd_create(args: argparse.Namespace) -> int:
         request = {"brief": read_json(args.brief)}
     else:
         raise SystemExit("create requires --request, --deck-json, or --brief")
-    task = create_or_run_task(request, base_url=args.base_url)
+    if args.plan_only and not request.get("deck_json"):
+        task = create_outline_task(request, base_url=args.base_url)
+    else:
+        if args.auto_confirm_outline:
+            request["outline_confirmed"] = True
+        task = create_or_run_task(request, base_url=args.base_url, require_deck_confirmation=args.require_deck_confirmation)
     print(json.dumps(task, ensure_ascii=False, indent=2))
-    return 0 if task["status"] == "succeeded" else 1
+    return 0 if success_like_status(task["status"]) else 1
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -2426,16 +3505,48 @@ def cmd_regenerate(args: argparse.Namespace) -> int:
     request_path = RUNS_DIR / args.task_id / "input" / "request.json"
     if not request_path.exists():
         raise SystemExit(f"task not found: {args.task_id}")
-    task = create_or_run_task(read_json(request_path), task_id=args.task_id, base_url=args.base_url)
+    request = read_json(request_path)
+    request["outline_confirmed"] = True
+    task = create_or_run_task(request, task_id=args.task_id, base_url=args.base_url, require_deck_confirmation=True)
     print(json.dumps(task, ensure_ascii=False, indent=2))
-    return 0 if task["status"] == "succeeded" else 1
+    return 0 if success_like_status(task["status"]) else 1
 
 
 def cmd_edit(args: argparse.Namespace) -> int:
     payload = read_json(args.patch)
     task = edit_task(args.task_id, payload, base_url=args.base_url)
     print(json.dumps(task, ensure_ascii=False, indent=2))
-    return 0 if task["status"] == "succeeded" else 1
+    return 0 if success_like_status(task["status"]) else 1
+
+
+def cmd_confirm_outline(args: argparse.Namespace) -> int:
+    task = confirm_outline_task(args.task_id, base_url=args.base_url)
+    print(json.dumps(task, ensure_ascii=False, indent=2))
+    return 0 if success_like_status(task["status"]) else 1
+
+
+def cmd_accept_rehearsal(args: argparse.Namespace) -> int:
+    task = accept_rehearsal_task(args.task_id, base_url=args.base_url)
+    print(json.dumps(task, ensure_ascii=False, indent=2))
+    return 0 if success_like_status(task["status"]) else 1
+
+
+def cmd_revise_from_rehearsal(args: argparse.Namespace) -> int:
+    task = revise_from_rehearsal_task(args.task_id, base_url=args.base_url)
+    print(json.dumps(task, ensure_ascii=False, indent=2))
+    return 0 if success_like_status(task["status"]) else 1
+
+
+def cmd_confirm_deck(args: argparse.Namespace) -> int:
+    task = confirm_deck_task(args.task_id, base_url=args.base_url)
+    print(json.dumps(task, ensure_ascii=False, indent=2))
+    return 0 if success_like_status(task["status"]) else 1
+
+
+def cmd_skip_ingest(args: argparse.Namespace) -> int:
+    task = skip_ingestion_task(args.task_id, base_url=args.base_url)
+    print(json.dumps(task, ensure_ascii=False, indent=2))
+    return 0 if success_like_status(task["status"]) else 1
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -2458,6 +3569,9 @@ def main(argv: list[str] | None = None) -> int:
     create.add_argument("--brief", type=Path, help="brief JSON; used when no request is supplied")
     create.add_argument("--deck-json", type=Path, help="DeckJSON source; skips deterministic brief planner")
     create.add_argument("--base-url", help="external base URL used to populate preview/edit links")
+    create.add_argument("--plan-only", action="store_true", help="stop after planner and wait for outline confirmation")
+    create.add_argument("--auto-confirm-outline", action="store_true", help="mark outline confirmed and render immediately")
+    create.add_argument("--require-deck-confirmation", action="store_true", help="wait for user deck confirmation before ingestion")
     create.set_defaults(func=cmd_create)
 
     status = sub.add_parser("status", help="print task status JSON")
@@ -2473,6 +3587,31 @@ def main(argv: list[str] | None = None) -> int:
     regen.add_argument("task_id")
     regen.add_argument("--base-url", help="external base URL used to populate preview/edit links")
     regen.set_defaults(func=cmd_regenerate)
+
+    confirm_outline = sub.add_parser("confirm-outline", help="confirm a planned outline and render deckhtml")
+    confirm_outline.add_argument("task_id")
+    confirm_outline.add_argument("--base-url", help="external base URL used to populate preview/edit links")
+    confirm_outline.set_defaults(func=cmd_confirm_outline)
+
+    accept_rehearsal = sub.add_parser("accept-rehearsal", help="accept pitch rehearsal feedback and move to ingestion confirmation")
+    accept_rehearsal.add_argument("task_id")
+    accept_rehearsal.add_argument("--base-url", help="external base URL used to populate preview/edit links")
+    accept_rehearsal.set_defaults(func=cmd_accept_rehearsal)
+
+    revise_rehearsal = sub.add_parser("revise-from-rehearsal", help="turn pitch rehearsal feedback into a new outline confirmation task")
+    revise_rehearsal.add_argument("task_id")
+    revise_rehearsal.add_argument("--base-url", help="external base URL used to populate preview/edit links")
+    revise_rehearsal.set_defaults(func=cmd_revise_from_rehearsal)
+
+    confirm_deck = sub.add_parser("confirm-deck", help="confirm rendered deckhtml and ingest it")
+    confirm_deck.add_argument("task_id")
+    confirm_deck.add_argument("--base-url", help="external base URL used to populate preview/edit links")
+    confirm_deck.set_defaults(func=cmd_confirm_deck)
+
+    skip_ingest = sub.add_parser("skip-ingest", help="finish a deck task without writing ingestion records")
+    skip_ingest.add_argument("task_id")
+    skip_ingest.add_argument("--base-url", help="external base URL used to populate preview/edit links")
+    skip_ingest.set_defaults(func=cmd_skip_ingest)
 
     edit = sub.add_parser("edit", help="create a new version from a DeckJSON edit payload")
     edit.add_argument("task_id")

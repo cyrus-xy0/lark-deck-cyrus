@@ -27,6 +27,8 @@ REQUIRED = [
     "texts.md",
     "FEEDBACK.md",
     "assets-manifest.yaml",
+    "pitch-rehearsal.json",
+    "PITCH_REHEARSAL.md",
     "journey.json",
     "JOURNEY.md",
     "quality-insights.json",
@@ -37,6 +39,8 @@ ZIP_REQUIRED = [
     "assets-manifest.yaml",
     "FEEDBACK.md",
     "deck.json",
+    "pitch-rehearsal.json",
+    "PITCH_REHEARSAL.md",
     "journey.json",
     "JOURNEY.md",
     "quality-insights.json",
@@ -44,8 +48,60 @@ ZIP_REQUIRED = [
 
 
 def main() -> int:
+    with tempfile.TemporaryDirectory() as td:
+        source_path = Path(td) / "customer-notes.md"
+        source_path.write_text("# 门店 SOP 试点\n\n客户希望把巡店问题、SOP 知识和整改任务形成闭环。\n", encoding="utf-8")
+        request_path = Path(td) / "request-with-source.json"
+        request_path.write_text(
+            json.dumps(
+                {
+                    "brief": {
+                        "title": "带素材的门店 SOP pitch",
+                        "customer_name": "示例客户",
+                        "industry": "消费零售",
+                        "audience": "COO 和运营负责人",
+                        "objective": "确认一个门店 SOP 试点",
+                        "product_scope": ["飞书 AI", "知识库", "任务"],
+                    },
+                    "sources": [str(source_path)],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        source_proc = subprocess.run(
+            ["python3", str(GENERATOR), "create", "--request", str(request_path), "--plan-only"],
+            cwd=REPO,
+            text=True,
+            capture_output=True,
+        )
+        if source_proc.returncode != 0:
+            print(source_proc.stdout)
+            print(source_proc.stderr, file=sys.stderr)
+            return source_proc.returncode
+        source_task = json.loads(source_proc.stdout)
+        source_output = Path(source_task["output_dir"])
+        source_input = Path(source_task["input_dir"])
+        if source_task.get("status") != "awaiting_outline_confirmation" or source_task.get("source") != "materials+brief":
+            print(json.dumps(source_task, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 1
+        for path in [
+            source_output / "source-dossier.json",
+            source_output / "SOURCE_DOSSIER.md",
+            source_input / "runtime-library" / "knowledge.json",
+            source_input / "runtime-library" / "materials.json",
+            source_input / "runtime-library" / "slides.json",
+        ]:
+            if not path.exists():
+                print(f"source recognizer artifact missing: {path}", file=sys.stderr)
+                return 1
+        source_outline = json.loads((source_output / "outline.json").read_text(encoding="utf-8"))
+        if not any(ref.get("provider") == "upload-recognizer" for ref in source_outline.get("knowledge_refs", [])):
+            print("outline did not include upload-recognizer knowledge refs", file=sys.stderr)
+            return 1
+
     proc = subprocess.run(
-        ["python3", str(GENERATOR), "create", "--request", str(REQUEST)],
+        ["python3", str(GENERATOR), "create", "--request", str(REQUEST), "--plan-only"],
         cwd=REPO,
         text=True,
         capture_output=True,
@@ -56,7 +112,26 @@ def main() -> int:
         return proc.returncode
 
     task = json.loads(proc.stdout)
-    if task.get("status") != "succeeded":
+    if task.get("status") != "awaiting_outline_confirmation":
+        print(json.dumps(task, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+    output_dir = Path(task["output_dir"])
+    if not (output_dir / "OUTLINE_REVIEW.md").exists():
+        print("outline review was not written", file=sys.stderr)
+        return 1
+
+    confirm_proc = subprocess.run(
+        ["python3", str(GENERATOR), "confirm-outline", task["id"]],
+        cwd=REPO,
+        text=True,
+        capture_output=True,
+    )
+    if confirm_proc.returncode != 0:
+        print(confirm_proc.stdout)
+        print(confirm_proc.stderr, file=sys.stderr)
+        return confirm_proc.returncode
+    task = json.loads(confirm_proc.stdout)
+    if task.get("status") != "awaiting_rehearsal_decision":
         print(json.dumps(task, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
 
@@ -80,6 +155,21 @@ def main() -> int:
             print(f"  missing: {', '.join(missing_in_zip)}", file=sys.stderr)
         if not has_assets:
             print("  missing asset files under assets/", file=sys.stderr)
+        return 1
+
+    accept_proc = subprocess.run(
+        ["python3", str(GENERATOR), "accept-rehearsal", task["id"]],
+        cwd=REPO,
+        text=True,
+        capture_output=True,
+    )
+    if accept_proc.returncode != 0:
+        print(accept_proc.stdout)
+        print(accept_proc.stderr, file=sys.stderr)
+        return accept_proc.returncode
+    accepted_task = json.loads(accept_proc.stdout)
+    if accepted_task.get("status") != "awaiting_deck_confirmation":
+        print(json.dumps(accepted_task, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
 
     with tempfile.TemporaryDirectory() as td:
@@ -118,7 +208,7 @@ def main() -> int:
         return edit_proc.returncode
 
     edited_task = json.loads(edit_proc.stdout)
-    if edited_task.get("status") != "succeeded":
+    if edited_task.get("status") != "awaiting_rehearsal_decision":
         print(json.dumps(edited_task, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
     if edited_task.get("parent_task_id") != task["id"] or edited_task.get("version") != 1:
@@ -147,7 +237,7 @@ def main() -> int:
     status_page = generator.render_status_page(edited_task["id"]).decode("utf-8")
     edit_page = generator.render_edit_page(edited_task["id"]).decode("utf-8")
     journey_page = generator.render_journey_page(edited_task["id"]).decode("utf-8")
-    expected_status = ["Validator 报告", "版本", "用户旅程", "精调信号", edited_task["id"]]
+    expected_status = ["Validator 报告", "Pitch 预演", "等待确认预演", "版本", "用户旅程", "精调信号", edited_task["id"]]
     expected_editor = ["轻量编辑", "全局信息", "素材库", "插入已有 slide", "保存并生成新版本", "slide-editor"]
     if (
         any(phrase not in status_page for phrase in expected_status)

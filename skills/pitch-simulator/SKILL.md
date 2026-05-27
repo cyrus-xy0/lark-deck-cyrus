@@ -31,9 +31,12 @@ Cyrus 标准链路里,`pitch-simulator` 放在 `deck-auditor` 之后、`deck-ing
 ```text
 brief
   -> deck-planner
+  -> user confirms outline
   -> deck-renderer
   -> deck-auditor
   -> pitch-simulator
+  -> user decides revise vs no-revise
+  -> user confirms ingestion
   -> deck-ingestor
 ```
 
@@ -65,6 +68,8 @@ brief
 pitch-rehearsal.json   # 结构化结果,符合 schema/pitch-rehearsal.schema.json
 PITCH_REHEARSAL.md     # 给 GTM / 讲述者看的可读报告
 ```
+
+这两份文件必须返回给用户或在状态页可见;不能只作为内部日志。预演完成后必须先让用户选择是否按反馈修改:选择修改则回到 `deck-planner` 生成新 outline;选择不用修改后,再进入是否入库确认。
 
 落文件后用 stdlib 校验器检查:
 
@@ -138,7 +143,7 @@ python3 skills/pitch-simulator/simulate-pitch.py \
 - 不输出“整体不错”这种空话;每条建议要能落到 slide key、证据或讲法。
 - 不只评价视觉;重点是 deck 是否推动目标受众做下一步决定。
 - 不建议用户靠夸张承诺解决异议;证据不足时,建议补材料或降低 claim。
-- 不自动触发改稿;预演反馈必须由用户确认后才进入下一轮规划和渲染。
+- 不自动触发改稿或入库;预演反馈必须由用户确认“修改”后才进入下一轮规划和渲染,用户确认“不用改”后才进入入库确认。
 
 ## Handoff
 

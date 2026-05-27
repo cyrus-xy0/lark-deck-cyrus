@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Library provider for deck assets, planning knowledge, and local slide reuse.
 
-Default mode is auto: try the configured Feishu/Lark Base when available, then
-fall back to the local package cache. This keeps external GitHub installs
-usable without private Base access while preserving the live Base path for
-internal workers. Base currently stores only knowledge and material assets;
-the Slide Library remains local-only for whole-page selection/reuse.
+Default mode is auto: try the configured Feishu/Lark Base with the current
+lark-cli identity, then fall back to the local package cache with a caller-
+visible warning/report. Users should not have to provide a separate token in
+the normal sandbox-agent path. Base currently stores only knowledge and
+material assets; the Slide Library remains local-only for whole-page
+selection/reuse.
 """
 
 from __future__ import annotations
@@ -593,8 +594,9 @@ def require_base_write(config: dict[str, Any]) -> None:
     if not can_try_base(config):
         raise SystemExit(
             "base_library: write requested, but live Base is unavailable. "
-            "Set LARK_LIBRARY_BASE_TOKEN, install/configure lark-cli, and use "
-            "LARK_LIBRARY_MODE=base if you want writes to fail fast."
+            "The normal path uses the configured Base and current lark-cli user identity; "
+            "install/configure lark-cli or fix the current user's Base permission. Use "
+            "LARK_LIBRARY_MODE=base only when you want writes to fail fast."
         )
 
 

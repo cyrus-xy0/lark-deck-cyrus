@@ -26,7 +26,7 @@ python3 scripts/cloud_agent_deploy.py \
 4. 配置环境:复制 `deploy/cloud-agent/env.example` 为 `.env`。如果 bundle 被复制到仓库外,设置 `LARK_DECK_CYRUS_ROOT` 指回仓库根目录。
 5. 启动服务:运行 `bash deploy/cloud-agent/start-generator.sh`。需要飞书 bot 收消息时,再配置飞书事件订阅并启动 `bash deploy/cloud-agent/start-feishu-bot.sh`。
 6. 验证:运行 `bash deploy/cloud-agent/healthcheck.sh`,或访问 `<base-url>/health`。
-7. 使用:agent 收到用户 brief 后调用 `POST /decks`,把返回的 `preview_url`、`download_url`、`edit_url` 发给用户。
+7. 使用:agent 收到用户 brief 和素材后调用 `POST /decks`;如有 `sources` / `attachments`,服务端会先跑 recognizer 并在 run 内创建临时知识/素材库。先把 outline / 状态页发给用户确认;用户确认后调用 `POST /decks/{id}/confirm-outline` 生成 deckhtml 和预演报告。用户回复要改时调用 `POST /decks/{id}/revise-from-rehearsal` 回到新 outline;用户回复不用改时调用 `POST /decks/{id}/accept-rehearsal` 进入入库确认;确认入库后调用 `POST /decks/{id}/confirm-deck`。
 
 ## 环境变量
 
@@ -35,7 +35,7 @@ python3 scripts/cloud_agent_deploy.py \
 - `LARK_DECK_CYRUS_ROOT`:当部署包不在仓库内时必填。
 - `LARK_LIBRARY_MODE`:默认 `auto`。`base` 表示 live Base 不可用时直接失败。
 - `LARK_LIBRARY_AS`:默认 `user`;云端 bot 写 Base 时可设为 `bot`。
-- `LARK_LIBRARY_BASE_TOKEN`:可选覆盖。当前仓库默认配置已指向用户指定 Base `DBtybdvHYaovVwsWLatcipJBnrg`,但真实读写仍需要云端 agent 的 `lark-cli` 身份有权限。
+- `LARK_LIBRARY_BASE_TOKEN`:一般不用配置。当前仓库默认配置已指向用户指定 Base `DBtybdvHYaovVwsWLatcipJBnrg`,真实读写使用云端 agent 当前 `lark-cli` user 身份;没有权限时系统会明文提示并回退本地候选库。
 
 ## Base 策略
 

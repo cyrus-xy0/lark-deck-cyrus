@@ -185,6 +185,32 @@ def inline_img_tags(html: str, html_path: Path) -> tuple[str, int]:
     return out, count
 
 
+def inline_html_style_urls(html: str, html_path: Path) -> tuple[str, int]:
+    """Inline url(...) references that live directly in HTML style attrs.
+
+    DeckJSON enrichers such as logo-wall intentionally emit per-item
+    background-image styles. Those are not inside a <style> tag and are not
+    <img> tags, so without this pass the "single-file" deck still depends on
+    external logo/image assets.
+    """
+    count = 0
+    url_re = re.compile(r'url\(\s*(["\']?)([^)"\']+)\1\s*\)')
+
+    def replace_url(m):
+        nonlocal count
+        ref = m.group(2)
+        asset = resolve_asset(html_path, ref)
+        if asset is None:
+            return m.group(0)
+        uri = data_uri(asset)
+        if uri is None:
+            return m.group(0)
+        count += 1
+        return f'url("{uri}")'
+
+    return url_re.sub(replace_url, html), count
+
+
 def main() -> int:
     args = sys.argv[1:]
     html_in = None
@@ -224,6 +250,7 @@ def main() -> int:
     html, n_js = inline_js_scripts(html, src)
     html, n_css_img = inline_css_images(html, src)
     html, n_img = inline_img_tags(html, src)
+    html, n_style_img = inline_html_style_urls(html, src)
 
     if '<meta name="fs-deck-mode"' not in html:
         html = html.replace(
@@ -239,6 +266,7 @@ def main() -> int:
     print(f'  JS files inlined   : {n_js}')
     print(f'  CSS images inlined : {n_css_img + n_link_css_img}')
     print(f'  <img> inlined      : {n_img}')
+    print(f'  style url() inlined: {n_style_img}')
     print(f'  output size        : {size_kb:.0f} KB')
     return 0
 

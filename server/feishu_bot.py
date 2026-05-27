@@ -40,6 +40,10 @@ BRIEF_FIELDS: list[tuple[str, str, str]] = [
     ("attachments", "附件链接", "是否有可引用的附件、截图、客户材料或公开来源? 没有可写“无”。"),
 ]
 OPTIONAL_BRIEF_KEYS = {"attachments"}
+CONFIRM_RE = re.compile(r"^\s*(确认|可以|继续|没问题|通过|ok|yes|y|approve|approved)(?:[，。,.\s!！].*)?$", re.I)
+REVISE_RE = re.compile(r"(修改|调整|重做|重规划|重新规划|采纳.*反馈|按.*反馈|改稿|迭代)")
+NO_REVISE_RE = re.compile(r"(不用改|不修改|先不改|暂不改|无需修改|进入入库|可以入库)")
+SKIP_INGEST_RE = re.compile(r"(不入库|不用入库|跳过入库|结束|先不沉淀|不沉淀)")
 
 LABEL_ALIASES: dict[str, str] = {
     "标题": "title",
@@ -246,7 +250,59 @@ def format_questions(missing: list[tuple[str, str, str]]) -> str:
 def format_task_reply(task: dict[str, Any]) -> str:
     artifacts = task.get("artifacts") or {}
     status_url = f"{artifacts.get('preview_url', '').rsplit('/files/', 1)[0]}/status" if artifacts.get("preview_url") else ""
+    if not status_url and artifacts.get("OUTLINE_REVIEW.md"):
+        status_url = f"{artifacts.get('OUTLINE_REVIEW.md', '').rsplit('/files/', 1)[0]}/status"
     if task.get("status") != "succeeded":
+        if task.get("status") == "awaiting_outline_confirmation":
+            return "\n".join(
+                [
+                    "我已经生成大纲框架，先停在 planner 后等你确认。",
+                    f"任务 ID: {task.get('id')}",
+                    f"状态页: {status_url}" if status_url else "",
+                    f"大纲: {artifacts.get('OUTLINE_REVIEW.md', '')}",
+                    "",
+                    "确认这个框架后回复“确认”，我再生成 deckhtml。",
+                    "如果要调整，请直接告诉我改哪里，我会先更新大纲而不是直接渲染。",
+                ]
+            ).strip()
+        if task.get("status") == "awaiting_rehearsal_decision":
+            return "\n".join(
+                [
+                    "已生成飞书 H5 Deck，并完成 pitch simulator 预演。先等你判断是否按反馈修改。",
+                    f"任务 ID: {task.get('id')}",
+                    f"状态页: {status_url}",
+                    f"预览链接: {artifacts.get('preview_url', '')}",
+                    f"轻量编辑: {artifacts.get('preview_url', '').rsplit('/files/', 1)[0] + '/edit' if artifacts.get('preview_url') else ''}",
+                    f"预演报告: {artifacts.get('PITCH_REHEARSAL.md', '')}",
+                    f"下载包: {artifacts.get('download_url', '')}",
+                    "",
+                    "如果要按预演反馈改,回复“修改”；如果暂不修改并进入入库确认,回复“不用改”。",
+                ]
+            ).strip()
+        if task.get("status") == "awaiting_deck_confirmation":
+            return "\n".join(
+                [
+                    "成稿已通过预演确认。现在确认是否入库。",
+                    f"任务 ID: {task.get('id')}",
+                    f"状态页: {status_url}",
+                    f"预览链接: {artifacts.get('preview_url', '')}",
+                    f"轻量编辑: {artifacts.get('preview_url', '').rsplit('/files/', 1)[0] + '/edit' if artifacts.get('preview_url') else ''}",
+                    f"预演报告: {artifacts.get('PITCH_REHEARSAL.md', '')}",
+                    f"下载包: {artifacts.get('download_url', '')}",
+                    "",
+                    "确认入库请回复“确认”；不入库请回复“不入库”。入库时会先按配置上传最终 deckhtml 到 TOS,再调用解析器丰富知识库和素材库；云端无权限时会明文提示并落到本地候选库。",
+                ]
+            ).strip()
+        if task.get("status") == "completed_without_ingestion":
+            return "\n".join(
+                [
+                    "好的，这版 deck 已保留交付链接，但不会入库。",
+                    f"任务 ID: {task.get('id')}",
+                    f"状态页: {status_url}",
+                    f"预览链接: {artifacts.get('preview_url', '')}",
+                    f"下载包: {artifacts.get('download_url', '')}",
+                ]
+            ).strip()
         return "\n".join(
             [
                 "生成失败了，我把原因记录在任务里了。",
@@ -264,10 +320,20 @@ def format_task_reply(task: dict[str, Any]) -> str:
             f"预览链接: {artifacts.get('preview_url', '')}",
             f"轻量编辑: {artifacts.get('preview_url', '').rsplit('/files/', 1)[0] + '/edit' if artifacts.get('preview_url') else ''}",
             f"下载包: {artifacts.get('download_url', '')}",
+            f"预演报告: {artifacts.get('PITCH_REHEARSAL.md', '')}",
+            f"入库报告: {artifacts.get('INGESTION_REPORT.md', '')}",
             "",
-            "需要改标题、正文、客户名或页序时，打开轻量编辑链接保存，会生成新版本 URL。",
+            "已按确认后的版本完成入库。需要改标题、正文、客户名或页序时，打开轻量编辑链接保存，会生成新版本 URL。",
         ]
     )
+
+
+def format_ingestion_reply(task: dict[str, Any]) -> str:
+    reply = format_task_reply(task)
+    warnings = task.get("warnings") or []
+    if warnings:
+        reply += "\n\n提示:\n" + "\n".join(f"- {item}" for item in warnings)
+    return reply
 
 
 def handle_message_text(
@@ -280,6 +346,72 @@ def handle_message_text(
     pending = state.setdefault("pending", {})
     pending_item = pending.get(conversation_key) or {}
     interaction_history = list(pending_item.get("interaction_history") or [])
+
+    if pending_item.get("stage") == "awaiting_outline_confirmation":
+        if CONFIRM_RE.match(text):
+            task = generator.confirm_outline_task(str(pending_item["task_id"]), base_url=base_url)
+            if task.get("status") == "awaiting_rehearsal_decision":
+                pending[conversation_key] = {
+                    "stage": "awaiting_rehearsal_decision",
+                    "task_id": task["id"],
+                    "brief": pending_item.get("brief", {}),
+                    "interaction_history": interaction_history[-100:],
+                    "updated_at": time.time(),
+                }
+            else:
+                pending.pop(conversation_key, None)
+            return BotResult(reply=format_task_reply(task), task=task)
+        brief = parse_brief_text(text, pending_item.get("brief"), None)
+        task = generator.create_outline_task({"brief": brief, "interaction_history": interaction_history[-100:]}, base_url=base_url)
+        pending[conversation_key] = {
+            "stage": "awaiting_outline_confirmation",
+            "task_id": task["id"],
+            "brief": brief,
+            "interaction_history": interaction_history[-100:],
+            "updated_at": time.time(),
+        }
+        return BotResult(reply=format_task_reply(task), task=task)
+
+    if pending_item.get("stage") == "awaiting_rehearsal_decision":
+        if REVISE_RE.search(text):
+            task = generator.revise_from_rehearsal_task(str(pending_item["task_id"]), base_url=base_url)
+            pending[conversation_key] = {
+                "stage": "awaiting_outline_confirmation",
+                "task_id": task["id"],
+                "brief": pending_item.get("brief", {}),
+                "interaction_history": interaction_history[-100:],
+                "updated_at": time.time(),
+            }
+            return BotResult(reply=format_task_reply(task), task=task)
+        if NO_REVISE_RE.search(text) or CONFIRM_RE.match(text):
+            task = generator.accept_rehearsal_task(str(pending_item["task_id"]), base_url=base_url)
+            pending[conversation_key] = {
+                "stage": "awaiting_deck_confirmation",
+                "task_id": task["id"],
+                "brief": pending_item.get("brief", {}),
+                "interaction_history": interaction_history[-100:],
+                "updated_at": time.time(),
+            }
+            return BotResult(reply=format_task_reply(task), task=task)
+        return BotResult(
+            reply="我先停在预演反馈这里。回复“修改”会带着 simulator 反馈回到大纲确认；回复“不用改”会进入是否入库确认。",
+            task=None,
+        )
+
+    if pending_item.get("stage") == "awaiting_deck_confirmation":
+        if SKIP_INGEST_RE.search(text):
+            task = generator.skip_ingestion_task(str(pending_item["task_id"]), base_url=base_url)
+            pending.pop(conversation_key, None)
+            return BotResult(reply=format_task_reply(task), task=task)
+        if CONFIRM_RE.match(text):
+            task = generator.confirm_deck_task(str(pending_item["task_id"]), base_url=base_url)
+            pending.pop(conversation_key, None)
+            return BotResult(reply=format_ingestion_reply(task), task=task)
+        return BotResult(
+            reply="我先不入库。确认入库请回复“确认”；不入库结束请回复“不入库”。如果要改稿,可以打开轻量编辑保存新版本。",
+            task=None,
+        )
+
     brief = parse_brief_text(text, pending_item.get("brief"), pending_item.get("missing_keys"))
     interaction_history.append(
         {
@@ -315,7 +447,6 @@ def handle_message_text(
         questions = [question for _, _, question in missing]
         return BotResult(reply=format_questions(missing), asked_questions=questions)
 
-    pending.pop(conversation_key, None)
     brief.setdefault("attachments", "无")
     interaction_history.append(
         {
@@ -325,7 +456,14 @@ def handle_message_text(
             "data": {"brief_fields": sorted(brief.keys())},
         }
     )
-    task = generator.create_or_run_task({"brief": brief, "interaction_history": interaction_history[-100:]}, base_url=base_url)
+    task = generator.create_outline_task({"brief": brief, "interaction_history": interaction_history[-100:]}, base_url=base_url)
+    pending[conversation_key] = {
+        "stage": "awaiting_outline_confirmation",
+        "task_id": task["id"],
+        "brief": brief,
+        "interaction_history": interaction_history[-100:],
+        "updated_at": time.time(),
+    }
     return BotResult(reply=format_task_reply(task), task=task)
 
 
@@ -474,7 +612,7 @@ def cmd_handle_text(args: argparse.Namespace) -> int:
     result = handle_message_text(args.text, state, conversation_key=args.conversation_key, base_url=args.base_url)
     save_state(state, args.state)
     print(result.reply)
-    return 0 if not result.task or result.task.get("status") == "succeeded" else 1
+    return 0 if not result.task or generator.success_like_status(result.task.get("status", "")) else 1
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:

@@ -47,26 +47,80 @@ def main() -> int:
             conversation_key="chat:user",
             base_url="http://127.0.0.1:8765",
         )
-        if not second.task or second.task.get("status") != "succeeded":
-            print("bot did not generate a successful task", file=sys.stderr)
+        if not second.task or second.task.get("status") != "awaiting_outline_confirmation":
+            print("bot did not stop for outline confirmation", file=sys.stderr)
             print(second.reply, file=sys.stderr)
             return 1
-        feishu_bot.save_state(state, state_path)
-        for phrase in ["状态页", "预览链接", "轻量编辑", "下载包"]:
+        for phrase in ["状态页", "大纲", "确认这个框架"]:
             if phrase not in second.reply:
-                print(f"bot reply missing {phrase}", file=sys.stderr)
+                print(f"outline reply missing {phrase}", file=sys.stderr)
                 print(second.reply, file=sys.stderr)
                 return 1
+        feishu_bot.save_state(state, state_path)
+
+        state = feishu_bot.load_state(state_path)
+        third = feishu_bot.handle_message_text(
+            "确认",
+            state,
+            conversation_key="chat:user",
+            base_url="http://127.0.0.1:8765",
+        )
+        if not third.task or third.task.get("status") != "awaiting_rehearsal_decision":
+            print("bot did not stop for rehearsal decision", file=sys.stderr)
+            print(third.reply, file=sys.stderr)
+            return 1
+        for phrase in ["状态页", "预览链接", "轻量编辑", "下载包", "预演报告", "回复“修改”", "回复“不用改”"]:
+            if phrase not in third.reply:
+                print(f"rehearsal decision reply missing {phrase}", file=sys.stderr)
+                print(third.reply, file=sys.stderr)
+                return 1
+        feishu_bot.save_state(state, state_path)
+
+        state = feishu_bot.load_state(state_path)
+        fourth = feishu_bot.handle_message_text(
+            "不用改",
+            state,
+            conversation_key="chat:user",
+            base_url="http://127.0.0.1:8765",
+        )
+        if not fourth.task or fourth.task.get("status") != "awaiting_deck_confirmation":
+            print("bot did not move to ingestion confirmation", file=sys.stderr)
+            print(fourth.reply, file=sys.stderr)
+            return 1
+        for phrase in ["现在确认是否入库", "确认入库", "不入库"]:
+            if phrase not in fourth.reply:
+                print(f"ingestion confirmation reply missing {phrase}", file=sys.stderr)
+                print(fourth.reply, file=sys.stderr)
+                return 1
+        feishu_bot.save_state(state, state_path)
+
+        state = feishu_bot.load_state(state_path)
+        fifth = feishu_bot.handle_message_text(
+            "确认",
+            state,
+            conversation_key="chat:user",
+            base_url="http://127.0.0.1:8765",
+        )
+        if not fifth.task or fifth.task.get("status") != "succeeded":
+            print("bot did not ingest the confirmed deck", file=sys.stderr)
+            print(fifth.reply, file=sys.stderr)
+            return 1
+        for phrase in ["状态页", "预览链接", "轻量编辑", "下载包", "预演报告", "入库报告"]:
+            if phrase not in fifth.reply:
+                print(f"bot reply missing {phrase}", file=sys.stderr)
+                print(fifth.reply, file=sys.stderr)
+                return 1
+        feishu_bot.save_state(state, state_path)
         if feishu_bot.load_state(state_path).get("pending"):
             print("bot pending state was not cleared", file=sys.stderr)
             return 1
-        journey = json.loads((Path(second.task["output_dir"]) / "journey.json").read_text(encoding="utf-8"))
+        journey = json.loads((Path(fifth.task["output_dir"]) / "journey.json").read_text(encoding="utf-8"))
         stages = [event.get("stage") for event in journey.get("events", [])]
         if "bot_clarification_asked" not in stages or "bot_brief_completed" not in stages:
             print("bot interaction history was not written to journey", file=sys.stderr)
             return 1
 
-    print(second.task["output_dir"])
+    print(fifth.task["output_dir"])
     return 0
 
 
