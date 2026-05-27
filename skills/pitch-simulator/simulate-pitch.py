@@ -13,11 +13,46 @@ import json
 from pathlib import Path
 from typing import Any
 
+MEETING_TYPES = {
+    "first-meeting",
+    "solution-pitch",
+    "poc-kickoff",
+    "renewal",
+    "investor-pitch",
+    "internal-alignment",
+    "review",
+    "unknown",
+}
+
+MEETING_TYPE_ALIASES = {
+    "首访": "first-meeting",
+    "首次沟通": "first-meeting",
+    "方案介绍": "solution-pitch",
+    "解决方案提案": "solution-pitch",
+    "POC 启动提案": "poc-kickoff",
+    "POC启动提案": "poc-kickoff",
+    "poc 启动": "poc-kickoff",
+    "试点启动": "poc-kickoff",
+    "续约": "renewal",
+    "融资": "investor-pitch",
+    "投资人路演": "investor-pitch",
+    "内部对齐": "internal-alignment",
+    "复盘": "review",
+    "未知": "unknown",
+}
+
 
 def load_json(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def normalize_meeting_type(value: str | None) -> str:
+    raw = (value or "solution-pitch").strip()
+    if raw in MEETING_TYPES:
+        return raw
+    return MEETING_TYPE_ALIASES.get(raw, "unknown")
 
 
 def clamp(value: int) -> int:
@@ -285,7 +320,7 @@ def build_rehearsal(args: argparse.Namespace) -> dict[str, Any]:
             "audience": audience,
             "objective": objective,
             "success_next_step": success_next_step,
-            "meeting_type": args.meeting_type,
+            "meeting_type": normalize_meeting_type(args.meeting_type),
             "known_context": args.context or brief.get("requester_context", ""),
         },
         "audience_panel": personas,
@@ -421,7 +456,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--audience")
     parser.add_argument("--objective")
     parser.add_argument("--success-next-step")
-    parser.add_argument("--meeting-type", default="solution-pitch")
+    parser.add_argument(
+        "--meeting-type",
+        default="solution-pitch",
+        choices=sorted(MEETING_TYPES | set(MEETING_TYPE_ALIASES)),
+    )
     parser.add_argument("--context", default="")
     args = parser.parse_args(argv)
 

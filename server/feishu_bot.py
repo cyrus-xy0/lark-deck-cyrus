@@ -250,7 +250,7 @@ def format_questions(missing: list[tuple[str, str, str]]) -> str:
 def format_task_reply(task: dict[str, Any]) -> str:
     artifacts = task.get("artifacts") or {}
     status_url = artifacts.get("status_url") or ""
-    magic_url = artifacts.get("magic_url") or artifacts.get("miaobi_url") or artifacts.get("preview_url") or ""
+    doc_url = artifacts.get("magic_doc_url") or artifacts.get("miaobi_doc_url") or artifacts.get("doc_url") or artifacts.get("magic_url") or artifacts.get("preview_url") or ""
     if not status_url and artifacts.get("OUTLINE_REVIEW.md"):
         status_url = f"{artifacts.get('OUTLINE_REVIEW.md', '').rsplit('/files/', 1)[0]}/status"
     if task.get("status") != "succeeded":
@@ -272,7 +272,7 @@ def format_task_reply(task: dict[str, Any]) -> str:
                     "已生成飞书 H5 Deck，并完成 pitch simulator 预演。先等你判断是否按反馈修改。",
                     f"任务 ID: {task.get('id')}",
                     f"状态页: {status_url}",
-                    f"妙笔链接: {magic_url}",
+                    f"飞书妙笔文档: {doc_url}",
                     f"预演报告: {artifacts.get('PITCH_REHEARSAL.md', '')}",
                     "",
                     "如果要按预演反馈改,回复“修改”；如果暂不修改并进入入库确认,回复“不用改”。",
@@ -284,7 +284,7 @@ def format_task_reply(task: dict[str, Any]) -> str:
                     "成稿已通过预演确认。现在确认是否入库。",
                     f"任务 ID: {task.get('id')}",
                     f"状态页: {status_url}",
-                    f"妙笔链接: {magic_url}",
+                    f"飞书妙笔文档: {doc_url}",
                     f"预演报告: {artifacts.get('PITCH_REHEARSAL.md', '')}",
                     "",
                     "确认入库请回复“确认”；不入库请回复“不入库”。入库时会使用已发布的妙笔 deckhtml,再调用解析器丰富知识库和素材库；云端无权限时会明文提示并落到本地候选库。",
@@ -296,7 +296,7 @@ def format_task_reply(task: dict[str, Any]) -> str:
                     "好的，这版 deck 已保留交付链接，但不会入库。",
                     f"任务 ID: {task.get('id')}",
                     f"状态页: {status_url}",
-                    f"妙笔链接: {magic_url}",
+                    f"飞书妙笔文档: {doc_url}",
                 ]
             ).strip()
         return "\n".join(
@@ -313,11 +313,11 @@ def format_task_reply(task: dict[str, Any]) -> str:
             "已生成飞书 H5 Deck 初稿。",
             f"任务 ID: {task['id']}",
             f"状态页: {status_url}",
-            f"妙笔链接: {magic_url}",
+            f"飞书妙笔文档: {doc_url}",
             f"预演报告: {artifacts.get('PITCH_REHEARSAL.md', '')}",
             f"入库报告: {artifacts.get('INGESTION_REPORT.md', '')}",
             "",
-            "已按确认后的版本完成入库。需要改标题、正文、客户名或页序时，可以继续告诉我改哪几页，我会生成新版本妙笔链接。",
+            "已按确认后的版本完成入库。需要改标题、正文、客户名或页序时，可以继续告诉我改哪几页，我会生成新版本飞书妙笔文档。",
         ]
     )
 

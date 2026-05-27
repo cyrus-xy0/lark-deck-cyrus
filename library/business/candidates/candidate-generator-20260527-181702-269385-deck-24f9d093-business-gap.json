@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "id": "candidate-generator-20260527-181702-269385-deck-24f9d093-business-gap",
+  "title": "帮我做一份示例客户的 AI 知识库 pitchdeck",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "needs-review"
+  ],
+  "industry": [
+    "消费零售"
+  ],
+  "product": [
+    "飞书 AI",
+    "知识问答",
+    "多维表格",
+    "飞书任务"
+  ],
+  "customer_stage": [
+    "待标注"
+  ],
+  "deck_type": [
+    "客户pitch"
+  ],
+  "value_prop": [
+    "这份方案先解决一个问题:业务动作能否闭环"
+  ],
+  "layout": "content",
+  "variant": "before-after",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/generator-20260527-181702-269385-deck-24f9d093/output/deck.json",
+    "slide_key": "business-gap",
+    "owner": "gtm",
+    "reviewer": ""
+  },
+  "slide": {
+    "key": "business-gap",
+    "layout": "content",
+    "variant": "before-after",
+    "accent": "orange",
+    "data": {
+      "title": "这份方案先解决一个问题:业务动作能否闭环",
+      "before": {
+        "tag": "现状 · 分散推进",
+        "items": [
+          "门店动作不可追踪",
+          "经验散在群聊",
+          "关键动作和复盘信息分散,推进依赖人工提醒。"
+        ]
+      },
+      "pivot": {
+        "caption": "飞书工作流"
+      },
+      "after": {
+        "tag": "目标 · 可追踪闭环",
+        "items": [
+          "入口统一到飞书消息 / bot / 表单。",
+          "动作进入任务、表格或知识库,责任和状态可追踪。",
+          "复盘沉淀为下一次可复用的知识和页面。"
+        ]
+      }
+    }
+  }
+}

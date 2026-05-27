@@ -1,0 +1,69 @@
+{
+  "version": "1.0",
+  "id": "candidate-generator-20260527-181702-269385-deck-24f9d093-pilot-path",
+  "title": "帮我做一份示例客户的 AI 知识库 pitchdeck",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "needs-review"
+  ],
+  "industry": [
+    "消费零售"
+  ],
+  "product": [
+    "飞书 AI",
+    "知识问答",
+    "多维表格",
+    "飞书任务"
+  ],
+  "customer_stage": [
+    "待标注"
+  ],
+  "deck_type": [
+    "客户pitch"
+  ],
+  "value_prop": [
+    "四步把初稿推进到可验证试点"
+  ],
+  "layout": "flow",
+  "variant": "timeline",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/generator-20260527-181702-269385-deck-24f9d093/output/deck.json",
+    "slide_key": "pilot-path",
+    "owner": "gtm",
+    "reviewer": ""
+  },
+  "slide": {
+    "key": "pilot-path",
+    "layout": "flow",
+    "variant": "timeline",
+    "accent": "blue",
+    "data": {
+      "title": "四步把初稿推进到可验证试点",
+      "cols": 4,
+      "nodes": [
+        {
+          "when": "D1",
+          "what": "确认场景",
+          "desc": "补齐客户、受众、目标和材料边界。"
+        },
+        {
+          "when": "D2-3",
+          "what": "接入素材",
+          "desc": "整理 logo、流程截图、知识和指标口径。"
+        },
+        {
+          "when": "D4-7",
+          "what": "试跑闭环",
+          "desc": "用一个真实流程验证入口、任务和反馈。"
+        },
+        {
+          "when": "D8+",
+          "what": "复盘扩展",
+          "desc": "根据证据决定扩展、改版或入库复用。"
+        }
+      ]
+    }
+  }
+}

@@ -199,6 +199,9 @@ def relpath_from_to(src_dir: Path, dst_dir: Path) -> str:
 
 def sync_base_shared_assets(identity: str, offline_cache: bool, require_base: bool) -> int:
     """Sync live Base assets when configured; otherwise use local package cache."""
+    if offline_cache:
+        print("render-deck: using local package cache (--offline-cache); live Base sync skipped.", file=sys.stderr)
+        return 0
     if not BASE_LIBRARY.exists():
         print(f"render-deck: Base library provider missing: {BASE_LIBRARY}", file=sys.stderr)
         return 6 if require_base else 0
@@ -221,9 +224,8 @@ def sync_base_shared_assets(identity: str, offline_cache: bool, require_base: bo
             print(rc.stdout.strip())
         return 0
     if offline_cache or not require_base:
-        print("render-deck: WARN Base sync unavailable; using local package cache.", file=sys.stderr)
-        if rc.stderr.strip():
-            print(rc.stderr.strip(), file=sys.stderr)
+        detail = summarize_base_sync_failure(rc.stdout, rc.stderr)
+        print(f"render-deck: WARN Base sync unavailable ({detail}); using local package cache.", file=sys.stderr)
         return 0
     print("render-deck: Base sync failed and --require-base was set.", file=sys.stderr)
     if rc.stdout.strip():
@@ -231,6 +233,26 @@ def sync_base_shared_assets(identity: str, offline_cache: bool, require_base: bo
     if rc.stderr.strip():
         print(rc.stderr, file=sys.stderr)
     return 6
+
+
+def summarize_base_sync_failure(stdout: str, stderr: str) -> str:
+    """Return a one-line Base sync failure summary for renderer logs."""
+    text = "\n".join(part.strip() for part in [stdout, stderr] if part and part.strip())
+    if not text:
+        return "no diagnostic"
+    for marker in [
+        "keychain not initialized",
+        "permission denied",
+        "not initialized",
+        "config",
+    ]:
+        if marker.lower() in text.lower():
+            return marker
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("{") and not stripped.startswith("}"):
+            return stripped[:160]
+    return text.splitlines()[0].strip()[:160]
 
 
 def render_template(template: str, data: dict) -> str:
@@ -1133,7 +1155,7 @@ def _enrich_content_before_after(ctx, slide):
     pivot = ctx.get("pivot", {}) or {}
     ctx["pivot_caption_html"] = _optional_text_node(
         pivot.get("caption"), snp, "pivot.caption",
-        tag="div", classes="caption", indent="            ")
+        tag="div", classes="chip", indent="            ")
 
 
 def _enrich_content_story_case(ctx, slide):
@@ -1623,8 +1645,7 @@ def main(argv=None) -> int:
             print(f"render-deck: extract-texts.py failed (non-fatal): {rc.stderr.strip()}",
                   file=sys.stderr)
 
-    # 6. HTML validator gate
-    if not args.skip_validate_html:
+    def run_html_validator(stage: str) -> int:
         # If --visual, run validate.py WITHOUT --no-visual so Playwright audits
         # (R-VIS-OVERFLOW / R-VIS-OVERLAP / R-VIS-TIER / R-VIS-LABEL-FLOOR) fire.
         # Otherwise default behaviour: static checks only.
@@ -1632,13 +1653,20 @@ def main(argv=None) -> int:
         if not args.visual:
             validate_cmd.append("--no-visual")
         rc = subprocess.run(validate_cmd, capture_output=True, text=True)
-        # Always show validator output (digest is helpful)
+        if stage:
+            print(f"render-deck: HTML validator gate ({stage})")
         print(rc.stdout)
         if rc.returncode != 0:
             print(file=sys.stderr)
             print("render-deck: rendered HTML failed validate.py — fix the TEMPLATE that produced the bad slide, not the output.", file=sys.stderr)
             if rc.stderr.strip():
                 print(rc.stderr, file=sys.stderr)
+        return rc.returncode
+
+    # 6. HTML validator gate
+    if not args.skip_validate_html:
+        rc = run_html_validator("pre-asset")
+        if rc != 0:
             return 4
 
     # 7. Post-render asset handling — choose one of:
@@ -1650,6 +1678,10 @@ def main(argv=None) -> int:
     #        the repo's runs/<ts>/output/ structure)
     if args.inline:
         inline_html(out_html)
+        if not args.skip_validate_html:
+            rc = run_html_validator("post-inline")
+            if rc != 0:
+                return 4
         print(f"\nOK  →  {out_html}  (inline single-file mode)")
     elif not args.skip_copy_assets:
         # copy-assets.py requires output under <repo>/runs/<ts>/output/

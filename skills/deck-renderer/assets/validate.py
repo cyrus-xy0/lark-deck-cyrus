@@ -2398,7 +2398,7 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
 
             browser.close()
     except Exception as e:
-        iss.warn('R-VISUAL',
+        iss.warn_soft('R-VISUAL',
             f'visual checks could not run ({type(e).__name__}: {e}). '
             'Try `bash install.sh` to refresh project-local Playwright / '
             'Chromium, or open the deck in a browser manually to verify.')

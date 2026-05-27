@@ -42,6 +42,8 @@ class UtilityScriptTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr or proc.stdout)
             html = out.read_text(encoding="utf-8")
             self.assertIn('<meta name="fs-deck-mode" content="inline">', html)
+            self.assertIn('<style data-source="framework"', html)
+            self.assertIn('<script data-source="framework"', html)
             self.assertNotIn('href="assets/deck.css"', html)
             self.assertNotIn('src="assets/deck.js"', html)
             self.assertGreaterEqual(html.count("data:image/png;base64,"), 2)

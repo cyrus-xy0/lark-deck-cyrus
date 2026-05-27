@@ -1,0 +1,77 @@
+{
+  "version": "1.0",
+  "id": "candidate-generator-20260527-181516-547208-deck-24f9d093-role-lens",
+  "title": "帮我做一份示例客户的 AI 知识库 pitchdeck",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "needs-review"
+  ],
+  "industry": [
+    "消费零售"
+  ],
+  "product": [
+    "飞书 AI",
+    "知识问答",
+    "多维表格",
+    "飞书任务"
+  ],
+  "customer_stage": [
+    "待标注"
+  ],
+  "deck_type": [
+    "客户pitch"
+  ],
+  "value_prop": [
+    "一套试点",
+    "要同时回答三类关切"
+  ],
+  "layout": "content",
+  "variant": "3up",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/generator-20260527-181516-547208-deck-24f9d093/output/deck.json",
+    "slide_key": "role-lens",
+    "owner": "gtm",
+    "reviewer": ""
+  },
+  "slide": {
+    "key": "role-lens",
+    "layout": "content",
+    "variant": "3up",
+    "accent": "blue",
+    "data": {
+      "title": "一套试点,要同时回答三类关切",
+      "cards": [
+        {
+          "num": "01",
+          "icon": "trending-up",
+          "title_zh": "业务负责人",
+          "body": "关心为什么现在要做、是否能推动当前业务时刻,以及下一步投入是否可控。",
+          "footer_label": "VALUE · URGENCY"
+        },
+        {
+          "num": "02",
+          "icon": "users",
+          "title_zh": "一线 / 运营负责人",
+          "body": "关心入口是否简单、动作是否真的闭环,以及知识维护会不会变成额外负担。",
+          "footer_label": "ADOPTION · WORKFLOW"
+        },
+        {
+          "num": "03",
+          "icon": "check-circle",
+          "title_zh": "技术 / 实施负责人",
+          "body": "关心权限、数据来源、系统边界和上线节奏,避免试点变成大规模改造。",
+          "footer_label": "SECURITY · SCOPE"
+        }
+      ],
+      "body_blocks": [
+        {
+          "type": "pullquote",
+          "text": "先把角色关切说清楚,后面的方案才不会变成单向产品宣讲。",
+          "tone": "default"
+        }
+      ]
+    }
+  }
+}

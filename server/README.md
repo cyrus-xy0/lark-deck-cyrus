@@ -100,7 +100,7 @@ scripts/run-p1-smoke.sh
 Endpoints:
 
 - `GET /health`
-- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ... }`, or `{ "brief": ..., "sources": [...] }` creates an outline-confirmation task by default. When sources/attachments are present, the server runs `upload-recognizer` first and writes a temporary `input/runtime-library/` for this run. Pass `{ "auto_confirm_outline": true }` to render immediately, or call `POST /decks/{id}/confirm-outline` after user confirmation.
+- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ... }`, or `{ "brief": ..., "sources": [...] }` creates an outline-confirmation task by default. When sources/attachments are present, the server runs `upload-recognizer` first and writes a temporary `input/runtime-library/` for this run. Call `POST /decks/{id}/confirm-outline` after user confirmation; non-interactive tests must pass both `{ "auto_confirm_outline": true, "allow_skip_outline_confirmation": true }` if they intentionally skip the gate.
 - `GET /decks/{id}`
 - `GET /decks/{id}/status`
 - `GET /decks/{id}/edit`
@@ -124,11 +124,12 @@ Endpoints:
 - `GET /recipes/validate`
 - `POST /recipes/plan`
 
-Generated deckhtml is published to Magic Pen Space before the user sees the
-preview. `preview_url` / `magic_url` are the Magic links; local HTML and zip
-files remain internal run artifacts for validation, editing, and audit.
-Ingestion confirmation (`confirm-deck`) runs the final deck parser and then
-the Base/local ingestor using that published Magic deck as the delivery source.
+Generated deckhtml is written into a Feishu Magic Doc HTML Box before the user
+sees the preview. `magic_doc_url` / `doc_url` are the user-facing delivery
+links; local HTML and zip files remain internal run artifacts for validation,
+editing, and audit. Ingestion confirmation (`confirm-deck`) runs the final deck
+parser and then the Base/local ingestor using that published document as the
+delivery source.
 
 `GET /decks/{id}/edit` is the P1 lightweight web editor. It supports:
 

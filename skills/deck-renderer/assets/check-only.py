@@ -154,16 +154,19 @@ def detect_mode_hints(html: str, slides_count: int) -> list[str]:
 
 
 def build_default_report(html_path: Path, slides_count: int, iss,
-                          strict: bool, mode_hints: list[str]) -> str:
+                          strict: bool, visual: bool, mode_hints: list[str]) -> str:
+    all_warnings = iss.warnings + getattr(iss, 'soft_warnings', [])
     lines = []
     lines.append('# deck-renderer 合规检查报告')
     lines.append('')
     lines.append(f'- **目标**: `{html_path}`')
     lines.append(f'- **Slide 数**: {slides_count}')
-    lines.append(f'- **模式**: '
-                 f'{"strict (warn 升级为 error)" if strict else "default (warn 不阻塞)"}')
+    mode_parts = ["strict (warn 升级为 error)" if strict else "default (warn 不阻塞)"]
+    if visual:
+        mode_parts.append("visual")
+    lines.append(f'- **模式**: {", ".join(mode_parts)}')
     lines.append(f'- **总计**: ✗ error {len(iss.errors)} 条 ｜ '
-                 f'! warn {len(iss.warnings)} 条')
+                 f'! warn {len(all_warnings)} 条')
     lines.append('')
 
     if mode_hints:
@@ -173,18 +176,21 @@ def build_default_report(html_path: Path, slides_count: int, iss,
             lines.append(f'- {h}')
         lines.append('')
 
-    if not iss.errors and not iss.warnings:
+    if not iss.errors and not all_warnings:
         lines.append('## ✅ PASS —— 所有可编程规则通过')
         lines.append('')
-        lines.append('> 视觉对齐 / 字体看感 / 故事节奏需要人眼看 deck 才能判断,')
-        lines.append('> 不在本报告范围. 跑 `--visual` 可加 Playwright 视觉审计.')
+        if visual:
+            lines.append('> 已包含 Playwright 视觉审计;故事节奏和业务证据仍需要人眼判断。')
+        else:
+            lines.append('> 视觉对齐 / 字体看感 / 故事节奏需要人眼看 deck 才能判断,')
+            lines.append('> 不在本报告范围. 跑 `--visual` 可加 Playwright 视觉审计.')
         return '\n'.join(lines)
 
     err_by_code: dict[str, list[str]] = {}
     warn_by_code: dict[str, list[str]] = {}
     for code, msg in iss.errors:
         err_by_code.setdefault(code, []).append(msg)
-    for code, msg in iss.warnings:
+    for code, msg in all_warnings:
         warn_by_code.setdefault(code, []).append(msg)
     seen_codes = set(err_by_code) | set(warn_by_code)
 
@@ -489,7 +495,7 @@ def main() -> int:
         rc = 1 if kept else 0
     else:
         mode_hints = detect_mode_hints(html, len(slides))
-        report = build_default_report(path, len(slides), iss, strict, mode_hints)
+        report = build_default_report(path, len(slides), iss, strict, visual, mode_hints)
         rc = 1 if iss.errors else 0
 
     if args.report:

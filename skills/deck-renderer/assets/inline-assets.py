@@ -18,6 +18,7 @@ Exit codes:
 from __future__ import annotations
 
 import base64
+import html as html_lib
 import re
 import sys
 from pathlib import Path
@@ -82,6 +83,10 @@ def attr_value(tag: str, name: str) -> str | None:
     return None
 
 
+def attr_escape(value: str) -> str:
+    return html_lib.escape(value, quote=True)
+
+
 def inline_css_urls(css: str, css_path: Path) -> tuple[str, int]:
     count = 0
     url_re = re.compile(r'url\(\s*(["\']?)([^)"\']+)\1\s*\)')
@@ -119,7 +124,11 @@ def inline_css_links(html: str, html_path: Path) -> tuple[str, int, int]:
         css, n_images = inline_css_urls(css, asset)
         count += 1
         image_count += n_images
-        return f'<style>\n{css}\n</style>'
+        return (
+            f'<style data-source="framework" data-inlined-from="{attr_escape(href)}">\n'
+            f'{css}\n'
+            '</style>'
+        )
 
     out = re.sub(r'<link\b[^>]*?>', replace_link, html, flags=re.S | re.I)
     return out, count, image_count
@@ -139,7 +148,11 @@ def inline_js_scripts(html: str, html_path: Path) -> tuple[str, int]:
             return m.group(0)
         js = asset.read_text(encoding='utf-8')
         count += 1
-        return f'<script>\n{js}\n</script>'
+        return (
+            f'<script data-source="framework" data-inlined-from="{attr_escape(src)}">\n'
+            f'{js}\n'
+            '</script>'
+        )
 
     out = re.sub(
         r'(<script\b[^>]*src=["\'][^"\']+["\'][^>]*>)\s*</script>',
@@ -150,14 +163,15 @@ def inline_js_scripts(html: str, html_path: Path) -> tuple[str, int]:
 
 def inline_css_images(html: str, html_path: Path) -> tuple[str, int]:
     count = 0
-    style_re = re.compile(r'<style[^>]*>(.*?)</style>', re.S)
+    style_re = re.compile(r'(<style\b[^>]*>)(.*?)</style>', re.S | re.I)
 
     def replace_in_style(m):
         nonlocal count
-        css = m.group(1)
+        open_tag = m.group(1)
+        css = m.group(2)
         new_css, n_images = inline_css_urls(css, html_path)
         count += n_images
-        return f'<style>{new_css}</style>'
+        return f'{open_tag}{new_css}</style>'
 
     out = style_re.sub(replace_in_style, html)
     return out, count

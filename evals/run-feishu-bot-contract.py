@@ -71,7 +71,7 @@ def main() -> int:
             print("bot did not stop for rehearsal decision", file=sys.stderr)
             print(third.reply, file=sys.stderr)
             return 1
-        for phrase in ["状态页", "妙笔链接", "预演报告", "回复“修改”", "回复“不用改”"]:
+        for phrase in ["状态页", "飞书妙笔文档", "预演报告", "回复“修改”", "回复“不用改”"]:
             if phrase not in third.reply:
                 print(f"rehearsal decision reply missing {phrase}", file=sys.stderr)
                 print(third.reply, file=sys.stderr)
@@ -107,7 +107,7 @@ def main() -> int:
             print("bot did not ingest the confirmed deck", file=sys.stderr)
             print(fifth.reply, file=sys.stderr)
             return 1
-        for phrase in ["状态页", "妙笔链接", "预演报告", "入库报告"]:
+        for phrase in ["状态页", "飞书妙笔文档", "预演报告", "入库报告"]:
             if phrase not in fifth.reply:
                 print(f"bot reply missing {phrase}", file=sys.stderr)
                 print(fifth.reply, file=sys.stderr)

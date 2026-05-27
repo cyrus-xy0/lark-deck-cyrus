@@ -29,7 +29,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import slide_library
 import pitch_recipes
@@ -48,7 +48,7 @@ PITCH_REHEARSAL_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py
 DECK_INGESTOR = REPO / "skills/deck-ingestor/ingest.py"
 BASE_LIBRARY = REPO / "scripts/base_library.py"
 DEFAULT_TOS_UPLOADER = Path("/Users/bytedance/.codex/skills/upload-file-to-tos/upload.js")
-DEFAULT_MAGIC_PUBLISHER = Path("/Users/bytedance/.codex/skills/publish-magic-page/publish.js")
+DEFAULT_MAGIC_DOC_CREATOR = Path("/Users/bytedance/.codex/skills/generate-magic-doc/scripts/create_magic_doc.mjs")
 
 REQUIRED_OUTPUTS = [
     "deck.json",
@@ -61,6 +61,8 @@ REQUIRED_OUTPUTS = [
     "journey.json",
     "JOURNEY.md",
     "quality-insights.json",
+    "magic-doc-publish.json",
+    "MAGIC_DOC_PUBLISH.md",
 ]
 
 TEXT_LEAF_SKIP_KEYS = {"title", "icon", "img", "image", "src", "url", "href", "company_logo"}
@@ -150,6 +152,13 @@ def publish_magic_enabled() -> bool:
     return raw.lower() not in {"0", "false", "no", "local", "file"}
 
 
+def publish_magic_doc_enabled() -> bool:
+    raw = os.environ.get("CYRUS_PUBLISH_MAGIC_DOC")
+    if raw is None:
+        return publish_magic_enabled()
+    return raw.lower() not in {"0", "false", "no", "local", "file"}
+
+
 def magic_dry_run() -> bool:
     raw = os.environ.get("CYRUS_MAGIC_DRY_RUN") or os.environ.get("MAGIC_DRY_RUN")
     return str(raw).lower() in {"1", "true", "yes", "mock"}
@@ -181,10 +190,10 @@ def health_payload() -> dict[str, Any]:
             "sync_assets": sync_base_assets(),
             "identity": base_identity(),
         },
-        "magic_publish": {
-            "enabled": publish_magic_enabled(),
+        "magic_doc_publish": {
+            "enabled": publish_magic_doc_enabled(),
             "dry_run": magic_dry_run(),
-            "publisher": str(DEFAULT_MAGIC_PUBLISHER),
+            "publisher": str(DEFAULT_MAGIC_DOC_CREATOR),
         },
         "output_contract": REQUIRED_OUTPUTS + ["editable zip", "validator-report.md", "task.json"],
         "library": {
@@ -1186,24 +1195,36 @@ def output_artifacts(task_id: str, output_dir: Path, base_url: str | None = None
             if path.name == "index.html" or path.suffix == ".zip":
                 continue
             artifacts[path.name] = f"{root}/decks/{task_id}/files/{path.name}" if root else str(path)
-    magic_url = ""
-    magic_path = output_dir / "magic-publish.json"
-    if magic_path.exists():
+    magic_doc_url = ""
+    magic_doc_path = output_dir / "magic-doc-publish.json"
+    if magic_doc_path.exists():
         try:
-            magic = read_json(magic_path)
-            if magic.get("ok") and magic.get("url"):
-                magic_url = str(magic["url"])
+            magic_doc = read_json(magic_doc_path)
+            if magic_doc.get("ok") and magic_doc.get("doc_url"):
+                magic_doc_url = str(magic_doc["doc_url"])
         except Exception:
-            magic_url = ""
+            magic_doc_url = ""
+    if not magic_doc_url:
+        legacy_magic_path = output_dir / "magic-publish.json"
+        if legacy_magic_path.exists():
+            try:
+                legacy_magic = read_json(legacy_magic_path)
+                if legacy_magic.get("ok") and legacy_magic.get("url"):
+                    magic_doc_url = str(legacy_magic["url"])
+            except Exception:
+                magic_doc_url = ""
     if base_url:
         artifacts["status_url"] = f"{root}/decks/{task_id}/status"
         artifacts["editor_url"] = f"{root}/decks/{task_id}/edit"
     else:
         artifacts["status_url"] = ""
         artifacts["editor_url"] = ""
-    artifacts["magic_url"] = magic_url
-    artifacts["miaobi_url"] = magic_url
-    artifacts["preview_url"] = magic_url
+    artifacts["magic_doc_url"] = magic_doc_url
+    artifacts["miaobi_doc_url"] = magic_doc_url
+    artifacts["doc_url"] = magic_doc_url
+    artifacts["magic_url"] = magic_doc_url
+    artifacts["miaobi_url"] = magic_doc_url
+    artifacts["preview_url"] = magic_doc_url
     artifacts["edit_url"] = artifacts.get("editor_url", "")
     artifacts["download_url"] = ""
     return artifacts
@@ -1690,11 +1711,11 @@ def artifact_links(task: dict[str, Any]) -> str:
     artifacts = task.get("artifacts") or {}
     rows = []
     for label, key in [
-        ("妙笔链接", "magic_url"),
+        ("飞书妙笔文档", "magic_doc_url"),
         ("素材识别", "SOURCE_DOSSIER.md"),
         ("Validator 报告", "validator-report.md"),
         ("Pitch 预演", "PITCH_REHEARSAL.md"),
-        ("妙笔发布报告", "MAGIC_PUBLISH.md"),
+        ("妙笔文档发布报告", "MAGIC_DOC_PUBLISH.md"),
         ("最终解析", "FINAL_SOURCE_DOSSIER.md"),
         ("入库报告", "INGESTION_REPORT.md"),
         ("用户旅程", "JOURNEY.md"),
@@ -2744,97 +2765,110 @@ def build_ingest_metadata(task: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def magic_publish_config(request: dict[str, Any]) -> dict[str, Any]:
+def magic_doc_publish_config(request: dict[str, Any]) -> dict[str, Any]:
     magic = request.get("magic") if isinstance(request.get("magic"), dict) else {}
+    magic_doc = request.get("magic_doc") if isinstance(request.get("magic_doc"), dict) else {}
     delivery = request.get("delivery") if isinstance(request.get("delivery"), dict) else {}
     delivery_magic = delivery.get("magic") if isinstance(delivery.get("magic"), dict) else {}
-    magic = {**magic, **delivery_magic}
+    delivery_magic_doc = delivery.get("magic_doc") if isinstance(delivery.get("magic_doc"), dict) else {}
+    config = {**magic, **delivery_magic, **magic_doc, **delivery_magic_doc}
     return {
-        "enabled": publish_magic_enabled() and str(magic.get("enabled", "true")).lower() not in {"0", "false", "no"},
-        "dry_run": magic_dry_run() or str(magic.get("dry_run", "")).lower() in {"1", "true", "yes", "mock"},
-        "base_url": str(magic.get("base_url") or magic.get("magic_base_url") or os.environ.get("MAGIC_BASE_URL") or "https://magic.solutionsuite.cn"),
-        "script": str(magic.get("script") or os.environ.get("CYRUS_MAGIC_PUBLISHER") or DEFAULT_MAGIC_PUBLISHER),
-        "open_source": bool(magic.get("open_source") or magic.get("openSource")),
+        "enabled": publish_magic_doc_enabled() and str(config.get("enabled", "true")).lower() not in {"0", "false", "no"},
+        "dry_run": magic_dry_run() or str(config.get("dry_run", "")).lower() in {"1", "true", "yes", "mock"},
+        "script": str(config.get("script") or os.environ.get("CYRUS_MAGIC_DOC_CREATOR") or DEFAULT_MAGIC_DOC_CREATOR),
+        "doc_token": str(config.get("doc_token") or config.get("docToken") or os.environ.get("CYRUS_MAGIC_DOC_TOKEN") or ""),
+        "identity": str(config.get("as") or config.get("identity") or os.environ.get("CYRUS_MAGIC_DOC_AS") or "user"),
+        "summary": str(config.get("summary") or ""),
     }
 
 
-def normalize_magic_base_url(value: str) -> str:
-    raw = (value or "https://magic.solutionsuite.cn").strip().rstrip("/")
-    if not raw:
-        raw = "https://magic.solutionsuite.cn"
-    return raw if re.match(r"https?://", raw, re.I) else f"https://{raw}"
-
-
-def parse_magic_publish_stdout(stdout: str) -> dict[str, str]:
-    url = ""
-    app_id = ""
-    for line in stdout.splitlines():
-        if "Independent Page:" in line:
-            url = line.split("Independent Page:", 1)[1].strip()
-        elif "App ID:" in line:
-            app_id = line.split("App ID:", 1)[1].strip()
-    if not url:
+def parse_magic_doc_stdout(stdout: str) -> dict[str, str]:
+    try:
+        data = json.loads(stdout)
+        return {
+            "doc_url": str(data.get("doc_url") or ""),
+            "doc_token": str(data.get("doc_token") or ""),
+            "html_box_block_id": str(data.get("html_box_block_id") or ""),
+            "identity": str(data.get("identity") or ""),
+        }
+    except Exception:
         match = re.search(r"https?://\S+", stdout)
-        url = match.group(0).rstrip() if match else ""
-    return {"url": url, "app_id": app_id}
+        return {"doc_url": match.group(0).rstrip() if match else "", "doc_token": "", "html_box_block_id": "", "identity": ""}
 
 
-def write_magic_publish_report(output_dir: Path, payload: dict[str, Any]) -> None:
-    write_json(output_dir / "magic-publish.json", payload)
+def write_magic_doc_publish_report(output_dir: Path, payload: dict[str, Any]) -> None:
+    write_json(output_dir / "magic-doc-publish.json", payload)
     lines = [
-        "# Magic Publish",
+        "# Feishu Magic Doc Publish",
         "",
         f"- enabled: {payload.get('enabled')}",
         f"- ok: {payload.get('ok')}",
         f"- dry_run: {payload.get('dry_run')}",
-        f"- url: {payload.get('url') or ''}",
-        f"- app_id: {payload.get('app_id') or ''}",
+        f"- doc_url: {payload.get('doc_url') or ''}",
+        f"- doc_token: {payload.get('doc_token') or ''}",
+        f"- html_box_block_id: {payload.get('html_box_block_id') or ''}",
+        f"- identity: {payload.get('identity') or ''}",
         f"- reason: {payload.get('reason') or ''}",
         "",
     ]
-    (output_dir / "MAGIC_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
+    (output_dir / "MAGIC_DOC_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def publish_deck_to_magic(task: dict[str, Any], request: dict[str, Any], deck: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
+def publish_deck_to_magic_doc(task: dict[str, Any], request: dict[str, Any], deck: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
     output_dir = Path(task.get("output_dir", ""))
-    config = magic_publish_config(request)
+    config = magic_doc_publish_config(request)
     title = ((deck.get("deck") or {}).get("title") or (request.get("brief") or {}).get("title") or str(task.get("id") or "deck")).strip()
-    base_url = normalize_magic_base_url(config["base_url"])
+    summary = config["summary"] or f"这是一份「{title}」HTML Deck,已直接嵌入飞书妙笔文档供在线查看。"
     if not config["enabled"]:
-        payload = {"enabled": False, "ok": False, "dry_run": False, "url": "", "app_id": "", "reason": "disabled"}
-        write_magic_publish_report(output_dir, payload)
+        payload = {"enabled": False, "ok": False, "dry_run": False, "doc_url": "", "doc_token": "", "html_box_block_id": "", "identity": "", "reason": "disabled"}
+        write_magic_doc_publish_report(output_dir, payload)
         return payload
 
     if config["dry_run"]:
-        token = hashlib.sha1(f"{task.get('id')}:{title}".encode("utf-8")).hexdigest()[:12]
-        url = f"{base_url}/r?title={quote(title)}&fid={token}"
-        payload = {"enabled": True, "ok": True, "dry_run": True, "url": url, "app_id": token, "reason": "dry-run"}
-        write_magic_publish_report(output_dir, payload)
+        token = "dryrun" + hashlib.sha1(f"{task.get('id')}:{title}".encode("utf-8")).hexdigest()[:16]
+        payload = {
+            "enabled": True,
+            "ok": True,
+            "dry_run": True,
+            "doc_url": f"https://bytedance.larkoffice.com/docx/{token}",
+            "doc_token": token,
+            "html_box_block_id": "dryrun-html-box",
+            "identity": config["identity"],
+            "reason": "dry-run",
+        }
+        write_magic_doc_publish_report(output_dir, payload)
         return payload
 
     script = Path(config["script"])
     html_path = output_dir / "index.html"
     if not script.exists():
-        payload = {"enabled": True, "ok": False, "dry_run": False, "url": "", "app_id": "", "reason": f"Magic publisher not found: {script}"}
-        write_magic_publish_report(output_dir, payload)
+        payload = {"enabled": True, "ok": False, "dry_run": False, "doc_url": "", "doc_token": "", "html_box_block_id": "", "identity": config["identity"], "reason": f"Magic doc creator not found: {script}"}
+        write_magic_doc_publish_report(output_dir, payload)
         return payload
 
-    cmd = ["node", str(script), "publish", str(html_path), "--title", title, "--base-url", base_url]
-    if config["open_source"]:
-        cmd.append("--open-source")
-    log = log_dir / "magic-publish.txt"
+    cmd = ["node", str(script), "--html", str(html_path)]
+    if config["doc_token"]:
+        cmd.extend(["--doc-token", config["doc_token"]])
+    else:
+        cmd.extend(["--title", title, "--summary", summary])
+    if config["identity"]:
+        cmd.extend(["--as", config["identity"]])
+    log = log_dir / "magic-doc-publish.txt"
     proc = run_command(cmd, log)
-    task.setdefault("logs", {})["magic_publish"] = str(log)
-    parsed = parse_magic_publish_stdout(proc.stdout)
+    task.setdefault("logs", {})["magic_doc_publish"] = str(log)
+    parsed = parse_magic_doc_stdout(proc.stdout)
+    ok = proc.returncode == 0 and bool(parsed["doc_url"])
     payload = {
         "enabled": True,
-        "ok": proc.returncode == 0 and bool(parsed["url"]),
+        "ok": ok,
         "dry_run": False,
-        "url": parsed["url"],
-        "app_id": parsed["app_id"],
-        "reason": "" if proc.returncode == 0 and parsed["url"] else (proc.stderr.strip() or proc.stdout.strip() or "publish failed"),
+        "doc_url": parsed["doc_url"],
+        "doc_token": parsed["doc_token"] or config["doc_token"],
+        "html_box_block_id": parsed["html_box_block_id"],
+        "identity": parsed["identity"] or config["identity"],
+        "reason": "" if ok else (proc.stderr.strip() or proc.stdout.strip() or "publish failed"),
     }
-    write_magic_publish_report(output_dir, payload)
+    write_magic_doc_publish_report(output_dir, payload)
     return payload
 
 
@@ -3315,21 +3349,32 @@ def create_or_run_task(
                 "已把 CSS/JS/图片内联到 index.html,对齐原版 H5 的单文件交付习惯。",
                 {"size_kb": round((output_dir / "index.html").stat().st_size / 1024, 1)},
             )
-        magic_publish = publish_deck_to_magic(task, request, deck, log_dir=log_dir)
-        task["magic_publish"] = magic_publish
-        if magic_publish.get("ok"):
-            task.setdefault("artifacts", {})["magic_url"] = magic_publish.get("url", "")
-            task.setdefault("artifacts", {})["miaobi_url"] = magic_publish.get("url", "")
+            inline_check_log = log_dir / "check-only-inline.txt"
+            proc = run_command(
+                ["bash", str(CHECK_ONLY), str(output_dir / "index.html"), "--strict", "--report", str(validator_report)],
+                inline_check_log,
+            )
+            task["logs"]["check_only_inline"] = str(inline_check_log)
+            if proc.returncode != 0:
+                append_journey_event(journey, "inline_validation_failed", "system", "inline 后 HTML strict validator 未通过。", {"exit": proc.returncode})
+                raise RuntimeError("inline validator failed under --strict")
+            append_journey_event(journey, "inline_validated", "system", "inline 后 HTML strict validator 通过。")
+        magic_doc_publish = publish_deck_to_magic_doc(task, request, deck, log_dir=log_dir)
+        task["magic_doc_publish"] = magic_doc_publish
+        if magic_doc_publish.get("ok"):
+            task.setdefault("artifacts", {})["magic_doc_url"] = magic_doc_publish.get("doc_url", "")
+            task.setdefault("artifacts", {})["miaobi_doc_url"] = magic_doc_publish.get("doc_url", "")
+            task.setdefault("artifacts", {})["doc_url"] = magic_doc_publish.get("doc_url", "")
             append_journey_event(
                 journey,
-                "magic_published",
+                "magic_doc_published",
                 "system",
-                "已将生成的 htmldeck 发布到妙笔空间,用户交付入口为妙笔链接。",
-                {"url": magic_publish.get("url", ""), "dry_run": magic_publish.get("dry_run", False)},
+                "已将生成的 htmldeck 写入飞书妙笔文档 HTML Box,用户交付入口为飞书文档链接。",
+                {"doc_url": magic_doc_publish.get("doc_url", ""), "dry_run": magic_doc_publish.get("dry_run", False)},
             )
-        elif magic_publish.get("enabled"):
-            append_journey_event(journey, "magic_publish_failed", "system", "妙笔发布失败,本轮不返回文件链接。", {"reason": magic_publish.get("reason", "")})
-            raise RuntimeError("magic publish failed: " + str(magic_publish.get("reason") or "unknown"))
+        elif magic_doc_publish.get("enabled"):
+            append_journey_event(journey, "magic_doc_publish_failed", "system", "飞书妙笔文档发布失败,本轮不返回文档链接。", {"reason": magic_doc_publish.get("reason", "")})
+            raise RuntimeError("magic doc publish failed: " + str(magic_doc_publish.get("reason") or "unknown"))
         upsert_journey_version(journey, task, deck)
         write_journey_artifacts(output_dir, journey)
 
@@ -3354,7 +3399,7 @@ def create_or_run_task(
         else:
             task["status"] = "succeeded"
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
-        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、妙笔链接和预演报告拿到结果。")
+        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、飞书妙笔文档和预演报告拿到结果。")
     except Exception as exc:  # noqa: BLE001 - task wrapper should persist any failure.
         task["status"] = "failed"
         task["error"] = str(exc)
@@ -3513,7 +3558,10 @@ class GeneratorHandler(BaseHTTPRequestHandler):
         try:
             if parts == ["decks"]:
                 payload = self.read_body_json()
-                if payload.get("deck_json") or payload.get("auto_confirm_outline") or payload.get("outline_confirmed"):
+                if payload.get("auto_confirm_outline") and not payload.get("allow_skip_outline_confirmation"):
+                    self.send_json(409, {"error": "outline confirmation is required before rendering; call /decks/{id}/confirm-outline after user confirmation"})
+                    return
+                if payload.get("deck_json") or payload.get("outline_confirmed"):
                     task = create_or_run_task(
                         payload,
                         base_url=self.base_url(),
@@ -3612,11 +3660,13 @@ def cmd_create(args: argparse.Namespace) -> int:
         request = {"brief": read_json(args.brief)}
     else:
         raise SystemExit("create requires --request, --deck-json, or --brief")
-    if args.plan_only and not request.get("deck_json"):
+    if args.auto_confirm_outline:
+        if not args.allow_skip_outline_confirmation:
+            raise SystemExit("--auto-confirm-outline now requires --allow-skip-outline-confirmation; default flow must stop for user outline confirmation")
+        request["outline_confirmed"] = True
+    if not request.get("deck_json") and not request.get("outline_confirmed"):
         task = create_outline_task(request, base_url=args.base_url)
     else:
-        if args.auto_confirm_outline:
-            request["outline_confirmed"] = True
         task = create_or_run_task(request, base_url=args.base_url, require_deck_confirmation=args.require_deck_confirmation)
     print(json.dumps(task, ensure_ascii=False, indent=2))
     return 0 if success_like_status(task["status"]) else 1
@@ -3707,6 +3757,7 @@ def main(argv: list[str] | None = None) -> int:
     create.add_argument("--base-url", help="external base URL used to populate preview/edit links")
     create.add_argument("--plan-only", action="store_true", help="stop after planner and wait for outline confirmation")
     create.add_argument("--auto-confirm-outline", action="store_true", help="mark outline confirmed and render immediately")
+    create.add_argument("--allow-skip-outline-confirmation", action="store_true", help="explicitly allow --auto-confirm-outline for non-interactive tests only")
     create.add_argument("--require-deck-confirmation", action="store_true", help="wait for user deck confirmation before ingestion")
     create.set_defaults(func=cmd_create)
 

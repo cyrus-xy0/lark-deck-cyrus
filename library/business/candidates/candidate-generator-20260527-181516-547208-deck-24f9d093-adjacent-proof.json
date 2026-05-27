@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "id": "candidate-generator-20260527-181516-547208-deck-24f9d093-adjacent-proof",
+  "title": "帮我做一份示例客户的 AI 知识库 pitchdeck",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "needs-review"
+  ],
+  "industry": [
+    "消费零售"
+  ],
+  "product": [
+    "飞书 AI",
+    "知识问答",
+    "多维表格",
+    "飞书任务"
+  ],
+  "customer_stage": [
+    "待标注"
+  ],
+  "deck_type": [
+    "客户pitch"
+  ],
+  "value_prop": [
+    "素材库里先找相邻场景",
+    "不把它写成客户事实"
+  ],
+  "layout": "logo-wall",
+  "variant": "",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/generator-20260527-181516-547208-deck-24f9d093/output/deck.json",
+    "slide_key": "adjacent-proof",
+    "owner": "gtm",
+    "reviewer": ""
+  },
+  "slide": {
+    "key": "adjacent-proof",
+    "layout": "logo-wall",
+    "accent": "blue",
+    "data": {
+      "title": "素材库里先找相邻场景,不把它写成客户事实",
+      "lede": "这些 logo 仅用于提示可检索素材方向;正式客户背书、案例数字和截图必须由用户或授权记录确认。",
+      "industries": [
+        {
+          "name": "连锁零售 / 餐饮茶饮",
+          "logos": [
+            "瑞幸咖啡",
+            "霸王茶姬",
+            "茶百道",
+            "益禾堂"
+          ]
+        },
+        {
+          "name": "投资机构 / 复杂协同",
+          "logos": [
+            "IDG资本",
+            "KKR",
+            "PAG",
+            "CPE源峰"
+          ]
+        }
+      ]
+    }
+  }
+}

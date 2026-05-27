@@ -170,7 +170,7 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 
 9. **成稿确认、入库和最终交付**
    - deckhtml 生成、验收和预演完成后,必须先让用户确认是否按预演反馈修改;不修改时再询问是否入库。用户确认入库前不得自动入库。
-   - 用户确认入库后,使用已发布的妙笔 deckhtml 作为最终交付入口;随后调用 recognizer 解析最终 deckhtml,再调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
+   - deckhtml 通过验收后,先用 `generate-magic-doc` 把单文件 HTML 写入飞书妙笔文档的 HTML Box,并把 `magic_doc_url` / `doc_url` 作为最终交付入口;本地 `index.html` 和 zip 只作为审计、编辑和打包产物。用户确认入库后,随后调用 recognizer 解析最终 deckhtml,再调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
    - 默认优先使用云端素材库和知识库,以当前沙箱 agent 的 user 身份访问;不要要求用户配置 token。只有云端不可访问或无权限时才回退本地缓存,并用明文告诉用户“已回退本地”及原因。
    - 如果 simulator 发现必须修改的问题,先等待用户确认是否迭代;不要把未确认的模拟建议直接入库为事实。
    - 最终状态应是一份用户可以直接拿去讲的 H5 pitch deck。
