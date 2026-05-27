@@ -119,6 +119,26 @@ def get_path(d, dotted: str):
     return cur
 
 
+def resolve_asset_refs(value, manifest: dict | None):
+    """Replace DeckJSON asset:id tokens with concrete paths from deck.assets."""
+    if not manifest:
+        return value
+    if isinstance(value, str) and value.startswith("asset:"):
+        asset_id = value.split(":", 1)[1]
+        mapped = (manifest.get("scenes") or {}).get(asset_id) or (manifest.get("logos") or {}).get(asset_id)
+        if mapped and mapped != value:
+            base_dir = manifest.get("base_dir")
+            if base_dir and not str(mapped).startswith(("http://", "https://", "data:", "/")):
+                return f"{base_dir.rstrip('/')}/{str(mapped).lstrip('/')}"
+            return mapped
+        return value
+    if isinstance(value, list):
+        return [resolve_asset_refs(item, manifest) for item in value]
+    if isinstance(value, dict):
+        return {key: resolve_asset_refs(item, manifest) for key, item in value.items()}
+    return value
+
+
 # ---------------------------------------------------------------------------
 # content/story-case schema-fit refusal + accent review
 # Ported from the mother feishu-deck-h5 renderer. JSON schema enforces field
@@ -1541,6 +1561,10 @@ def main(argv=None) -> int:
         print(f"render-deck: deck file not found: {args.deck}", file=sys.stderr); return 2
     except json.JSONDecodeError as e:
         print(f"render-deck: invalid JSON: {e}", file=sys.stderr); return 2
+    if isinstance(deck.get("assets"), dict):
+        for slide in deck.get("slides", []):
+            if isinstance(slide, dict) and isinstance(slide.get("data"), dict):
+                slide["data"] = resolve_asset_refs(slide["data"], deck["assets"])
 
     # 2.5 content/story-case schema-fit refusal. Schema enforces field
     # presence; this catches placeholder / too-short / duplicate beats.

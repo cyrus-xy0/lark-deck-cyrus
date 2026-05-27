@@ -471,6 +471,8 @@ def split_candidate_payloads(
         "slide_key": slide_key,
         "owner": metadata.get("owner") or "gtm",
         "reviewer": metadata.get("reviewer", ""),
+        "contributor": metadata.get("contributor") or metadata.get("owner") or "gtm",
+        "contributed_at": metadata.get("contributed_at") or now_iso(),
     }
     knowledge = {
         "version": "1.0",
@@ -545,6 +547,8 @@ def mark_reuse_candidate(task_id: str, slide_key: str, metadata: dict[str, Any])
             "slide_key": slide_key,
             "owner": metadata.get("owner") or "gtm",
             "reviewer": metadata.get("reviewer", ""),
+            "contributor": metadata.get("contributor") or metadata.get("owner") or "gtm",
+            "contributed_at": metadata.get("contributed_at") or now_iso(),
         },
         "slide": slide,
     }
@@ -748,6 +752,7 @@ def register_ppt_upload(
     entries = []
     issues_by_entry = []
     texts_by_page = pptx_slide_texts(ppt_path)
+    contributed_at = metadata.get("contributed_at") or now_iso()
     for page in selected_pages:
         if page < 1 or page > total:
             issues_by_entry.append({
@@ -787,7 +792,9 @@ def register_ppt_upload(
                 "page": page,
                 "owner": metadata.get("owner") or "gtm",
                 "reviewer": metadata.get("reviewer", ""),
-                "uploaded_at": now_iso(),
+                "contributor": metadata.get("contributor") or metadata.get("owner") or "gtm",
+                "contributed_at": contributed_at,
+                "uploaded_at": contributed_at,
             },
             "permission_status": metadata.get("permission_status") or "needs_review",
             "slide": {
@@ -845,6 +852,8 @@ def main(argv: list[str] | None = None) -> int:
     mark.add_argument("--source-level", default="internal-draft")
     mark.add_argument("--owner", default="gtm")
     mark.add_argument("--reviewer", default="")
+    mark.add_argument("--contributor", default="")
+    mark.add_argument("--contributed-at", default="")
 
     approve = sub.add_parser("approve-candidate", help="approve a review candidate into the business slide library")
     approve.add_argument("candidate_id")
@@ -867,6 +876,8 @@ def main(argv: list[str] | None = None) -> int:
     upload.add_argument("--source-level", default="internal-draft")
     upload.add_argument("--owner", default="gtm")
     upload.add_argument("--reviewer", default="")
+    upload.add_argument("--contributor", default="")
+    upload.add_argument("--contributed-at", default="")
     upload.add_argument("--permission-status", default="needs_review")
 
     args = parser.parse_args(argv)
@@ -903,6 +914,8 @@ def main(argv: list[str] | None = None) -> int:
                 "source_level": args.source_level,
                 "owner": args.owner,
                 "reviewer": args.reviewer,
+                "contributor": args.contributor or args.owner or "gtm",
+                "contributed_at": args.contributed_at or now_iso(),
             },
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -932,6 +945,8 @@ def main(argv: list[str] | None = None) -> int:
                 "source_level": args.source_level,
                 "owner": args.owner,
                 "reviewer": args.reviewer,
+                "contributor": args.contributor or args.owner or "gtm",
+                "contributed_at": args.contributed_at or now_iso(),
                 "permission_status": args.permission_status,
             },
             pages=args.page,

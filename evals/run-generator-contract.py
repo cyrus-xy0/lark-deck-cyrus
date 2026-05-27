@@ -28,6 +28,8 @@ REQUIRED = [
     "index.html",
     "texts.md",
     "FEEDBACK.md",
+    "AUDIT_REPORT.md",
+    "audit-report.json",
     "assets-manifest.yaml",
     "pitch-rehearsal.json",
     "PITCH_REHEARSAL.md",
@@ -42,6 +44,8 @@ ZIP_REQUIRED = [
     "texts.md",
     "assets-manifest.yaml",
     "FEEDBACK.md",
+    "AUDIT_REPORT.md",
+    "audit-report.json",
     "deck.json",
     "pitch-rehearsal.json",
     "PITCH_REHEARSAL.md",
@@ -241,7 +245,7 @@ def main() -> int:
     status_page = generator.render_status_page(edited_task["id"]).decode("utf-8")
     edit_page = generator.render_edit_page(edited_task["id"]).decode("utf-8")
     journey_page = generator.render_journey_page(edited_task["id"]).decode("utf-8")
-    expected_status = ["飞书妙笔文档", "Validator 报告", "Pitch 预演", "等待确认预演", "版本", "用户旅程", "精调信号", edited_task["id"]]
+    expected_status = ["飞书妙笔文档", "验收报告", "Pitch 预演", "等待确认预演", "版本", "用户旅程", "精调信号", edited_task["id"]]
     expected_editor = ["轻量编辑", "全局信息", "素材库", "插入已有 slide", "保存并生成新版本", "slide-editor"]
     if (
         any(phrase not in status_page for phrase in expected_status)

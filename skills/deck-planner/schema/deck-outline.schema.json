@@ -14,6 +14,10 @@
       "type": "array",
       "items": { "$ref": "#/$defs/knowledge_ref" }
     },
+    "source_dossier_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_dossier_ref" }
+    },
     "recipe_refs": {
       "type": "array",
       "items": { "$ref": "#/$defs/recipe_ref" }
@@ -106,6 +110,7 @@
       "additionalProperties": false,
       "properties": {
         "source": { "enum": ["feishu-base", "local-cache", "user-provided", "public"] },
+        "provider": { "type": "string" },
         "table": { "type": "string" },
         "record_id": { "type": "string" },
         "doc_id": { "type": "string" },
@@ -113,6 +118,23 @@
         "cache_path": { "type": "string" },
         "title": { "type": "string" },
         "summary": { "type": "string" },
+        "used_for": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source_dossier_ref": {
+      "type": "object",
+      "required": ["source", "used_for"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "runtime_source": { "type": "string" },
+        "source_type": { "type": "string" },
+        "page": { "type": ["integer", "string"] },
+        "slide_key": { "type": "string" },
+        "knowledge_id": { "type": "string" },
+        "material_id": { "type": "string" },
+        "path": { "type": "string" },
+        "confidence": { "type": "string" },
         "used_for": { "type": "string", "minLength": 1 }
       }
     },
@@ -236,6 +258,18 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         },
+        "source_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source_dossier_ref" }
+        },
+        "knowledge_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source_dossier_ref" }
+        },
+        "material_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source_dossier_ref" }
+        },
         "risk": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
@@ -267,6 +301,11 @@
         "need": { "type": "string", "minLength": 1 },
         "query": { "type": "string" },
         "preferred_source": { "enum": ["feishu-base", "local-cache", "user-provided", "generated", "external", "none"] },
+        "source_material_id": { "type": "string" },
+        "resolved_path": { "type": "string" },
+        "url": { "type": "string" },
+        "permission_status": { "type": "string" },
+        "provenance": { "type": "object" },
         "fallback": { "type": "string" },
         "required": { "type": "boolean", "default": false }
       }

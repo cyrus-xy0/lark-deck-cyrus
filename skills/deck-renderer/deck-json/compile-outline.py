@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import re
 import subprocess
 import sys
@@ -21,6 +22,7 @@ from typing import Any
 
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[2]
 VALIDATE_DECK = HERE / "validate-deck.py"
 
 KEY_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -135,6 +137,11 @@ class OutlineCompiler:
         self.thesis = outline.get("thesis", {}) if isinstance(outline.get("thesis"), dict) else {}
         self.plan = outline.get("outline", {}) if isinstance(outline.get("outline"), dict) else {}
         self.asset_plan = outline.get("asset_plan", []) if isinstance(outline.get("asset_plan"), list) else []
+        self.asset_by_id = {
+            str(item.get("id")): item
+            for item in self.asset_plan
+            if isinstance(item, dict) and item.get("id")
+        }
         self.claims = outline.get("claim_discipline", {}) if isinstance(outline.get("claim_discipline"), dict) else {}
         self.report: dict[str, Any] = {
             "version": "1.0",
@@ -211,10 +218,16 @@ class OutlineCompiler:
             asset_id = item.get("id")
             if not isinstance(asset_id, str) or not KEY_RE.match(asset_id):
                 continue
+            resolved = ""
+            for key in ["resolved_path", "url", "query"]:
+                value = str(item.get(key) or "").strip()
+                if value and (value.startswith(("http://", "https://", "data:")) or Path(value).suffix):
+                    resolved = self.normalized_asset_path(value)
+                    break
             if item.get("type") == "logo":
-                logos[asset_id] = f"asset:{asset_id}"
+                logos[asset_id] = resolved or f"asset:{asset_id}"
             elif item.get("type") in {"image", "video", "demo"}:
-                scenes[asset_id] = f"asset:{asset_id}"
+                scenes[asset_id] = resolved or f"asset:{asset_id}"
         if not scenes and not logos:
             return None
         return {"scenes": scenes, "logos": logos}
@@ -323,6 +336,26 @@ class OutlineCompiler:
             items = as_list(slide.get(key))
             if items:
                 lines.append(f"{label}: " + " / ".join(items))
+        for label, key in [
+            ("source_refs", "source_refs"),
+            ("knowledge_refs", "knowledge_refs"),
+            ("material_refs", "material_refs"),
+        ]:
+            refs = slide.get(key) if isinstance(slide.get(key), list) else []
+            rendered = []
+            for ref in refs[:8]:
+                if not isinstance(ref, dict):
+                    continue
+                parts = [
+                    str(ref.get("source_type") or "").strip(),
+                    str(ref.get("source") or "").strip(),
+                    str(ref.get("slide_key") or ref.get("material_id") or ref.get("knowledge_id") or "").strip(),
+                ]
+                text = " | ".join(part for part in parts if part)
+                if text:
+                    rendered.append(text)
+            if rendered:
+                lines.append(f"{label}: " + " / ".join(rendered))
         return "\n".join(lines)
 
     def data_for(
@@ -691,7 +724,28 @@ class OutlineCompiler:
         assets = as_list(slide.get("assets"))
         if not assets:
             return None
-        return f"asset:{assets[0]}"
+        first = assets[0]
+        if first.startswith(("http://", "https://", "data:")) or Path(first).suffix:
+            return self.normalized_asset_path(first)
+        item = self.asset_by_id.get(first)
+        if item:
+            for key in ["resolved_path", "url", "query"]:
+                value = str(item.get(key) or "").strip()
+                if not value:
+                    continue
+                if value.startswith(("http://", "https://", "data:")) or Path(value).suffix:
+                    return self.normalized_asset_path(value)
+        return f"asset:{first}"
+
+    def normalized_asset_path(self, value: str) -> str:
+        if value.startswith(("http://", "https://", "data:")):
+            return value
+        raw = Path(value)
+        candidate = raw if raw.is_absolute() else (REPO / raw)
+        if candidate.exists() and self.args.out:
+            base = self.args.out.resolve().parent
+            return os.path.relpath(candidate.resolve(), start=base).replace(os.sep, "/")
+        return value
 
 
 def write_feedback(path: Path, report: dict[str, Any]) -> None:

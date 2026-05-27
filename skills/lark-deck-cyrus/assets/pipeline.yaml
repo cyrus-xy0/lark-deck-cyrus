@@ -160,24 +160,44 @@ stages:
     human_confirm: false
     tasks:
       - id: T4.1
-        name: 运行 H5 validator
-        type: script
-        invoke: skills/deck-renderer/assets/validate.py
-        args: ["{{ html_path }}"]
-        max_retries: 3
-      - id: T4.2
-        name: 生成验收结论
+        name: 运行 deck-auditor 验收
         type: skill
         invoke: deck-auditor
+        args: ["{{ html_path }}", "--deck-json", "{{ deck_json }}"]
+        max_retries: 3
         produces:
           - path: "runs/{{ timestamp }}/output/AUDIT_REPORT.md"
             type: file
+          - path: "runs/{{ timestamp }}/output/audit-report.json"
+            type: file
 
   - id: S5
+    name: deck 发布
+    human_confirm: false
+    tasks:
+      - id: T5.1
+        name: 生成 inline 单文件
+        type: script
+        invoke: skills/deck-renderer/deck-json/render-deck.py
+        args: ["{{ deck_json }}", "{{ output_dir }}", "--inline"]
+        condition: "delivery-shape == inline and deck_json != ''"
+      - id: T5.2
+        name: 生成可编辑 zip
+        type: script
+        invoke: skills/deck-renderer/assets/package-deliverable.sh
+        args: ["{{ output_dir }}"]
+        condition: "delivery-shape == editable-zip"
+      - id: T5.3
+        name: 发布到飞书妙笔文档
+        type: skill
+        invoke: generate-magic-doc
+        condition: "auditor_verdict == passed"
+
+  - id: S6
     name: 预演与迭代
     human_confirm: true
     tasks:
-      - id: T5.1
+      - id: T6.1
         name: 生成 pitch rehearsal
         type: skill
         invoke: pitch-simulator
@@ -185,55 +205,32 @@ stages:
         produces:
           - path: "runs/{{ timestamp }}/output/pitch-rehearsal.json"
             type: file
-      - id: T5.2
+      - id: T6.2
         name: 用户确认是否采用预演改稿
         type: human-confirm
         prompt: "预演建议是否进入下一轮 deck-planner / deck-renderer 迭代?"
 
-  - id: S6
+  - id: S7
     name: 入库复用
     human_confirm: true
     tasks:
-      - id: T6.1
+      - id: T7.1
         name: 写入本地候选库
         type: script
         invoke: skills/deck-ingestor/ingest.py
-        args: ["--task-id", "{{ task_id }}", "--title", "{{ title }}"]
-        condition: "auditor_verdict == passed"
+        args: ["--task-id", "{{ task_id }}", "--title", "{{ title }}", "--contributor", "{{ contributor }}", "--contributed-at", "{{ now_iso }}"]
+        condition: "auditor_verdict == passed and user_confirmed_ingestion == true"
         produces:
           - path: "runs/{{ timestamp }}/output/ingestion-manifest.json"
             type: file
           - path: "runs/{{ timestamp }}/output/INGESTION_REPORT.md"
             type: file
-      - id: T6.2
+      - id: T7.2
         name: 可选写入飞书 Base 知识库/素材库
         type: script
         invoke: skills/deck-ingestor/ingest.py
-        args: ["--task-id", "{{ task_id }}", "--title", "{{ title }}", "--write-base"]
-        condition: "auditor_verdict == passed and write_base == true"
-
-  - id: S7
-    name: 交付封装
-    human_confirm: true
-    tasks:
-      - id: T7.1
-        name: 选择交付形态
-        type: agent-decision
-        decision: delivery-shape
-        options: [inline, editable-zip, hosted-url]
-        default: inline
-      - id: T7.2
-        name: 生成 inline 单文件
-        type: script
-        invoke: skills/deck-renderer/deck-json/render-deck.py
-        args: ["{{ deck_json }}", "{{ output_dir }}", "--inline"]
-        condition: "delivery-shape == inline and deck_json != ''"
-      - id: T7.3
-        name: 生成可编辑 zip
-        type: script
-        invoke: skills/deck-renderer/assets/package-deliverable.sh
-        args: ["{{ output_dir }}"]
-        condition: "delivery-shape == editable-zip"
+        args: ["--task-id", "{{ task_id }}", "--title", "{{ title }}", "--write-base", "--contributor", "{{ contributor }}", "--contributed-at", "{{ now_iso }}"]
+        condition: "auditor_verdict == passed and user_confirmed_ingestion == true and write_base == true"
 
 extension_points:
   - id: EP-PDF
@@ -241,6 +238,6 @@ extension_points:
     description: "PDF / PPT 解析可由 upload-recognizer 的专用实现接管"
     candidate_skills: [upload-recognizer]
   - id: EP-EXPORT
-    stage: S7
+    stage: S5
     description: "需要 PDF / PPTX / URL 时在交付层扩展,不绕过 H5 validator"
     candidate_skills: [pdf-export, pptx-export, hosted-url]

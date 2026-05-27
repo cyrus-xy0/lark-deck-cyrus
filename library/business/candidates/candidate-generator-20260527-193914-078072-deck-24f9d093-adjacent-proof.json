@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "id": "candidate-generator-20260527-193914-078072-deck-24f9d093-adjacent-proof",
+  "title": "BaseSchemaWriteSmoke",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "needs-review"
+  ],
+  "industry": [
+    "零售消费"
+  ],
+  "product": [
+    "飞书"
+  ],
+  "customer_stage": [
+    "待标注"
+  ],
+  "deck_type": [
+    "客户pitch"
+  ],
+  "value_prop": [
+    "素材库里先找相邻场景",
+    "不把它写成客户事实"
+  ],
+  "layout": "logo-wall",
+  "variant": "",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/generator-20260527-193914-078072-deck-24f9d093/output/deck.json",
+    "slide_key": "adjacent-proof",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "codex-validation",
+    "contributed_at": "2026-05-27 19:45:00"
+  },
+  "slide": {
+    "key": "adjacent-proof",
+    "layout": "logo-wall",
+    "accent": "blue",
+    "data": {
+      "title": "素材库里先找相邻场景,不把它写成客户事实",
+      "lede": "这些 logo 仅用于提示可检索素材方向;正式客户背书、案例数字和截图必须由用户或授权记录确认。",
+      "industries": [
+        {
+          "name": "连锁零售 / 餐饮茶饮",
+          "logos": [
+            "瑞幸咖啡",
+            "霸王茶姬",
+            "茶百道",
+            "益禾堂"
+          ]
+        },
+        {
+          "name": "投资机构 / 复杂协同",
+          "logos": [
+            "IDG资本",
+            "KKR",
+            "PAG",
+            "CPE源峰"
+          ]
+        }
+      ]
+    },
+    "notes": "role: evidence\nmessage: 优先使用用户素材作为证据,再用素材库中的相邻行业页做讲法参考。\nkey_idea: 优先使用用户素材作为证据,再用素材库中的相邻行业页做讲法参考。\nemphasis: 让客户在这一页明确理解: 优先使用用户素材作为证据,再用素材库中的相邻行业页做讲法参考。\ntalk_track: 讲这一页时先点题“用户素材与相邻场景”,再用业务语境解释为什么它会影响下一步决策。\nasset_need: adjacent-logo-wall\nrisk: 用户素材中的推断必须保留来源 / 相邻素材只作启发 / 不能替代客户事实。\nrisk_flags: 用户素材中的推断必须保留来源 / 相邻素材只作启发 / 不能替代客户事实。"
+  }
+}

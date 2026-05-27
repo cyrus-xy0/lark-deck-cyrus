@@ -3,8 +3,8 @@
 
 This is the productized P0 path around the existing local skills:
 
-  Sources -> recognizer -> Outline -> user confirm -> renderer -> validator
-  -> pitch rehearsal -> user revise/ingest decision -> ingestion
+  Sources -> recognizer -> Outline -> user confirm -> renderer -> auditor
+  -> publish -> pitch rehearsal -> user revise/ingest decision -> ingestion
 
 It intentionally uses only the Python standard library so it can run anywhere
 the current repo already runs.
@@ -40,6 +40,7 @@ RUNS_DIR = REPO / "runs"
 OUTLINE_VALIDATOR = REPO / "skills/deck-planner/validate-outline.py"
 RENDERER = REPO / "skills/deck-renderer/deck-json/render-deck.py"
 CHECK_ONLY = REPO / "skills/deck-renderer/assets/check-only.sh"
+AUDITOR = REPO / "skills/deck-auditor/audit.py"
 PACKAGE = REPO / "skills/deck-renderer/assets/package-deliverable.sh"
 INLINE_ASSETS = REPO / "skills/deck-renderer/assets/inline-assets.py"
 UPLOAD_RECOGNIZER = REPO / "skills/upload-recognizer/recognize.py"
@@ -55,6 +56,8 @@ REQUIRED_OUTPUTS = [
     "index.html",
     "texts.md",
     "FEEDBACK.md",
+    "AUDIT_REPORT.md",
+    "audit-report.json",
     "assets-manifest.yaml",
     "pitch-rehearsal.json",
     "PITCH_REHEARSAL.md",
@@ -87,6 +90,24 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 
 def read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def task_audit_passed(output_dir: Path) -> bool:
+    report = output_dir / "audit-report.json"
+    if report.exists():
+        try:
+            payload = read_json(report)
+        except Exception:
+            payload = {}
+        verdict = str(payload.get("verdict") or payload.get("cyrus_verdict") or payload.get("status") or "").lower()
+        if verdict == "pass":
+            return True
+    md = output_dir / "AUDIT_REPORT.md"
+    if md.exists():
+        first = md.read_text(encoding="utf-8", errors="ignore").splitlines()[:5]
+        joined = " ".join(first).lower()
+        return "cyrus verdict: pass" in joined or "verdict: pass" in joined
+    return False
 
 
 def slugify(value: str, fallback: str = "deck") -> str:
@@ -168,6 +189,7 @@ def success_like_status(status: str) -> bool:
     return status in {
         "succeeded",
         "awaiting_outline_confirmation",
+        "awaiting_brief_clarification",
         "awaiting_rehearsal_decision",
         "awaiting_deck_confirmation",
         "completed_without_ingestion",
@@ -184,7 +206,8 @@ def health_payload() -> dict[str, Any]:
         "runs_dir": str(RUNS_DIR),
         "renderer": str(RENDERER),
         "renderer_exists": RENDERER.exists(),
-        "validator_exists": CHECK_ONLY.exists(),
+        "auditor_exists": AUDITOR.exists(),
+        "h5_check_only_exists": CHECK_ONLY.exists(),
         "base_library": {
             "enabled": use_base_library(),
             "sync_assets": sync_base_assets(),
@@ -195,7 +218,7 @@ def health_payload() -> dict[str, Any]:
             "dry_run": magic_dry_run(),
             "publisher": str(DEFAULT_MAGIC_DOC_CREATOR),
         },
-        "output_contract": REQUIRED_OUTPUTS + ["editable zip", "validator-report.md", "task.json"],
+        "output_contract": REQUIRED_OUTPUTS + ["editable zip", "AUDIT_REPORT.md", "task.json"],
         "library": {
             "business_entries": gate["entries"],
             "gate_ok": gate["ok"],
@@ -334,6 +357,17 @@ def high_value_questions(brief: dict[str, Any]) -> list[str]:
     return questions[:5]
 
 
+def critical_brief_questions(brief: dict[str, Any]) -> list[str]:
+    checks = [
+        ("customer_name", "客户是谁?"),
+        ("industry", "客户所属行业和最关键的业务时刻是什么?"),
+        ("audience", "这份 deck 讲给谁,他们要做什么决策?"),
+        ("objective", "讲完后希望客户确认的下一步是什么?"),
+        ("product_scope", "本次要重点讲哪些飞书产品或能力边界?"),
+    ]
+    return [question for key, question in checks if not brief.get(key)]
+
+
 def enrich_slide_plan(slide: dict[str, Any]) -> dict[str, Any]:
     """Fill required deck-planner talk-intent fields for generated outlines."""
     out = copy.deepcopy(slide)
@@ -352,6 +386,52 @@ def enrich_slide_plan(slide: dict[str, Any]) -> dict[str, Any]:
     if role not in {"cover", "closing"} and not out["risk"]:
         out["risk"] = ["缺少客户事实时,只能作为待验证判断。"]
     return out
+
+
+def outline_slide_notes(slide: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for label, key in [
+        ("role", "role"),
+        ("message", "message"),
+        ("key_idea", "key_idea"),
+        ("emphasis", "emphasis"),
+        ("talk_track", "talk_track"),
+        ("visual_intent", "visual_intent"),
+    ]:
+        value = slide.get(key)
+        if isinstance(value, str) and value.strip():
+            lines.append(f"{label}: {value.strip()}")
+    for label, key in [
+        ("proof_needed", "proof_needed"),
+        ("asset_need", "asset_need"),
+        ("risk", "risk"),
+        ("evidence", "evidence"),
+        ("risk_flags", "risk_flags"),
+    ]:
+        items = normalize_list(slide.get(key))
+        if items:
+            lines.append(f"{label}: " + " / ".join(items))
+    for label, key in [
+        ("source_refs", "source_refs"),
+        ("knowledge_refs", "knowledge_refs"),
+        ("material_refs", "material_refs"),
+    ]:
+        refs = slide.get(key) if isinstance(slide.get(key), list) else []
+        rendered = []
+        for ref in refs[:8]:
+            if not isinstance(ref, dict):
+                continue
+            parts = [
+                str(ref.get("source_type") or "").strip(),
+                str(ref.get("source") or "").strip(),
+                str(ref.get("slide_key") or ref.get("material_id") or ref.get("knowledge_id") or "").strip(),
+            ]
+            text = " | ".join(part for part in parts if part)
+            if text:
+                rendered.append(text)
+        if rendered:
+            lines.append(f"{label}: " + " / ".join(rendered))
+    return "\n".join(lines)
 
 
 def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
@@ -402,6 +482,53 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "used_for": "来自用户上传/链接素材,优先作为 planner 的事实和证据线索。",
         }
         for item in source_knowledge
+        if isinstance(item, dict)
+    ]
+    source_dossier_refs: list[dict[str, Any]] = []
+    for item in source_knowledge:
+        if not isinstance(item, dict):
+            continue
+        provenance = item.get("provenance") if isinstance(item.get("provenance"), dict) else {}
+        source_dossier_refs.append({
+            "source": str(provenance.get("source") or ""),
+            "runtime_source": str(provenance.get("runtime_source") or ""),
+            "source_type": "knowledge",
+            "page": provenance.get("page") or "",
+            "slide_key": str(provenance.get("slide_key") or ""),
+            "knowledge_id": str(item.get("id") or ""),
+            "confidence": str(item.get("confidence") or ""),
+            "used_for": "作为 planner 的用户素材事实和证据线索。",
+        })
+    for item in source_materials:
+        if not isinstance(item, dict):
+            continue
+        provenance = item.get("provenance") if isinstance(item.get("provenance"), dict) else {}
+        source_dossier_refs.append({
+            "source": str(provenance.get("source") or item.get("path") or ""),
+            "runtime_source": str(provenance.get("runtime_source") or item.get("path") or ""),
+            "source_type": "material",
+            "material_id": str(item.get("id") or ""),
+            "path": str(item.get("path") or ""),
+            "used_for": "作为 renderer 的用户素材候选。",
+        })
+    for item in source_slides:
+        if not isinstance(item, dict):
+            continue
+        source_dossier_refs.append({
+            "source": str(item.get("source") or ""),
+            "runtime_source": str(item.get("runtime_source") or ""),
+            "source_type": "slide",
+            "page": item.get("page") or "",
+            "slide_key": str(item.get("slide_key") or ""),
+            "used_for": "保留上传材料的原始页序和讲法线索。",
+        })
+    source_dossier_refs = [
+        ref for idx, ref in enumerate(source_dossier_refs)
+        if ref.get("source") and ref not in source_dossier_refs[:idx]
+    ]
+    source_material_asset_ids = [
+        slugify(str(item.get("id") or f"user-material-{idx}"), f"user-material-{idx}")
+        for idx, item in enumerate(source_materials, 1)
         if isinstance(item, dict)
     ]
 
@@ -485,7 +612,10 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "content_beats": [str(item.get("title") or item.get("slide_key") or "用户素材")[:20] for item in source_slides][:3]
             or ["连锁零售", "餐饮茶饮", "投资机构"],
             "layout_candidate": {"layout": "logo-wall"},
-            "assets": ["user-source-materials", "adjacent-logo-wall"] if source_materials else ["adjacent-logo-wall"],
+            "assets": [*source_material_asset_ids[:3], "adjacent-logo-wall"] if source_material_asset_ids else ["adjacent-logo-wall"],
+            "source_refs": source_dossier_refs[:8],
+            "knowledge_refs": [ref for ref in source_dossier_refs if ref.get("source_type") == "knowledge"][:5],
+            "material_refs": [ref for ref in source_dossier_refs if ref.get("source_type") == "material"][:5],
             "risk_flags": ["用户素材中的推断必须保留来源;相邻素材只作启发,不能替代客户事实。"],
         },
         {
@@ -541,6 +671,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             "differentiation": "从单页功能展示升级为可验证、可复盘、可扩展的业务闭环。",
         },
         "knowledge_refs": [*source_knowledge_refs, *base_knowledge_refs(industry, business_moment, product_scope)],
+        "source_dossier_refs": source_dossier_refs,
         "recipe_refs": [
             {
                 "id": recipe["id"],
@@ -605,11 +736,15 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             },
             *[
                 {
-                    "id": str(item.get("id") or f"user-material-{idx}"),
-                    "type": str(item.get("type") or "material"),
+                    "id": slugify(str(item.get("id") or f"user-material-{idx}"), f"user-material-{idx}"),
+                    "type": str(item.get("type") or "other") if str(item.get("type") or "other") in {"image", "video", "icon", "logo", "avatar", "demo", "data", "other"} else "other",
                     "need": "用户上传/链接素材,优先用于填充页面或支撑证据。",
                     "query": str(item.get("path") or ""),
-                    "preferred_source": "agent-runtime-temp-library",
+                    "preferred_source": "user-provided",
+                    "source_material_id": str(item.get("id") or ""),
+                    "resolved_path": str(item.get("path") or ""),
+                    "permission_status": str((item.get("provenance") or {}).get("permission_status") or "needs_review"),
+                    "provenance": item.get("provenance") if isinstance(item.get("provenance"), dict) else {},
                     "fallback": "无法读取时只保留来源说明,不伪造素材。",
                     "required": False,
                 }
@@ -812,6 +947,14 @@ def outline_to_deck(outline: dict[str, Any]) -> dict[str, Any]:
     }
     if customer != "目标客户":
         deck["notes"] = f"Customer: {customer}"
+    outline_by_key = {str(slide.get("key")): slide for slide in outline_slides if isinstance(slide, dict)}
+    for slide in deck["slides"]:
+        plan = outline_by_key.get(str(slide.get("key") or ""))
+        if not plan:
+            continue
+        notes = outline_slide_notes(plan)
+        if notes:
+            slide["notes"] = notes
     return deck
 
 
@@ -1666,7 +1809,7 @@ def html_page(title: str, body: str) -> bytes:
     .succeeded {{ background: #e9f8ef; color: #137333; }}
     .failed {{ background: #fdeaea; color: #b42318; }}
     .running {{ background: #fff6db; color: #8a5a00; }}
-    .awaiting_outline_confirmation, .awaiting_rehearsal_decision, .awaiting_deck_confirmation {{ background: #eaf1ff; color: #1457d9; }}
+    .awaiting_outline_confirmation, .awaiting_brief_clarification, .awaiting_rehearsal_decision, .awaiting_deck_confirmation {{ background: #eaf1ff; color: #1457d9; }}
     .completed_without_ingestion {{ background: #eef6f1; color: #236b3a; }}
     pre {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 14px; }}
     table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
@@ -1712,8 +1855,9 @@ def artifact_links(task: dict[str, Any]) -> str:
     rows = []
     for label, key in [
         ("飞书妙笔文档", "magic_doc_url"),
+        ("需求澄清", "BRIEF_CLARIFICATION.md"),
         ("素材识别", "SOURCE_DOSSIER.md"),
-        ("Validator 报告", "validator-report.md"),
+        ("验收报告", "AUDIT_REPORT.md"),
         ("Pitch 预演", "PITCH_REHEARSAL.md"),
         ("妙笔文档发布报告", "MAGIC_DOC_PUBLISH.md"),
         ("最终解析", "FINAL_SOURCE_DOSSIER.md"),
@@ -1770,7 +1914,7 @@ def task_versions(task_id: str) -> list[dict[str, Any]]:
 
 def log_tail(task: dict[str, Any], max_chars: int = 12000) -> str:
     logs = task.get("logs") or {}
-    preferred = ["check_only", "render", "outline_validator", "package"]
+    preferred = ["auditor", "auditor_inline", "render", "outline_validator", "package"]
     for key in preferred:
         path = logs.get(key)
         if path and Path(path).exists():
@@ -1786,6 +1930,7 @@ def render_status_page(task_id: str) -> bytes:
         "succeeded",
         "failed",
         "running",
+        "awaiting_brief_clarification",
         "awaiting_outline_confirmation",
         "awaiting_rehearsal_decision",
         "awaiting_deck_confirmation",
@@ -1799,7 +1944,7 @@ def render_status_page(task_id: str) -> bytes:
     error = task.get("error")
     output_dir = Path(task.get("output_dir", ""))
     report_text = ""
-    report = output_dir / "validator-report.md"
+    report = output_dir / "AUDIT_REPORT.md"
     if report.exists():
         report_text = html.escape(report.read_text(encoding="utf-8")[:12000])
     versions = task_versions(task_id)
@@ -1958,7 +2103,7 @@ async function skipIngest() {{
   <h2>日志</h2>
   {"<ul>" + log_rows + "</ul>" if log_rows else '<p class="muted">暂无日志。</p>'}
 </section>
-{f'<section class="panel"><h2>Validator 报告</h2><pre>{report_text}</pre></section>' if report_text else ''}
+{f'<section class="panel"><h2>验收报告</h2><pre>{report_text}</pre></section>' if report_text else ''}
 {f'<section class="panel"><h2>失败日志</h2><pre>{failure_log}</pre></section>' if failure_log else ''}
 """
     return html_page(f"Deck Task · {task_id}", body)
@@ -2674,6 +2819,28 @@ def create_outline_task(
         )
         brief = request.get("brief") or {}
         write_json(input_dir / "request.json", request)
+        missing_critical = critical_brief_questions(brief)
+        if missing_critical and not request.get("allow_assumptions"):
+            task["status"] = "awaiting_brief_clarification"
+            task["confirmation_required"] = "brief"
+            task["brief_questions"] = missing_critical
+            (output_dir / "BRIEF_CLARIFICATION.md").write_text(
+                "# Brief Clarification\n\n"
+                + "\n".join(f"- {item}" for item in missing_critical)
+                + "\n",
+                encoding="utf-8",
+            )
+            task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+            append_journey_event(
+                journey,
+                "awaiting_brief_clarification",
+                "system",
+                "缺少关键 pitch 背景,已暂停在 planner 前等待用户补充。",
+                {"questions": missing_critical},
+            )
+            write_journey_artifacts(output_dir, journey)
+            save_task(task_dir, task)
+            return task
         if request.get("outline"):
             outline = request["outline"]
             append_journey_event(journey, "outline_loaded", "system", "使用请求中提供的 outline,等待用户确认。")
@@ -2762,6 +2929,8 @@ def build_ingest_metadata(task: dict[str, Any]) -> dict[str, Any]:
         "deck_type": normalize_list(brief.get("deck_type")) or ["客户pitch"],
         "source_level": "internal-draft",
         "permission_status": "needs_review",
+        "contributor": str(task.get("created_by") or base_identity() or "gtm"),
+        "contributed_at": now_iso(),
     }
 
 
@@ -3012,6 +3181,10 @@ def ingest_confirmed_deck(task: dict[str, Any], *, base_url: str | None = None) 
         metadata["source_level"],
         "--permission-status",
         metadata["permission_status"],
+        "--contributor",
+        metadata["contributor"],
+        "--contributed-at",
+        metadata["contributed_at"],
         "--base-as",
         base_identity(),
     ]
@@ -3049,6 +3222,10 @@ def confirm_deck_task(task_id: str, *, base_url: str | None = None) -> dict[str,
     task = load_task(task_id)
     task_dir = RUNS_DIR / task_id
     output_dir = Path(task.get("output_dir", ""))
+    if task.get("status") != "awaiting_deck_confirmation":
+        raise RuntimeError("deck confirmation is only allowed after rehearsal is accepted")
+    if not task_audit_passed(output_dir):
+        raise RuntimeError("deck-auditor pass verdict is required before ingestion")
     journey = load_journey_for_task(task) or new_journey(task, {}, str(task.get("source") or "unknown"))
     append_journey_event(journey, "deck_confirmed", "user", "用户确认 deckhtml 可以入库。")
     task = ingest_confirmed_deck(task, base_url=base_url)
@@ -3275,35 +3452,115 @@ def create_or_run_task(
         write_feedback(output_dir, outline, deck, source)
         append_journey_event(journey, "feedback_written", "system", "写入 FEEDBACK.md,保留本轮判断和待改进项。")
 
-        validator_report = output_dir / "validator-report.md"
-        check_log = log_dir / "check-only.txt"
+        validator_report = output_dir / "AUDIT_REPORT.md"
+        check_log = log_dir / "auditor.txt"
         proc = run_command(
-            ["bash", str(CHECK_ONLY), str(output_dir / "index.html"), "--strict", "--report", str(validator_report)],
+            [
+                "python3",
+                str(AUDITOR),
+                str(output_dir / "index.html"),
+                "--deck-json",
+                str(output_dir / "deck.json"),
+                "--no-visual",
+                "--report",
+                str(validator_report),
+                "--json-report",
+                str(output_dir / "audit-report.json"),
+                "--h5-report",
+                str(output_dir / "H5_CHECKONLY_REPORT.md"),
+            ],
             check_log,
         )
-        task["logs"]["check_only"] = str(check_log)
-        task["artifacts"]["validator-report.md"] = str(validator_report)
+        task["logs"]["auditor"] = str(check_log)
+        task["artifacts"]["AUDIT_REPORT.md"] = str(validator_report)
         if proc.returncode != 0:
-            append_journey_event(journey, "strict_validation_failed", "system", "HTML strict validator 未通过。", {"exit": proc.returncode})
+            append_journey_event(journey, "audit_failed", "system", "deck-auditor 验收未通过。", {"exit": proc.returncode})
             rerender_log = log_dir / "render-retry.txt"
             append_journey_event(journey, "rerender_requested", "system", "质量验收发现问题,自动回到 renderer 重渲染一次。")
             rerender_proc = run_command(render_cmd, rerender_log)
             task["logs"]["render_retry"] = str(rerender_log)
             if rerender_proc.returncode != 0:
                 append_journey_event(journey, "rerender_failed", "system", "自动重渲染失败。", {"exit": rerender_proc.returncode})
-                raise RuntimeError("rerender failed after validator issue")
-            retry_report = output_dir / "validator-report.md"
-            retry_log = log_dir / "check-only-retry.txt"
+                raise RuntimeError("rerender failed after audit issue")
+            retry_report = output_dir / "AUDIT_REPORT.md"
+            retry_log = log_dir / "auditor-retry.txt"
             proc = run_command(
-                ["bash", str(CHECK_ONLY), str(output_dir / "index.html"), "--strict", "--report", str(retry_report)],
+                [
+                    "python3",
+                    str(AUDITOR),
+                    str(output_dir / "index.html"),
+                    "--deck-json",
+                    str(output_dir / "deck.json"),
+                    "--no-visual",
+                    "--report",
+                    str(retry_report),
+                    "--json-report",
+                    str(output_dir / "audit-report.json"),
+                    "--h5-report",
+                    str(output_dir / "H5_CHECKONLY_REPORT.md"),
+                ],
                 retry_log,
             )
-            task["logs"]["check_only_retry"] = str(retry_log)
+            task["logs"]["auditor_retry"] = str(retry_log)
             if proc.returncode != 0:
-                append_journey_event(journey, "strict_validation_failed_after_rerender", "system", "重渲染后 HTML strict validator 仍未通过。", {"exit": proc.returncode})
-                raise RuntimeError("validator failed under --strict")
-            append_journey_event(journey, "rerendered_after_quality_gate", "system", "重渲染后 strict validator 通过。")
-        append_journey_event(journey, "strict_validated", "system", "HTML strict validator 通过。")
+                append_journey_event(journey, "audit_failed_after_rerender", "system", "重渲染后 deck-auditor 仍未通过。", {"exit": proc.returncode})
+                raise RuntimeError("deck-auditor failed under strict gate")
+            append_journey_event(journey, "rerendered_after_quality_gate", "system", "重渲染后 deck-auditor 通过。")
+        append_journey_event(journey, "audited", "system", "deck-auditor 验收通过。")
+
+        if inline_delivery_html():
+            inline_log = log_dir / "inline-assets.txt"
+            proc = run_command(["python3", str(INLINE_ASSETS), str(output_dir / "index.html"), "--out", str(output_dir / "index.html")], inline_log)
+            task["logs"]["inline_assets"] = str(inline_log)
+            if proc.returncode != 0:
+                append_journey_event(journey, "inline_failed", "system", "HTML 资产内联失败。", {"exit": proc.returncode})
+                raise RuntimeError("inline-assets failed")
+            append_journey_event(
+                journey,
+                "html_inlined",
+                "system",
+                "已把 CSS/JS/图片内联到 index.html,对齐原版 H5 的单文件交付习惯。",
+                {"size_kb": round((output_dir / "index.html").stat().st_size / 1024, 1)},
+            )
+            inline_check_log = log_dir / "auditor-inline.txt"
+            proc = run_command(
+                [
+                    "python3",
+                    str(AUDITOR),
+                    str(output_dir / "index.html"),
+                    "--deck-json",
+                    str(output_dir / "deck.json"),
+                    "--no-visual",
+                    "--report",
+                    str(validator_report),
+                    "--json-report",
+                    str(output_dir / "audit-report.json"),
+                    "--h5-report",
+                    str(output_dir / "H5_CHECKONLY_REPORT.md"),
+                ],
+                inline_check_log,
+            )
+            task["logs"]["auditor_inline"] = str(inline_check_log)
+            if proc.returncode != 0:
+                append_journey_event(journey, "inline_audit_failed", "system", "inline 后 deck-auditor 未通过。", {"exit": proc.returncode})
+                raise RuntimeError("inline deck-auditor failed under strict gate")
+            append_journey_event(journey, "inline_audited", "system", "inline 后 deck-auditor 通过。")
+        magic_doc_publish = publish_deck_to_magic_doc(task, request, deck, log_dir=log_dir)
+        task["magic_doc_publish"] = magic_doc_publish
+        if magic_doc_publish.get("ok"):
+            task.setdefault("artifacts", {})["magic_doc_url"] = magic_doc_publish.get("doc_url", "")
+            task.setdefault("artifacts", {})["miaobi_doc_url"] = magic_doc_publish.get("doc_url", "")
+            task.setdefault("artifacts", {})["doc_url"] = magic_doc_publish.get("doc_url", "")
+            append_journey_event(
+                journey,
+                "magic_doc_published",
+                "system",
+                "已将生成的 htmldeck 写入飞书妙笔文档 HTML Box,用户交付入口为飞书文档链接。",
+                {"doc_url": magic_doc_publish.get("doc_url", ""), "dry_run": magic_doc_publish.get("dry_run", False)},
+            )
+        elif magic_doc_publish.get("enabled"):
+            append_journey_event(journey, "magic_doc_publish_failed", "system", "飞书妙笔文档发布失败,本轮不返回文档链接。", {"reason": magic_doc_publish.get("reason", "")})
+            raise RuntimeError("magic doc publish failed: " + str(magic_doc_publish.get("reason") or "unknown"))
 
         rehearsal_log = log_dir / "pitch-rehearsal.txt"
         proc = run_command(
@@ -3333,48 +3590,7 @@ def create_or_run_task(
         if proc.returncode != 0:
             append_journey_event(journey, "pitch_rehearsal_validation_failed", "system", "pitch rehearsal validator 未通过。", {"exit": proc.returncode})
             raise RuntimeError("pitch rehearsal validation failed")
-        append_journey_event(journey, "pitch_rehearsed", "system", "已生成 pitch rehearsal 和异议/改稿队列,等待用户确认是否采纳。")
-
-        if inline_delivery_html():
-            inline_log = log_dir / "inline-assets.txt"
-            proc = run_command(["python3", str(INLINE_ASSETS), str(output_dir / "index.html"), "--out", str(output_dir / "index.html")], inline_log)
-            task["logs"]["inline_assets"] = str(inline_log)
-            if proc.returncode != 0:
-                append_journey_event(journey, "inline_failed", "system", "HTML 资产内联失败。", {"exit": proc.returncode})
-                raise RuntimeError("inline-assets failed")
-            append_journey_event(
-                journey,
-                "html_inlined",
-                "system",
-                "已把 CSS/JS/图片内联到 index.html,对齐原版 H5 的单文件交付习惯。",
-                {"size_kb": round((output_dir / "index.html").stat().st_size / 1024, 1)},
-            )
-            inline_check_log = log_dir / "check-only-inline.txt"
-            proc = run_command(
-                ["bash", str(CHECK_ONLY), str(output_dir / "index.html"), "--strict", "--report", str(validator_report)],
-                inline_check_log,
-            )
-            task["logs"]["check_only_inline"] = str(inline_check_log)
-            if proc.returncode != 0:
-                append_journey_event(journey, "inline_validation_failed", "system", "inline 后 HTML strict validator 未通过。", {"exit": proc.returncode})
-                raise RuntimeError("inline validator failed under --strict")
-            append_journey_event(journey, "inline_validated", "system", "inline 后 HTML strict validator 通过。")
-        magic_doc_publish = publish_deck_to_magic_doc(task, request, deck, log_dir=log_dir)
-        task["magic_doc_publish"] = magic_doc_publish
-        if magic_doc_publish.get("ok"):
-            task.setdefault("artifacts", {})["magic_doc_url"] = magic_doc_publish.get("doc_url", "")
-            task.setdefault("artifacts", {})["miaobi_doc_url"] = magic_doc_publish.get("doc_url", "")
-            task.setdefault("artifacts", {})["doc_url"] = magic_doc_publish.get("doc_url", "")
-            append_journey_event(
-                journey,
-                "magic_doc_published",
-                "system",
-                "已将生成的 htmldeck 写入飞书妙笔文档 HTML Box,用户交付入口为飞书文档链接。",
-                {"doc_url": magic_doc_publish.get("doc_url", ""), "dry_run": magic_doc_publish.get("dry_run", False)},
-            )
-        elif magic_doc_publish.get("enabled"):
-            append_journey_event(journey, "magic_doc_publish_failed", "system", "飞书妙笔文档发布失败,本轮不返回文档链接。", {"reason": magic_doc_publish.get("reason", "")})
-            raise RuntimeError("magic doc publish failed: " + str(magic_doc_publish.get("reason") or "unknown"))
+        append_journey_event(journey, "pitch_rehearsed", "system", "已在发布后生成 pitch rehearsal 和异议/改稿队列,等待用户确认是否采纳。")
         upsert_journey_version(journey, task, deck)
         write_journey_artifacts(output_dir, journey)
 

@@ -29,7 +29,7 @@ REPO = Path(__file__).resolve().parents[1]
 PREFLIGHT = REPO / "skills/deck-renderer/assets/preflight.sh"
 COMPILE_OUTLINE = REPO / "skills/deck-renderer/deck-json/compile-outline.py"
 RENDER_DECK = REPO / "skills/deck-renderer/deck-json/render-deck.py"
-CHECK_ONLY = REPO / "skills/deck-renderer/assets/check-only.sh"
+AUDITOR = REPO / "skills/deck-auditor/audit.py"
 PITCH_SIMULATOR = REPO / "skills/pitch-simulator/simulate-pitch.py"
 PITCH_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py"
 PACKAGE = REPO / "skills/deck-renderer/assets/package-deliverable.sh"
@@ -255,6 +255,18 @@ def main(argv: list[str] | None = None) -> int:
 
     steps: list[dict[str, object]] = []
 
+    def artifacts() -> dict[str, Path]:
+        return {
+            "index.html": html_path,
+            "deck.json": deck_path,
+            "texts.md": output_dir / "texts.md",
+            "FEEDBACK.md": feedback_path,
+            "audit": audit_path,
+            "pitch": rehearsal_md,
+            "magic_doc": output_dir / "MAGIC_DOC_PUBLISH.md",
+            "pipeline": pipeline_report,
+        }
+
     commands = [
         ("preflight", ["bash", str(PREFLIGHT)]),
         (
@@ -291,15 +303,22 @@ def main(argv: list[str] | None = None) -> int:
         (
             "audit",
             [
-                "bash",
-                str(CHECK_ONLY),
+                sys.executable,
+                str(AUDITOR),
                 str(html_path),
-                "--strict",
-                *(["--visual"] if not args.no_visual else []),
+                "--deck-json",
+                str(deck_path),
+                *(["--no-visual"] if args.no_visual else ["--visual"]),
                 "--report",
                 str(audit_path),
+                "--json-report",
+                str(output_dir / "audit-report.json"),
+                "--h5-report",
+                str(output_dir / "H5_CHECKONLY_REPORT.md"),
             ],
         ),
+    ]
+    post_publish_commands = [
         (
             "pitch-rehearsal",
             [
@@ -330,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
         ("validate-rehearsal", [sys.executable, str(PITCH_VALIDATOR), str(rehearsal_json)]),
     ]
     if not args.skip_package:
-        commands.append(
+        post_publish_commands.append(
             (
                 "package",
                 [
@@ -346,37 +365,25 @@ def main(argv: list[str] | None = None) -> int:
     for name, cmd in commands:
         proc = run(cmd, log_dir / f"{name}.log")
         steps.append({"name": name, "returncode": proc.returncode, "log": log_dir / f"{name}.log"})
-        artifacts = {
-            "index.html": html_path,
-            "deck.json": deck_path,
-            "texts.md": output_dir / "texts.md",
-            "FEEDBACK.md": feedback_path,
-            "audit": audit_path,
-            "pitch": rehearsal_md,
-            "magic_doc": output_dir / "MAGIC_DOC_PUBLISH.md",
-            "pipeline": pipeline_report,
-        }
-        write_report(pipeline_report, steps, artifacts)
+        write_report(pipeline_report, steps, artifacts())
         if proc.returncode != 0:
             print(f"{name} failed; see {log_dir / f'{name}.log'}", file=sys.stderr)
             return proc.returncode
 
     magic_proc = run_magic_doc_publish(args, output_dir, title, run_dir.name, log_dir / "magic-doc-publish.log")
     steps.append({"name": "magic-doc-publish", "returncode": magic_proc.returncode, "log": log_dir / "magic-doc-publish.log"})
-    artifacts = {
-        "index.html": html_path,
-        "deck.json": deck_path,
-        "texts.md": output_dir / "texts.md",
-        "FEEDBACK.md": feedback_path,
-        "audit": audit_path,
-        "pitch": rehearsal_md,
-        "magic_doc": output_dir / "MAGIC_DOC_PUBLISH.md",
-        "pipeline": pipeline_report,
-    }
-    write_report(pipeline_report, steps, artifacts)
+    write_report(pipeline_report, steps, artifacts())
     if magic_proc.returncode != 0:
         print(f"magic-doc-publish failed; see {log_dir / 'magic-doc-publish.log'}", file=sys.stderr)
         return magic_proc.returncode
+
+    for name, cmd in post_publish_commands:
+        proc = run(cmd, log_dir / f"{name}.log")
+        steps.append({"name": name, "returncode": proc.returncode, "log": log_dir / f"{name}.log"})
+        write_report(pipeline_report, steps, artifacts())
+        if proc.returncode != 0:
+            print(f"{name} failed; see {log_dir / f'{name}.log'}", file=sys.stderr)
+            return proc.returncode
 
     print(pipeline_report)
     return 0

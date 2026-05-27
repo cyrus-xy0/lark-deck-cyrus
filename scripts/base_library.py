@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -158,6 +159,19 @@ def configured_fields(config: dict[str, Any], table: str, fields: dict[str, Any]
 def source_text(*parts: Any) -> str:
     rendered = [str(part).strip() for part in parts if str(part or "").strip()]
     return " | ".join(rendered)
+
+
+def base_datetime(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", raw):
+        return raw
+    try:
+        normalized = raw.replace("Z", "+00:00")
+        return datetime.fromisoformat(normalized).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return raw
 
 
 def mapped_industries(value: Any) -> list[str]:
@@ -633,7 +647,7 @@ def create_record(
             "fields": fields,
         }
     require_base_write(config)
-    args = ["+record-upsert", "--format", "json", "--json", json.dumps(fields, ensure_ascii=False)]
+    args = ["+record-upsert", "--json", json.dumps(fields, ensure_ascii=False)]
     if record_id:
         args.extend(["--record-id", record_id])
     return run_lark(config, table, args, identity)
@@ -664,6 +678,8 @@ def create_knowledge_fields(args: argparse.Namespace, config: dict[str, Any]) ->
             "来源PPT": args.source_ppt,
             "来源页码": args.source_page,
             "权限状态": args.permission_status,
+            "贡献者": args.contributor,
+            "贡献时间": base_datetime(args.contributed_at),
             "本地路径": args.local_path,
             "字数": len(content),
             "SHA256": args.sha256,
@@ -684,6 +700,8 @@ def create_knowledge_fields(args: argparse.Namespace, config: dict[str, Any]) ->
         "来源PPT": args.source_ppt,
         "来源页码": args.source_page,
         "权限状态": args.permission_status,
+        "贡献者": args.contributor,
+        "贡献时间": base_datetime(args.contributed_at),
         "字数": len(content),
         "SHA256": args.sha256,
     }
@@ -717,6 +735,8 @@ def create_asset_fields(args: argparse.Namespace, config: dict[str, Any]) -> dic
             "来源PPT": args.source_ppt,
             "来源页码": args.source_page,
             "权限状态": args.permission_status,
+            "贡献者": args.contributor,
+            "贡献时间": base_datetime(args.contributed_at),
             "素材ID": args.asset_id,
             "显示名称": args.display_name,
             "类型": args.kind,
@@ -746,6 +766,8 @@ def create_asset_fields(args: argparse.Namespace, config: dict[str, Any]) -> dic
         "来源PPT": args.source_ppt,
         "来源页码": args.source_page,
         "权限状态": args.permission_status,
+        "贡献者": args.contributor,
+        "贡献时间": base_datetime(args.contributed_at),
     }
 
 
@@ -1039,6 +1061,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--source-ppt", default="")
     p.add_argument("--source-page", default="")
     p.add_argument("--permission-status", default="needs_review")
+    p.add_argument("--contributor", default="")
+    p.add_argument("--contributed-at", default="")
     p.add_argument("--sha256", default="")
     p.add_argument("--record-id", default="")
     p.add_argument("--dry-run", action="store_true")
@@ -1066,6 +1090,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--source-ppt", default="")
     p.add_argument("--source-page", default="")
     p.add_argument("--permission-status", default="needs_review")
+    p.add_argument("--contributor", default="")
+    p.add_argument("--contributed-at", default="")
     p.add_argument("--record-id", default="")
     p.add_argument("--dry-run", action="store_true")
 

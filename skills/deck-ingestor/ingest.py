@@ -20,6 +20,7 @@ import hashlib
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,29 @@ def read_json(path: Path) -> dict[str, Any]:
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+
+
+def audit_passed(output_dir: Path) -> bool:
+    report = output_dir / "audit-report.json"
+    if report.exists():
+        try:
+            payload = read_json(report)
+        except Exception:
+            payload = {}
+        verdict = str(payload.get("verdict") or payload.get("cyrus_verdict") or "").lower()
+        status = str(payload.get("status") or "").lower()
+        if verdict == "pass" or status == "pass":
+            return True
+    md = output_dir / "AUDIT_REPORT.md"
+    if md.exists():
+        first = md.read_text(encoding="utf-8", errors="ignore").splitlines()[:5]
+        joined = " ".join(first).lower()
+        return "cyrus verdict: pass" in joined or "verdict: pass" in joined
+    return False
 
 
 def task_dirs(task_id: str) -> tuple[Path, Path]:
@@ -151,6 +175,10 @@ def write_base_knowledge(
         str(metadata.get("source_page") or ""),
         "--permission-status",
         metadata.get("permission_status") or "needs_review",
+        "--contributor",
+        metadata.get("contributor") or metadata.get("owner") or "gtm",
+        "--contributed-at",
+        metadata.get("contributed_at") or "",
     ]
     for product in normalize_list(metadata.get("product"), []):
         cmd.extend(["--product", product])
@@ -221,6 +249,10 @@ def write_base_asset_record(
         str(metadata.get("source_page") or ""),
         "--permission-status",
         metadata.get("permission_status") or "needs_review",
+        "--contributor",
+        metadata.get("contributor") or metadata.get("owner") or "gtm",
+        "--contributed-at",
+        metadata.get("contributed_at") or "",
     ]
     for industry in normalize_list(metadata.get("industry"), []):
         cmd.extend(["--industry", industry])
@@ -289,6 +321,8 @@ def register_ppt_library(args: argparse.Namespace) -> int:
         "source_level": args.source_level,
         "owner": args.owner,
         "reviewer": args.reviewer,
+        "contributor": args.contributor or args.owner or "gtm",
+        "contributed_at": args.contributed_at or now_iso(),
         "permission_status": args.permission_status,
     }
     result = slide_library.register_ppt_upload(args.ppt_library, metadata, pages=args.ppt_page)
@@ -324,12 +358,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--source-level", default="internal-draft")
     ap.add_argument("--owner", default="gtm")
     ap.add_argument("--reviewer", default="")
+    ap.add_argument("--contributor", default="")
+    ap.add_argument("--contributed-at", default="")
     ap.add_argument("--summary", default="")
     ap.add_argument("--thumbnail", default="")
     ap.add_argument("--permission-status", default="needs_review")
     ap.add_argument("--write-base", action="store_true", help="also write knowledge and slide-fragment asset records to live Base; Slide Library remains local-only")
     ap.add_argument("--base-as", choices=["user", "bot"], default="user")
     ap.add_argument("--dry-run-base", action="store_true")
+    ap.add_argument("--allow-unaudited", action="store_true", help="bypass the default deck-auditor pass requirement; intended only for local fixture/debug use")
     args = ap.parse_args(argv)
     if args.ppt_library:
         return register_ppt_library(args)
@@ -337,6 +374,8 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("deck-ingestor: --task-id is required unless --ppt-library is used")
 
     _task_dir, output_dir = task_dirs(args.task_id)
+    if not args.allow_unaudited and not audit_passed(output_dir):
+        raise SystemExit("deck-ingestor: deck-auditor pass verdict is required before ingestion")
     deck = read_json(output_dir / "deck.json")
     slides_by_key = {str(slide.get("key")): slide for slide in deck.get("slides", []) if isinstance(slide, dict)}
     metadata = {
@@ -350,6 +389,8 @@ def main(argv: list[str] | None = None) -> int:
         "source_level": args.source_level,
         "owner": args.owner,
         "reviewer": args.reviewer,
+        "contributor": args.contributor or args.owner or "gtm",
+        "contributed_at": args.contributed_at or now_iso(),
         "thumbnail": args.thumbnail,
         "permission_status": args.permission_status,
     }
