@@ -5,7 +5,7 @@
 # harness that follows the <harness-root>/skills convention.
 #
 # Supported sources:
-#   1. A git checkout of git@github.com:cyrus-xy0/lark-deck-cyrus.git
+#   1. A git checkout of https://github.com/cyrus-xy0/lark-deck-cyrus.git
 #   2. A zip/package produced by package-skill.sh
 #   3. An existing local working copy
 #
@@ -15,7 +15,7 @@
 #   CLAUDE_DIR    skill registration root
 #                 default: ~/.claude
 #   REPO_URL      git remote used when a network clone/update is needed
-#                 default: git@github.com:cyrus-xy0/lark-deck-cyrus.git
+#                 default: https://github.com/cyrus-xy0/lark-deck-cyrus.git
 #   LARK_DECK_CYRUS_INSTALL_FROM_LOCAL=1
 #                 copy from this script's directory even if INSTALL_DIR is git
 #   LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1
@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-git@github.com:cyrus-xy0/lark-deck-cyrus.git}"
+REPO_URL="${REPO_URL:-https://github.com/cyrus-xy0/lark-deck-cyrus.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/Projects/lark-deck-cyrus}"
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 SKILLS_DIR="$CLAUDE_DIR/skills"
@@ -74,12 +74,18 @@ ensure_remote_available() {
     return
   fi
 
-  SSH_OUT="$(ssh -T -o BatchMode=yes -o ConnectTimeout=5 git@github.com 2>&1 || true)"
-  GH_USER="$(printf '%s\n' "$SSH_OUT" | sed -n 's/^Hi \([^!]*\)!.*/\1/p')"
-  cat <<EOF
+  if [[ "$REPO_URL" == git@github.com:* || "$REPO_URL" == ssh://git@github.com/* ]]; then
+    SSH_OUT="$(ssh -T -o BatchMode=yes -o ConnectTimeout=5 git@github.com 2>&1 || true)"
+    GH_USER="$(printf '%s\n' "$SSH_OUT" | sed -n 's/^Hi \([^!]*\)!.*/\1/p')"
+    cat <<EOF
 
-ERROR: cannot access the lark-deck-cyrus repository:
+ERROR: cannot access the lark-deck-cyrus repository over SSH:
   $REPO_URL
+
+This usually means the machine does not have a GitHub SSH key configured.
+For the public repository, prefer the HTTPS URL:
+
+  REPO_URL=https://github.com/cyrus-xy0/lark-deck-cyrus.git bash install.sh
 
 If the repository is private, ask FuQiang to add you as a collaborator:
 
@@ -90,7 +96,20 @@ If the repository is private, ask FuQiang to add you as a collaborator:
   仓库: ${REPO_URL}
   添加入口: 仓库 Settings > Collaborators / Access
 
-After accepting the GitHub invitation, rerun this script.
+After accepting the GitHub invitation or configuring SSH, rerun this script.
+
+EOF
+    exit 2
+  fi
+
+  cat <<EOF
+
+ERROR: cannot access the lark-deck-cyrus repository:
+  $REPO_URL
+
+Check network access to GitHub first. If you are using a private fork, pass a
+URL your environment can access, for example an HTTPS URL with a Personal
+Access Token or an SSH URL after configuring a GitHub SSH key.
 
 EOF
   exit 2

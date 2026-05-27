@@ -11,7 +11,7 @@
 
 Tell your Claude agent:
 
-> "帮我安装 lark-deck-cyrus 这个 skill：`git@github.com:cyrus-xy0/lark-deck-cyrus.git`"
+> "帮我安装 lark-deck-cyrus 这个 skill：`https://github.com/cyrus-xy0/lark-deck-cyrus`"
 
 The agent will detect your harness, install the product skills, and verify.
 
@@ -28,7 +28,7 @@ Run these checks **in order**, stop at the first match:
 **Action — instruct the user to run:**
 
 ```
-/plugin marketplace add git@github.com:cyrus-xy0/lark-deck-cyrus.git
+/plugin marketplace add https://github.com/cyrus-xy0/lark-deck-cyrus
 /plugin install lark-deck-cyrus@lark-deck-cyrus
 ```
 
@@ -43,7 +43,7 @@ Then restart the session. (Slash commands cannot be invoked by an agent — the 
 **Action — run as the user:**
 
 ```bash
-git clone git@github.com:cyrus-xy0/lark-deck-cyrus.git /tmp/lark-deck-cyrus-installer
+git clone https://github.com/cyrus-xy0/lark-deck-cyrus.git /tmp/lark-deck-cyrus-installer
 bash /tmp/lark-deck-cyrus-installer/install.sh
 rm -rf /tmp/lark-deck-cyrus-installer
 ```
@@ -62,7 +62,7 @@ Look for `PREFLIGHT OK`.
 ### 3. Manual path (fallback when nothing else fits)
 
 ```bash
-git clone git@github.com:cyrus-xy0/lark-deck-cyrus.git ~/Projects/lark-deck-cyrus
+git clone https://github.com/cyrus-xy0/lark-deck-cyrus.git ~/Projects/lark-deck-cyrus
 mkdir -p ~/.claude/skills
 ln -s ~/Projects/lark-deck-cyrus/skills/lark-deck-cyrus ~/.claude/skills/lark-deck-cyrus
 ln -s ~/Projects/lark-deck-cyrus/skills/upload-recognizer ~/.claude/skills/upload-recognizer
@@ -80,8 +80,10 @@ bash ~/.claude/skills/deck-renderer/assets/preflight.sh
 
 ## Prerequisites (verify before installing)
 
-- SSH key registered with GitHub: `ssh -T git@github.com` returns `Hi <user>!`
-- Collaborator access if the repository is private
+- Public install path uses HTTPS and does not require a GitHub SSH key.
+- For a private fork, use a URL the environment can access: HTTPS + Personal
+  Access Token, or SSH after `ssh -T git@github.com` returns `Hi <user>!`.
+- Collaborator access if the repository or fork is private.
 - `python3`, `bash`, `node` on PATH (used by build/validate)
 - `python3 -m pip` available. `install.sh` uses it to install Playwright into
   project-local `.deps/python`, then downloads Chromium into
@@ -99,18 +101,23 @@ bash ~/.claude/skills/deck-renderer/assets/preflight.sh
   `ONE-SHOT-PROMPT.md`; it does not deploy remotely or copy secrets. See
   `CLOUD_AGENT.md` for the exact agent prompt.
 
-If `ssh -T git@github.com` fails, stop and ask the user to set up their SSH key first — every install path depends on it.
+If a user pasted an SSH URL such as `git@github.com:...` and the agent reports
+SSH authentication failure, switch to the HTTPS URL first:
+
+```bash
+REPO_URL=https://github.com/cyrus-xy0/lark-deck-cyrus.git bash install.sh
+```
 
 ### Don't have collaborator access yet?
 
 If `git ls-remote <repo-url> HEAD` fails with
-"Repository not found" or "Permission denied" but `ssh -T git@github.com`
-works, the user has SSH set up but is not yet a collaborator on this private
-repo.
+"Repository not found" or "Permission denied", the URL may point at a private
+fork or an account without access.
 
-`install.sh` detects this and exits with **code 2**, printing a copy-pasteable
-Lark/Feishu message template (with the user's GitHub username pre-filled) for
-them to send to FuQiang. The agent should:
+When using an SSH URL, `install.sh` detects this and exits with **code 2**,
+printing a copy-pasteable Lark/Feishu message template (with the user's GitHub
+username pre-filled when available) for them to send to FuQiang. The agent
+should:
 
 1. Show the printed template to the user verbatim
 2. Tell them to paste it into Lark to FuQiang
