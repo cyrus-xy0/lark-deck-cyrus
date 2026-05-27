@@ -39,6 +39,9 @@ lark-deck-cyrus-*.zip
 node_modules/
 package-lock.json
 
+# Project-local Python/browser deps installed by install.sh.
+.deps/
+
 # Backup files
 *.bak
 *.orig

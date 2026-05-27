@@ -114,6 +114,7 @@ Endpoints:
 - `GET /library/gate`
 - `GET /library/design-kit`
 - `POST /library/candidates`
+- `POST /library/ppt-uploads`
 - `POST /library/candidates/{candidate-id}/approve`
 - `GET /recipes/validate`
 - `POST /recipes/plan`
@@ -139,6 +140,8 @@ P2 starts with a local split library:
   assets, and product icon index.
 - `library/business/slides/*.json`: approved reusable business slides.
 - `library/business/candidates/*.json`: GTM-marked slides waiting for review.
+- `library/business/uploads/*.json`: user-selected PPT/PPTX pages registered
+  as Slide Library candidates before conversion.
 - `library/knowledge/candidates/*.json`: "讲什么" candidates for `deck-planner`
   (scenario, key idea, emphasis, talk track, proof needed, risk).
 - `library/presentation/candidates/*.json`: "怎么呈现" candidates for
@@ -148,11 +151,21 @@ Ingest evaluates these layers separately. A generated slide may be reusable as
 planner knowledge but not as a visual pattern, or reusable as a renderer pattern
 but too customer-specific to become planning knowledge.
 
+In live Base, only `知识库` and `素材库` are written for now. Slide Library is
+kept local under `library/business/{slides,candidates,uploads}` for whole-page
+selection; selected pages can later be decomposed into knowledge and material
+records before syncing those two Base tables. The two Base records share
+`关联SlideKey`; knowledge records point to `关联素材ID`, and material records point
+to `关联知识ID`, so a slide can still be reconstructed as a knowledge/material pair
+without creating a cloud Slide table.
+
 Gate and search:
 
 ```bash
 python3 server/slide_library.py validate
 python3 server/slide_library.py search --industry 消费零售 --product 飞书
+python3 scripts/base_library.py search-slides 零售 --limit 5
+python3 scripts/base_library.py doctor --probe
 ```
 
 Mark a generated slide as worth reusing:
@@ -170,6 +183,23 @@ python3 server/slide_library.py mark-reuse \
 
 This writes the legacy business candidate and, when suitable, split candidates
 for the knowledge layer and presentation layer.
+
+Register a user-selected PPT/PPTX as Slide Library candidates:
+
+```bash
+python3 server/slide_library.py register-ppt path/to/team-slides.pptx \
+  --title 团队自选PPT \
+  --industry 消费零售 \
+  --product 飞书 \
+  --page 3 \
+  --page 8
+```
+
+Without `--page`, all PPTX pages are registered. These records are placeholders
+for search/selection; selected pages still need recognizer/renderer work before
+they become polished H5 slides. PPTX text is used to generate local SVG
+thumbnails under `library/business/thumbnails/uploads/`; legacy `.ppt` files get
+a review placeholder thumbnail with source metadata.
 
 Approve a reviewed candidate into the Business Library:
 
@@ -249,6 +279,18 @@ Check runtime readiness:
 ```bash
 python3 server/feishu_bot.py doctor --base-url "$GENERATOR_PUBLIC_BASE_URL"
 ```
+
+Generate a portable cloud-agent deployment bundle:
+
+```bash
+python3 scripts/cloud_agent_deploy.py \
+  --output deploy/cloud-agent \
+  --base-url "$GENERATOR_PUBLIC_BASE_URL"
+```
+
+The bundle contains an environment template, generator and bot start scripts,
+`healthcheck.sh`, and a machine-readable endpoint manifest. It does not upload
+secrets or deploy remotely.
 
 The bot expects the generator HTTP service to be reachable at
 `GENERATOR_PUBLIC_BASE_URL` so returned `status / preview / edit / download`

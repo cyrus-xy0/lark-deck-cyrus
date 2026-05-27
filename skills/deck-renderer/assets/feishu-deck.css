@@ -870,6 +870,10 @@ body {
 }
 .slide[data-layout="quote"] blockquote {
   font: 600 92px/1.2 var(--fs-font-cjk); color: #fff; max-width: 1500px;
+  text-wrap: balance;
+}
+.slide[data-layout="quote"] blockquote span {
+  white-space: nowrap;
 }
 .slide[data-layout="quote"] .attrib {
   font: 500 30px/1.4 var(--fs-font-cjk); color: var(--fs-text-48);
@@ -1036,6 +1040,7 @@ body {
   /* 2026-05-16: 18 → 22 — timeline node body content per SKILL.md
      typography floor. Was reading as illegible fine print on projector. */
   font: 500 24px/1.5 var(--fs-font-cjk); color: var(--fs-text-65);
+  text-wrap: balance;
 }
 
 /* ============================================================================

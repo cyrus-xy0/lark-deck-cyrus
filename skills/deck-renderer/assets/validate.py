@@ -22,6 +22,12 @@ import functools, re, sys, argparse
 from collections import Counter
 from pathlib import Path
 
+try:
+    from python_deps import activate_project_python_deps
+    activate_project_python_deps(Path(__file__))
+except Exception:
+    pass
+
 # ---------------------------------------------------------------------------
 #  规范 thresholds (hard floors)
 # ---------------------------------------------------------------------------
@@ -2291,6 +2297,12 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
                          heuristic). Renderer-aware: looks at actual
                          content length + container. Opt out per element
                          with `data-allow-body-floor`.
+      R-VIS-ORPHAN     · 2026-05-25 · CJK leaf text that wraps to ≥2 lines
+                         with a lonely ~1-char last line (orphan) OR a short
+                         2-3 line label whose last line is < 38% of the
+                         widest (上长下短 imbalance). Warn only; fixes are
+                         `text-wrap: balance`, wider containers, nowrap for
+                         very short labels, or copy balancing.
 
     Optionally archives PNG screenshots when want_screenshots=True.
 
@@ -2299,7 +2311,11 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
     page.evaluate() so the round-trip cost stays minimal.
 
     Setup once:
-        pip install playwright && python -m playwright install chromium
+        bash install.sh
+    or manually:
+        python3 -m pip install --target .deps/python -r requirements.txt
+        PYTHONPATH=.deps/python PLAYWRIGHT_BROWSERS_PATH=.deps/ms-playwright \
+          python3 -m playwright install chromium
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -2307,11 +2323,11 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
         # Visual audits are default-on but gracefully degrade. Print a single
         # stderr hint (not a warning so it doesn't pollute the issue list /
         # break CI parsing) and continue with static-only output. Re-enable
-        # by `pip install playwright && python -m playwright install chromium`,
-        # or suppress this notice via `--no-visual`.
+        # by `bash install.sh`, or suppress this notice via `--no-visual`.
         print('  (visual audits skipped — playwright not installed; '
-              'install with `pip install playwright && python -m playwright '
-              'install chromium` to enable R-OVERFLOW / R-VIS-* checks)',
+              'run `bash install.sh` to install project-local Playwright '
+              'and Chromium, or pass `--no-visual` to skip R-OVERFLOW / '
+              'R-VIS-* checks)',
               file=sys.stderr)
         return
 
@@ -2384,8 +2400,8 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
     except Exception as e:
         iss.warn('R-VISUAL',
             f'visual checks could not run ({type(e).__name__}: {e}). '
-            'Try `python -m playwright install chromium` if you have not '
-            'yet, or open the deck in a browser manually to verify.')
+            'Try `bash install.sh` to refresh project-local Playwright / '
+            'Chromium, or open the deck in a browser manually to verify.')
         return
 
     # ----- Format findings from the JS report -----
@@ -2530,6 +2546,20 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
             'set `data-allow-dual-anchor` on the element if it is a real '
             'fill-parent overlay (rare for slide content).')
 
+    for entry in report.get('orphan', [])[:25]:
+        kind = '末行孤字 orphan' if entry['kind'] == 'orphan' else '上长下短 imbalanced'
+        no_bal = '' if entry.get('balance') == 'balance' else \
+            ' (该元素当前没有 text-wrap:balance)'
+        iss.warn('R-VIS-ORPHAN',
+            f'slide {entry["slide_idx"]} · `{entry["selector"]}` CJK 换行不平衡 '
+            f'— {kind}: {entry["lines"]} 行 {entry["line_px"]}px,末行仅 '
+            f'{entry["last_px"]}px (最宽行 {entry["max_px"]}px / 字号 '
+            f'{entry["font_px"]}px) ("{entry["preview"]}"). 文字换行后末行只剩一两个字 '
+            '或上面长下面短,投影上很碎。Fix 优先级: (1) 给元素加 '
+            '`text-wrap: balance`; (2) 容器固定宽 / 被 flex 夹窄时加宽容器,'
+            '或 4 字以内主标签用 `white-space: nowrap`,或把尾词拆成 '
+            '`display:block` 副标行; (3) 改文案让上下两行字数接近。' + no_bal)
+
     # (screenshot archival happens inside the Playwright block above; no
     # post-step needed. The previous `if 'shots_dir' in dir(): pass` was
     # dead: `dir()` inside a function returns local names, not what one
@@ -2557,7 +2587,8 @@ def main():
                         '"column bleeds into legend" bug that static CSS '
                         'analysis cannot), R-VIS-TIER (computed fontSize on '
                         '4-tier ladder), R-VIS-HIER (meta ≤ body in each '
-                        'card), R-VIS-ALIGN (grid children equal height). '
+                        'card), R-VIS-BODY-FLOOR, R-VIS-ALIGN, '
+                        'R-VIS-ABSPOS-DUAL-ANCHOR, and R-VIS-ORPHAN. '
                         'DEFAULT: on (~1-5s extra per deck). Use --no-visual '
                         'to skip (e.g. CI without Chromium). Gracefully '
                         'skips when playwright is not installed.')

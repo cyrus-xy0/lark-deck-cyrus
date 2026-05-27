@@ -180,6 +180,46 @@
     // first-frame fallback so the cover cannot bleed through later fades.
     deck.setAttribute('data-js-ready', '');
 
+    // ---- Restart slide media on enter + fs-slide-enter/leave events ----
+    // One observer covers EVERY .is-current toggle path: present-mode goTo,
+    // hash nav, prev/next buttons, and mobile direct toggles. Initial pass
+    // pauses hidden autoplay videos and starts the current slide's video.
+    const mediaState = frames.map((f) => f.classList.contains('is-current'));
+    frames.forEach((f, i) => syncFrameMedia(f, mediaState[i]));
+    const mediaObserver = new MutationObserver((muts) => {
+      for (const m of muts) {
+        const i = frames.indexOf(m.target);
+        if (i < 0) continue;
+        const now = m.target.classList.contains('is-current');
+        if (now === mediaState[i]) continue;
+        mediaState[i] = now;
+        syncFrameMedia(m.target, now);
+      }
+    });
+    frames.forEach((f) => mediaObserver.observe(f, { attributes: true, attributeFilter: ['class'] }));
+    signal.addEventListener('abort', () => mediaObserver.disconnect());
+
+    // Browsers block unmuted autoplay until the first user gesture. If the
+    // deck opens directly on a video slide, that video falls back to muted on
+    // load; upgrade it to sound on the first input without resetting playhead.
+    let mediaGestureDone = false;
+    const upgradeMediaSound = () => {
+      if (mediaGestureDone) return;
+      mediaGestureDone = true;
+      const cur = frames.find((f) => f.classList.contains('is-current'));
+      if (!cur) return;
+      cur.querySelectorAll('video').forEach((v) => {
+        if (v.autoplay && !v.hasAttribute('data-keep-muted')
+            && !v.hasAttribute('muted') && v.muted) {
+          v.muted = false;
+          const p = v.play();
+          if (p && p.catch) p.catch(() => {});
+        }
+      });
+    };
+    ['pointerdown', 'keydown', 'touchstart'].forEach((ev) =>
+      document.addEventListener(ev, upgradeMediaSound, { signal }));
+
     // ---- Auto-idle (chrome fades after 2.5s of no input) ----
     let idleTimer;
     function nudgeIdle() {
@@ -291,6 +331,44 @@
       if (frames[i].classList.contains('is-current')) return i;
     }
     return 0;
+  }
+
+  // Restart-on-enter for slide media. Present mode keeps every slide in the
+  // DOM, so hidden autoplay videos otherwise start too early. Entering a frame
+  // resets videos to the start and plays autoplay videos; leaving pauses them.
+  // Also fires fs-slide-enter / fs-slide-leave for animation-driven slides.
+  function syncFrameMedia(frame, isCurrent) {
+    if (!frame) return;
+    const slide = frame.querySelector('.slide');
+    const vids = frame.querySelectorAll('video');
+    if (isCurrent) {
+      vids.forEach((v) => {
+        if (v.hasAttribute('data-no-restart')) return;
+        try { v.currentTime = 0; } catch (e) { /* not seekable yet */ }
+        if (v.autoplay) playWithSound(v);
+      });
+      if (slide) slide.dispatchEvent(new CustomEvent('fs-slide-enter', { bubbles: true }));
+    } else {
+      vids.forEach((v) => {
+        if (v.hasAttribute('data-no-restart')) return;
+        try { v.pause(); } catch (e) { /* noop */ }
+      });
+      if (slide) slide.dispatchEvent(new CustomEvent('fs-slide-leave', { bubbles: true }));
+    }
+  }
+
+  // Play an autoplay <video>, unmuting it unless the author asked for silence.
+  // An authored `muted` attribute or `data-keep-muted` means keep silent.
+  function playWithSound(v) {
+    const keepSilent = v.hasAttribute('data-keep-muted') || v.hasAttribute('muted');
+    if (!keepSilent) v.muted = false;
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {
+      if (keepSilent) return;
+      v.muted = true;
+      const p2 = v.play();
+      if (p2 && p2.catch) p2.catch(() => {});
+    });
   }
 
   function goTo(deck, frames, idx, updateHash) {

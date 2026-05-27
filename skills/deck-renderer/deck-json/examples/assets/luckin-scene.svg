@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-label="Retail construction expert explaining an on-site compliance workaround">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eff6ff"/>
+      <stop offset="1" stop-color="#d1fae5"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#14532d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="900" fill="url(#wall)"/>
+  <rect y="630" width="1400" height="270" fill="url(#floor)"/>
+  <rect x="70" y="92" width="1260" height="498" rx="28" fill="#ffffff" opacity="0.68"/>
+  <rect x="140" y="160" width="430" height="310" rx="22" fill="#e2e8f0"/>
+  <rect x="610" y="160" width="290" height="310" rx="22" fill="#dcfce7"/>
+  <rect x="940" y="160" width="250" height="310" rx="22" fill="#e0f2fe"/>
+  <rect x="646" y="506" width="182" height="84" rx="18" fill="#0f766e"/>
+  <rect x="665" y="486" width="144" height="38" rx="19" fill="#ccfbf1"/>
+  <path d="M826 506 L944 442" stroke="#0f172a" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="1012" cy="398" r="62" fill="#fde68a"/>
+  <rect x="938" y="464" width="156" height="180" rx="48" fill="#bfdbfe"/>
+  <circle cx="338" cy="404" r="58" fill="#fde68a"/>
+  <rect x="268" y="464" width="150" height="178" rx="46" fill="#bbf7d0"/>
+  <path d="M424 508 C510 472 574 464 648 498" stroke="#2563eb" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <rect x="178" y="706" width="1020" height="56" rx="28" fill="#f8fafc" opacity="0.92"/>
+  <circle cx="226" cy="734" r="16" fill="#22c55e"/>
+  <text x="262" y="744" fill="#0f172a" font-family="Arial, sans-serif" font-size="28" font-weight="700">经验被记录为可搜索的现场解法,而不是停留在专家脑子里</text>
+</svg>

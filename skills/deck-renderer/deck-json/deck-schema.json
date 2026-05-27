@@ -132,7 +132,7 @@
         "data": { "type": "object" }
       },
       "allOf": [
-        { "if": { "properties": { "layout": { "const": "cover" } },      "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_cover" } },      "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "cover" } },      "required": ["layout"] }, "then": { "properties": { "variant": { "enum": ["plain", "master"], "description": "plain = Cyrus business-pitch cover without flower artwork; master = H5 flower cover." }, "data": { "$ref": "#/$defs/data_cover" } },      "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "agenda" } },     "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_agenda" } },     "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "section" } },    "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_section" } },    "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "quote" } },      "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_quote" } },      "required": ["data"] } },
@@ -560,7 +560,7 @@
     },
 
     "data_cover": {
-      "description": "Master spec: title + initiator name + date. No subtitle (opt-in via bilingual setting).",
+      "description": "Cover spec: title + initiator name + date. Cyrus-generated business pitches default to variant=plain (no flower artwork); variant=master keeps the H5 flower cover.",
       "type": "object",
       "required": ["title", "author", "date"],
       "additionalProperties": false,
@@ -1066,9 +1066,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "title":   { "type": "string", "description": "Optional, for screen_label only." },
+        "title":   { "type": "string", "description": "Optional, for screen_label only. Not rendered on the end slide." },
         "contact": { "type": "string", "description": "Optional contact line, off-master but allowed." },
-        "slogan":  { "type": "string", "description": "Optional brand slogan, rendered as big closing line below title. Mirrors PPT '封底(带 slogan)' layout master." }
+        "slogan":  { "type": "string", "description": "Deprecated and ignored. H5 end slides always use the fixed lark-slogan.png master asset." }
       }
     },
 

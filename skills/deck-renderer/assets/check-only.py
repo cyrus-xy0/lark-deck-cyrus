@@ -15,7 +15,7 @@
     只看 21 条必修规则 (业务关切 A/B/C 三类), 全部 warn 升 error.
     用 business-rules.yaml 把每条违规渲染成业务语言: 业务症状 / 不修后果 /
     具体修改步骤 + 技术代码做小字附注.
-    适合 ingest-package.py 调来做 slide-library 准入扫描.
+    适合 deck-ingestor 调来做 slide-library 准入扫描.
 """
 
 import argparse
@@ -43,7 +43,9 @@ FAMILIES = [
     ('性能预算',             ['P50', 'P51', 'P52', 'P53', 'P54', 'P55']),
     ('视觉 (Playwright)',    ['R-OVERFLOW', 'R-OVERLAP', 'R-VIS-TIER', 'R-VIS-HIER',
                               'R-VIS-LABEL-FLOOR', 'R-VIS-BODY-FLOOR',
-                              'R-VIS-ALIGN', 'R-VISUAL']),
+                              'R-VIS-ALIGN', 'R-VIS-ABSPOS-DUAL-ANCHOR',
+                              'R-VIS-CARD-OVERFLOW', 'R-VIS-OPT-OUT-ABUSE',
+                              'R-VIS-TITLE-POSITION', 'R-VIS-ORPHAN', 'R-VISUAL']),
     ('交付物附件',           ['R-FEEDBACK']),
 ]
 
@@ -259,8 +261,8 @@ def build_gate_report(html_path: Path, slides_count: int, violations: list,
         lines.append('')
         lines.append('## ✅ 入库准入: 通过')
         lines.append('')
-        lines.append('这份 deck 满足 feishu-slide-library 的全部入库前置要求.')
-        lines.append('下一步可以走 ingest-package.py 的四象限判定流程.')
+        lines.append('这份 deck 满足 Cyrus Slide 库的全部入库前置要求.')
+        lines.append('下一步可以走 deck-ingestor 的知识 / 素材 / Slide 分层入库流程.')
         lines.append('')
         lines.append('> 注: 此扫描只校验"可编程的硬规则"; 内容质量 / 故事节奏 /')
         lines.append('> 视觉对齐还需要人眼审稿.')
@@ -353,7 +355,7 @@ def build_gate_report(html_path: Path, slides_count: int, violations: list,
                  f'"{html_path.name}" --gate ingest')
     lines.append('```')
     lines.append('')
-    lines.append('exit 0 → 准入通过, 可移交库的 ingest-package.py 走入库流程.')
+    lines.append('exit 0 → 准入通过, 可移交 deck-ingestor 走入库流程.')
     return '\n'.join(lines)
 
 
@@ -450,7 +452,7 @@ def main() -> int:
                    help='加跑 Playwright 视觉审计; --gate ingest 自动开启')
     p.add_argument('--gate', choices=['ingest'],
                    help='入库门禁模式. ingest = 21 条必修规则, '
-                        '业务语言报告, 库 ingest-package.py 用')
+                        '业务语言报告, deck-ingestor 用')
     p.add_argument('--report', metavar='PATH',
                    help='把 markdown 报告写到指定路径; 不带则打到 stdout')
     args = p.parse_args()

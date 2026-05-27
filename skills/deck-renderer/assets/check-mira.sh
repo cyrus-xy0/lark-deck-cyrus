@@ -36,6 +36,14 @@ if [ -d "$REPO_ROOT/skills" ] && [ -d "$REPO_ROOT/skills/deck-renderer" ]; then
 elif [ -d "$REPO_ROOT/../skills/deck-renderer" ]; then
   REPO_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 fi
+PROJECT_PYTHON_DEPS="$REPO_ROOT/.deps/python"
+PROJECT_PLAYWRIGHT_BROWSERS="$REPO_ROOT/.deps/ms-playwright"
+
+run_project_python() {
+  PYTHONPATH="$PROJECT_PYTHON_DEPS${PYTHONPATH:+:$PYTHONPATH}" \
+  PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$PROJECT_PLAYWRIGHT_BROWSERS}" \
+    python3 "$@"
+}
 
 # ---- TTY-aware colors -----------------------------------------------------
 if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
@@ -87,7 +95,7 @@ SKILL_MD="$SKILL_ROOT/SKILL.md"
 if [ ! -f "$SKILL_MD" ]; then
   mark_fail "SKILL.md not found at $SKILL_MD"
 else
-  fm_out=$(SKILL_MD_PATH="$SKILL_MD" python3 - <<'PY'
+  fm_out=$(PYTHONPATH="$PROJECT_PYTHON_DEPS${PYTHONPATH:+:$PYTHONPATH}" SKILL_MD_PATH="$SKILL_MD" python3 - <<'PY'
 import os, re, pathlib, sys
 try:
     import yaml
@@ -103,7 +111,7 @@ print(f"DESC_LEN={len(fm.get('description',''))}")
 PY
   )
   if echo "$fm_out" | grep -q PYYAML_MISSING; then
-    mark_warn "PyYAML not installed — skipping deep parse (pip install pyyaml to enable)"
+    mark_warn "PyYAML not installed — skipping deep parse (run install.sh to enable)"
   elif echo "$fm_out" | grep -q NO_FRONTMATTER; then
     mark_fail "SKILL.md has no YAML frontmatter"
   else
@@ -171,16 +179,20 @@ else
   mark_skip "gh ................. not installed (optional; only needed if you push from agent)"
 fi
 
-if python3 -c "import yaml" 2>/dev/null; then
+if run_project_python -c "import yaml" 2>/dev/null; then
   mark_ok "pyyaml ............. installed"
 else
   mark_warn "pyyaml ............. missing (pip install pyyaml — needed for check-only.py + this script's deep frontmatter parse)"
 fi
 
-if python3 -c "import playwright" 2>/dev/null; then
-  mark_ok "playwright ......... installed (visual validator R-VIS-* enabled)"
+if run_project_python -c "import playwright" 2>/dev/null; then
+  if [ -d "$PROJECT_PLAYWRIGHT_BROWSERS" ]; then
+    mark_ok "playwright ......... installed in .deps (visual validator R-VIS-* enabled)"
+  else
+    mark_warn "playwright ......... python package installed, but .deps/ms-playwright is missing Chromium"
+  fi
 else
-  mark_skip "playwright ......... not installed (optional; visual audits R-OVERFLOW / R-VIS-TIER / R-VIS-HIER will skip)"
+  mark_skip "playwright ......... not installed; run install.sh to enable visual audits"
 fi
 group_end
 
@@ -231,6 +243,10 @@ ASSETS=(
   "assets/preflight.sh"
   "assets/new-run.sh"
   "assets/finalize.sh"
+  "assets/inline-assets.py"
+  "assets/deck-edit.py"
+  "assets/deck-manage.py"
+  "assets/deck-screenshot.py"
   "assets/lark-logo.png"
   "assets/lark-cover-bg.jpg"
   "assets/lark-slogan.png"

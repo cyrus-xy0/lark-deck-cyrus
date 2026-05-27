@@ -18,6 +18,8 @@
 #                 default: git@github.com:cyrus-xy0/lark-deck-cyrus.git
 #   LARK_DECK_CYRUS_INSTALL_FROM_LOCAL=1
 #                 copy from this script's directory even if INSTALL_DIR is git
+#   LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1
+#                 skip default project-local Playwright + Chromium install
 
 set -euo pipefail
 
@@ -25,10 +27,12 @@ REPO_URL="${REPO_URL:-git@github.com:cyrus-xy0/lark-deck-cyrus.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/Projects/lark-deck-cyrus}"
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 SKILLS_DIR="$CLAUDE_DIR/skills"
-SKILL_NAMES=("lark-deck-cyrus" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator")
+SKILL_NAMES=("lark-deck-cyrus" "upload-recognizer" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator" "deck-ingestor")
 PRIMARY_SKILL="deck-renderer"
 PRIMARY_LINK_PATH="$SKILLS_DIR/$PRIMARY_SKILL"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+PY_DEPS_DIR="$INSTALL_DIR/.deps/python"
+PW_BROWSERS_DIR="$INSTALL_DIR/.deps/ms-playwright"
 
 same_path() {
   local left right
@@ -56,6 +60,7 @@ copy_local_package() {
     --exclude='*.pyc' \
     --exclude='*.pyo' \
     --exclude='.pytest_cache/' \
+    --exclude='.deps/' \
     --exclude='runs/' \
     --exclude='.base-cache/' \
     --exclude='library/knowledge/candidates/' \
@@ -126,7 +131,41 @@ else
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# 2. Symlink product skills into the harness skills directory.
+# 2. Install project-local runtime dependencies.
+install_playwright_deps() {
+  if [ "${LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL:-}" = "1" ]; then
+    echo "==> skipping Playwright install (LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1)"
+    return
+  fi
+
+  if [ ! -f "$INSTALL_DIR/requirements.txt" ]; then
+    echo "ERROR: missing $INSTALL_DIR/requirements.txt; cannot install Playwright dependency" >&2
+    exit 1
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "ERROR: python3 is required to install Playwright and run deck validation" >&2
+    exit 1
+  fi
+  if ! python3 -m pip --version >/dev/null 2>&1; then
+    echo "ERROR: python3 -m pip is required to install Playwright" >&2
+    echo "Install pip for your Python 3, then rerun install.sh." >&2
+    exit 1
+  fi
+
+  mkdir -p "$PY_DEPS_DIR" "$PW_BROWSERS_DIR"
+  echo "==> installing Python deps into $PY_DEPS_DIR"
+  python3 -m pip install --upgrade --target "$PY_DEPS_DIR" -r "$INSTALL_DIR/requirements.txt"
+
+  echo "==> installing Playwright Chromium into $PW_BROWSERS_DIR"
+  PYTHONPATH="$PY_DEPS_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+  PLAYWRIGHT_BROWSERS_PATH="$PW_BROWSERS_DIR" \
+    python3 -m playwright install chromium
+}
+
+install_playwright_deps
+
+# 3. Symlink product skills into the harness skills directory.
 mkdir -p "$SKILLS_DIR"
 for SKILL_NAME in "${SKILL_NAMES[@]}"; do
   SRC_PATH="$INSTALL_DIR/skills/$SKILL_NAME"
@@ -143,7 +182,7 @@ for SKILL_NAME in "${SKILL_NAMES[@]}"; do
   echo "==> symlinked: $LINK_PATH -> $SRC_PATH"
 done
 
-# 3. Verify.
+# 4. Verify.
 echo
 echo "==> running preflight..."
 if bash "$PRIMARY_LINK_PATH/assets/preflight.sh"; then

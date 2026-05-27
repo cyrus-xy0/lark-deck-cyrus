@@ -1,9 +1,10 @@
 ---
 name: pitch-simulator
 description: |
-  Use this skill after a pitch deck has been planned or rendered, preferably
-  after quality audit, when the user wants to rehearse pitching it to a customer,
-  investor, leader, buying committee, or internal stakeholder. Common triggers:
+  Use this skill after deck-renderer has produced an H5 deck and deck-auditor
+  has passed or conditionally accepted it, when the user wants to rehearse
+  pitching it to a customer, investor, leader, buying committee, or internal
+  stakeholder before cloud ingestion. Common triggers:
   "模拟讲这套片子", "用户听完会怎样", "pitch rehearsal", "audience simulator",
   "客户会怎么反应", "拿这份 deck 去讲会有什么结果", "帮我预演这场提案".
   The output is a scenario forecast and talk-track/revision queue, not real
@@ -22,6 +23,9 @@ description: |
 
 ## 触发时机
 
+Cyrus 标准链路里,`pitch-simulator` 放在 `deck-auditor` 之后、`deck-ingestor`
+之前。不要在 `deck-planner` 刚产出 outline 后先跑 simulator;planner 应该先基于知识库和用户 brief 生成 outline,再由 renderer / auditor 形成可看的 deck。
+
 在以下链路后使用:
 
 ```text
@@ -30,7 +34,7 @@ brief
   -> deck-renderer
   -> deck-auditor
   -> pitch-simulator
-  -> user-confirmed revision queue / talk track
+  -> deck-ingestor
 ```
 
 典型用户请求:
@@ -143,4 +147,5 @@ python3 skills/pitch-simulator/simulate-pitch.py \
 - `deck-planner`: 当问题是叙事结构、受众选择、页序、每页重点、关键 idea 或主张。
 - `deck-renderer`: 当问题是具体页面、文案、layout、可读性、素材落地或证据页。
 - `deck-auditor`: 当下一版生成后需要再次验收。
+- `deck-ingestor`: 当 deck 通过验收且预演没有阻断性修改建议时,把可复用的 slide、素材和知识交给入库流程。
 - 飞书 Base 素材库/知识库: 当问题是缺客户案例、行业数据、demo、logo 或产品截图。

@@ -11,7 +11,7 @@ set -euo pipefail
 
 PACKAGE_NAME="lark-deck-cyrus"
 SKILLS_ROOT="skills"
-SKILL_NAMES=("lark-deck-cyrus" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator")
+SKILL_NAMES=("lark-deck-cyrus" "upload-recognizer" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator" "deck-ingestor")
 
 for SKILL_NAME in "${SKILL_NAMES[@]}"; do
   if [ ! -d "$SKILLS_ROOT/$SKILL_NAME" ]; then
@@ -53,6 +53,7 @@ copy_path() {
     --exclude='*.pyo' \
     --exclude='.pytest_cache/' \
     --exclude='node_modules/' \
+    --exclude='.deps/' \
     --exclude='runs/' \
     --exclude='.base-cache/' \
     --exclude='.deck-renderer-workspace/' \
@@ -75,6 +76,7 @@ INCLUDE_PATHS=(
   "library"
   "README.md"
   "INSTALL.md"
+  "requirements.txt"
   "install.sh"
   "package-skill.sh"
   "LICENSE"
@@ -107,10 +109,15 @@ By default this copies the package into \`~/Projects/lark-deck-cyrus\`, then
 symlinks these skills into \`~/.claude/skills/\`:
 
 - \`lark-deck-cyrus\`
+- \`upload-recognizer\`
 - \`deck-planner\`
 - \`deck-renderer\`
 - \`deck-auditor\`
 - \`pitch-simulator\`
+- \`deck-ingestor\`
+
+\`install.sh\` also installs project-local Playwright dependencies into
+\`.deps/\` so visual deck audits work without a global pip install.
 
 For another harness root:
 

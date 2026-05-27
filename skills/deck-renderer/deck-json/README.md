@@ -84,7 +84,7 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 
 | Layout | Variants | 用于 |
 |---|---|---|
-| `cover` | — | 标题页 |
+| `cover` | `plain` / `master` | 标题页;Cyrus 默认 plain 无花卉图,master 保留 H5 花卉母版 |
 | `agenda` | — | 目录 / TOC pills |
 | `section` | — | 章节分隔 + 大编号(可选 `parent_label` 子章节) |
 | `content` | `3up` / `2col` / `story-case` / `blocks` / `matrix` / **`before-after`** | 3 卡片 / 左文右图 / 一页纸案例 / 全宽 body / 2×2 矩阵 / 痛点-方案对比 |
@@ -95,7 +95,7 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 | `flow` | `timeline` / `process` / `tree` / **`swim`** | 时间轴 / 步骤 / MECE 拆解树 / 多泳道 roadmap |
 | **`logo-wall`** | — | N 行业 × M 客户 logo 矩阵 |
 | **`arch-stack`** | — | 4 层架构图(应用/平台/AI/数据底座) |
-| `end` | — | 结束页(可选 `slogan` 字段) |
+| `end` | — | 结束页,固定飞书 slogan PNG;不渲染自定义 CTA 文本 |
 | **specials** | | |
 | `replica` | — | 全屏 PDF 页图 |
 | `raw` | — | 单页 HTML 自由发挥(escape hatch) |

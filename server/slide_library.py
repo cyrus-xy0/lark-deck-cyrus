@@ -20,16 +20,22 @@ judge them separately rather than treating a slide as a single reusable unit.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import html
 import json
 import re
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
 
 
 REPO = Path(__file__).resolve().parents[1]
 BUSINESS_LIBRARY = REPO / "library/business/slides"
 CANDIDATES_DIR = REPO / "library/business/candidates"
+PPT_UPLOADS_DIR = REPO / "library/business/uploads"
+PPT_UPLOAD_THUMBNAILS_DIR = REPO / "library/business/thumbnails/uploads"
 KNOWLEDGE_CANDIDATES_DIR = REPO / "library/knowledge/candidates"
 PRESENTATION_CANDIDATES_DIR = REPO / "library/presentation/candidates"
 DESIGN_KIT = REPO / "library/design-kit/manifest.json"
@@ -150,7 +156,10 @@ def load_design_kit() -> dict[str, Any]:
 
 def load_business_entries(include_candidates: bool = False) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    for root in [BUSINESS_LIBRARY, CANDIDATES_DIR] if include_candidates else [BUSINESS_LIBRARY]:
+    roots = [BUSINESS_LIBRARY]
+    if include_candidates:
+        roots.extend([CANDIDATES_DIR, PPT_UPLOADS_DIR])
+    for root in roots:
         if not root.exists():
             continue
         for path in sorted(root.glob("*.json")):
@@ -609,6 +618,202 @@ def approve_candidate(
     return {"ok": True, "path": repo_rel(target), "entry": summarize_entry(entry), "issues": issues}
 
 
+def pptx_slide_count(path: Path) -> int:
+    if path.suffix.lower() != ".pptx":
+        return 1
+    try:
+        with zipfile.ZipFile(path) as zf:
+            slides = [
+                name for name in zf.namelist()
+                if re.match(r"ppt/slides/slide\d+\.xml$", name)
+            ]
+    except zipfile.BadZipFile:
+        return 1
+    return max(1, len(slides))
+
+
+def pptx_slide_texts(path: Path) -> dict[int, list[str]]:
+    if path.suffix.lower() != ".pptx":
+        return {}
+    out: dict[int, list[str]] = {}
+    try:
+        with zipfile.ZipFile(path) as zf:
+            slide_names = sorted(
+                [name for name in zf.namelist() if re.match(r"ppt/slides/slide\d+\.xml$", name)],
+                key=lambda item: int(re.search(r"slide(\d+)\.xml$", item).group(1)),
+            )
+            for name in slide_names:
+                page = int(re.search(r"slide(\d+)\.xml$", name).group(1))
+                try:
+                    root = ET.fromstring(zf.read(name))
+                except ET.ParseError:
+                    out[page] = []
+                    continue
+                texts = []
+                for el in root.iter():
+                    if (el.tag.endswith("}t") or el.tag == "t") and el.text and el.text.strip():
+                        texts.append(el.text.strip())
+                out[page] = texts
+    except zipfile.BadZipFile:
+        return {}
+    return out
+
+
+def wrap_svg_lines(text: str, max_chars: int = 28, max_lines: int = 5) -> list[str]:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    if not normalized:
+        return []
+    lines: list[str] = []
+    current = ""
+    for char in normalized:
+        current += char
+        if len(current) >= max_chars:
+            lines.append(current)
+            current = ""
+        if len(lines) >= max_lines:
+            break
+    if current and len(lines) < max_lines:
+        lines.append(current)
+    return lines[:max_lines]
+
+
+def write_ppt_upload_thumbnail(
+    *,
+    entry_id: str,
+    title: str,
+    page: int,
+    total: int,
+    texts: list[str],
+) -> str:
+    PPT_UPLOAD_THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
+    target = PPT_UPLOAD_THUMBNAILS_DIR / f"{entry_id}.svg"
+    preview = " · ".join(texts[:8]) or "待解析 PPT 页面"
+    title_lines = wrap_svg_lines(title, max_chars=24, max_lines=2)
+    preview_lines = wrap_svg_lines(preview, max_chars=30, max_lines=4)
+    title_tspans = "\n".join(
+        f'<text x="40" y="{82 + i * 34}" fill="#fff" font-size="28" font-weight="700">{html.escape(line)}</text>'
+        for i, line in enumerate(title_lines)
+    )
+    preview_y = 180
+    preview_tspans = "\n".join(
+        f'<text x="40" y="{preview_y + i * 30}" fill="rgba(255,255,255,0.72)" font-size="22">{html.escape(line)}</text>'
+        for i, line in enumerate(preview_lines)
+    )
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111B3D"/>
+      <stop offset="0.55" stop-color="#0B1024"/>
+      <stop offset="1" stop-color="#123D45"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bg)"/>
+  <circle cx="560" cy="66" r="92" fill="#33D6C0" opacity="0.18"/>
+  <circle cx="82" cy="310" r="120" fill="#3C7FFF" opacity="0.16"/>
+  <rect x="24" y="24" width="592" height="312" rx="18" fill="none" stroke="rgba(255,255,255,0.16)"/>
+  <text x="40" y="48" fill="#33D6C0" font-size="18" font-weight="700">PPT LIBRARY · P{page:02d}/{total:02d}</text>
+  {title_tspans}
+  {preview_tspans}
+  <text x="40" y="318" fill="rgba(255,255,255,0.48)" font-size="18">registered local candidate · needs review</text>
+</svg>
+'''
+    target.write_text(svg, encoding="utf-8")
+    return repo_rel(target)
+
+
+def register_ppt_upload(
+    ppt_path: Path,
+    metadata: dict[str, Any],
+    *,
+    pages: list[int] | None = None,
+) -> dict[str, Any]:
+    """Register a user-selected PPT/PPTX as slide-library selectable entries.
+
+    This does not convert PPT pages to H5. It preserves the PPT as a source
+    artifact and creates placeholder replica slide records so GTM users can
+    search/select pages for later recognizer/renderer processing.
+    """
+    if not ppt_path.exists() or not ppt_path.is_file():
+        raise FileNotFoundError(str(ppt_path))
+    suffix = ppt_path.suffix.lower()
+    if suffix not in {".ppt", ".pptx"}:
+        raise ValueError("register-ppt expects a .ppt or .pptx file")
+
+    digest = hashlib.sha256(ppt_path.read_bytes()).hexdigest()[:16]
+    title = metadata.get("title") or ppt_path.stem
+    total = pptx_slide_count(ppt_path)
+    selected_pages = pages or list(range(1, total + 1))
+    rel_ppt = repo_rel(ppt_path) if ppt_path.resolve().is_relative_to(REPO) else str(ppt_path.resolve())
+    safe_title = re.sub(r"[^a-z0-9-]+", "-", title.lower()).strip("-") or "ppt-upload"
+    entries = []
+    issues_by_entry = []
+    texts_by_page = pptx_slide_texts(ppt_path)
+    for page in selected_pages:
+        if page < 1 or page > total:
+            issues_by_entry.append({
+                "page": page,
+                "issues": [{"severity": "error", "code": "LIB-PPT-PAGE", "message": f"page {page} outside 1..{total}"}],
+            })
+            continue
+        slide_key = f"ppt-{digest}-p{page:03d}"
+        entry_id = re.sub(r"[^a-z0-9-]+", "-", f"upload-{safe_title}-{digest}-p{page:03d}").strip("-")[:96]
+        summary = metadata.get("summary") or f"用户上传 PPT 自选页 {page}/{total}: {title}"
+        thumbnail = metadata.get("thumbnail") or write_ppt_upload_thumbnail(
+            entry_id=entry_id,
+            title=f"{title} · P{page:02d}",
+            page=page,
+            total=total,
+            texts=texts_by_page.get(page, []),
+        )
+        entry = {
+            "version": "1.0",
+            "id": entry_id,
+            "title": f"{title} · P{page:02d}",
+            "status": "candidate",
+            "thumbnail": thumbnail,
+            "tags": normalize_list(metadata.get("tags") or metadata.get("tag") or ["ppt-upload", "needs-review"]),
+            "industry": normalize_list(metadata.get("industry") or ["待标注"]),
+            "product": normalize_list(metadata.get("product") or ["待标注"]),
+            "customer_stage": normalize_list(metadata.get("customer_stage") or ["待标注"]),
+            "deck_type": normalize_list(metadata.get("deck_type") or ["用户自选 PPT"]),
+            "value_prop": normalize_list(metadata.get("value_prop") or title),
+            "layout": "replica",
+            "variant": "",
+            "source": {
+                "level": metadata.get("source_level") or "internal-draft",
+                "deck": rel_ppt,
+                "ppt": rel_ppt,
+                "slide_key": slide_key,
+                "page": page,
+                "owner": metadata.get("owner") or "gtm",
+                "reviewer": metadata.get("reviewer", ""),
+                "uploaded_at": now_iso(),
+            },
+            "permission_status": metadata.get("permission_status") or "needs_review",
+            "slide": {
+                "key": slide_key,
+                "layout": "replica",
+                "data": {
+                    "page_image": thumbnail,
+                    "alt": summary,
+                    "source_page": page,
+                },
+                "notes": f"message: {summary}",
+            },
+        }
+        target = PPT_UPLOADS_DIR / f"{entry_id}.json"
+        write_json(target, entry)
+        issues = validate_entry(entry, seen_ids=set(), seen_slide_keys=set())
+        entries.append({"path": repo_rel(target), "entry": summarize_entry(entry), "issues": issues})
+    return {
+        "ok": not any(any(issue["severity"] == "error" for issue in item.get("issues", [])) for item in entries + issues_by_entry),
+        "source": rel_ppt,
+        "slide_count": total,
+        "registered": entries,
+        "skipped": issues_by_entry,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -646,6 +851,23 @@ def main(argv: list[str] | None = None) -> int:
     approve.add_argument("--reviewer", required=True)
     approve.add_argument("--source-level", default="internal-approved", choices=sorted(ALLOWED_SOURCE_LEVELS - {"internal-draft"}))
     approve.add_argument("--thumbnail", default="", help="final thumbnail path; required if candidate still uses pending.svg")
+
+    upload = sub.add_parser("register-ppt", help="register a user-uploaded PPT/PPTX as selectable slide-library candidates")
+    upload.add_argument("ppt_path", type=Path)
+    upload.add_argument("--page", action="append", type=int, default=[], help="1-based slide page to register; repeatable. Defaults to all pages.")
+    upload.add_argument("--title")
+    upload.add_argument("--summary", default="")
+    upload.add_argument("--thumbnail", default="")
+    upload.add_argument("--industry", action="append", default=[])
+    upload.add_argument("--product", action="append", default=[])
+    upload.add_argument("--customer-stage", action="append", default=[])
+    upload.add_argument("--deck-type", action="append", default=[])
+    upload.add_argument("--value-prop", action="append", default=[])
+    upload.add_argument("--tag", action="append", default=[])
+    upload.add_argument("--source-level", default="internal-draft")
+    upload.add_argument("--owner", default="gtm")
+    upload.add_argument("--reviewer", default="")
+    upload.add_argument("--permission-status", default="needs_review")
 
     args = parser.parse_args(argv)
     if args.command == "search":
@@ -691,6 +913,28 @@ def main(argv: list[str] | None = None) -> int:
             reviewer=args.reviewer,
             source_level=args.source_level,
             thumbnail=args.thumbnail,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["ok"] else 1
+    if args.command == "register-ppt":
+        result = register_ppt_upload(
+            args.ppt_path,
+            {
+                "title": args.title,
+                "summary": args.summary,
+                "thumbnail": args.thumbnail,
+                "industry": args.industry,
+                "product": args.product,
+                "customer_stage": args.customer_stage,
+                "deck_type": args.deck_type,
+                "value_prop": args.value_prop,
+                "tags": args.tag,
+                "source_level": args.source_level,
+                "owner": args.owner,
+                "reviewer": args.reviewer,
+                "permission_status": args.permission_status,
+            },
+            pages=args.page,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result["ok"] else 1

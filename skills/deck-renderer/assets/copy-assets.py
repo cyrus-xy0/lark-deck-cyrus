@@ -5,6 +5,7 @@ copy-assets.py — Make a per-run output self-contained.
 For every HTML file under runs/<ts>/output/, scan for references to:
   ../../../../skills/deck-renderer/assets/<path>     (single-pages/* depth)
   ../../../skills/deck-renderer/assets/<path>        (output/* depth)
+  ../../../skills/deck-renderer/deck-json/templates/<path>
   ../skills/deck-renderer/assets/<path>              (any other depth)
   ../../input/<file>                                   (input asset)
 
@@ -47,7 +48,7 @@ from pathlib import Path
 # Path char class excludes ? and # so cache-busting query strings (e.g.
 # `assets/foo.png?v=3`) don't get glued onto the captured rest.
 RX_SKILL = re.compile(
-    r'((?:\.\./)+)skills/deck-renderer/(assets|examples|templates)/([^\'")\s?#]+)'
+    r'((?:\.\./)+)skills/deck-renderer/(assets|examples|templates|deck-json/templates)/([^\'")\s?#]+)'
 )
 RX_INPUT = re.compile(
     r'((?:\.\./)*)input/([^\'")\s?#]+)'
@@ -415,6 +416,20 @@ def main():
     for css_path in css_files:
         css_dir = css_path.parent
         css_src = css_path.read_text(encoding="utf-8")
+        original_css_src = css_src
+        # CSS copied from deck-json/templates/ moves one level deeper under
+        # output/assets/. A source ref like ../../assets/lark-content-bg.jpg
+        # must become ../../lark-content-bg.jpg, otherwise it resolves to
+        # output/assets/assets/... after bundling.
+        try:
+            css_rel = css_path.relative_to(local_assets).as_posix()
+        except ValueError:
+            css_rel = ""
+        if css_rel.startswith("deck-json/templates/"):
+            css_src = css_src.replace('url("../../assets/', 'url("../../')
+            css_src = css_src.replace("url('../../assets/", "url('../../")
+            if css_src != original_css_src:
+                css_path.write_text(css_src, encoding="utf-8")
         for m in rx_css_url.finditer(css_src):
             ref = m.group(1)
             # Skip data: URIs, absolute URLs, SVG fragment ids (#…), and bare punctuation

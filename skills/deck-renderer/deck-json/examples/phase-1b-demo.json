@@ -236,7 +236,7 @@
       "screen_label": "09 现场决策",
       "data": {
         "image": {
-          "src": "assets/onsite-photo.jpg",
+          "src": "assets/onsite-photo.svg",
           "alt": "门店一线员工在 Lark 移动端审批一笔库存调拨",
           "fit": "cover",
           "position": "center"

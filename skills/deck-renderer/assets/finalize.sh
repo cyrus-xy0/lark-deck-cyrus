@@ -7,7 +7,7 @@
 #
 # Usage:
 #     bash assets/finalize.sh <output-dir> [mode] [--strict] [--name <slug>]
-#         mode:           local (default) | remote
+#         mode:           local (default) | remote | inline
 #         --strict        promote validator warnings to errors (final delivery)
 #         --name <slug>   emit a delivery-named copy alongside index.html
 #                         convention: lark-<customer>-<presentation-date>
@@ -15,10 +15,7 @@
 #
 #     local   = copy-assets + extract-texts + validate (+ named copy if --name)
 #     remote  = local steps + package-deliverable.sh (zip kit, zip name from --name)
-#
-# For single-file inline delivery (base64-inlined CSS/JS/images into one
-# .html file for email/IM attachment), run `bash build.sh --inline` from
-# the skill root — that's a separate pipeline, not orchestrated here.
+#     inline  = local steps + inline-assets.py (single self-contained HTML)
 #
 # Exit codes:
 #     0  all green
@@ -38,13 +35,7 @@ NAME=""
 shift || true
 while [ $# -gt 0 ]; do
     case "$1" in
-        local|remote) MODE="$1"; shift ;;
-        inline)
-            echo "✗ 'inline' mode is no longer a finalize.sh subcommand." >&2
-            echo "  For single-file inline delivery, run from the skill root:" >&2
-            echo "    bash build.sh --inline" >&2
-            exit 1
-            ;;
+        local|remote|inline) MODE="$1"; shift ;;
         --strict) STRICT="--strict"; shift ;;
         --name) NAME="$2"; shift 2 ;;
         *) echo "unknown arg: $1" >&2; exit 1 ;;
@@ -61,7 +52,7 @@ if [ -n "$NAME" ]; then
 fi
 
 if [ -z "$OUT_DIR" ] || [ ! -d "$OUT_DIR" ]; then
-    echo "usage: bash $(basename "$0") <output-dir> [local|remote] [--strict] [--name <slug>]" >&2
+    echo "usage: bash $(basename "$0") <output-dir> [local|remote|inline] [--strict] [--name <slug>]" >&2
     echo "       output-dir must exist (typically runs/<ts>/output/)" >&2
     echo "       --name convention: lark-<customer>-<YYYY-MM-DD>" >&2
     exit 1
@@ -87,11 +78,13 @@ run_step() {
     if "$@" >"$log" 2>&1; then
         rm -f "$log"
         return 0
+    else
+        local status=$?
+        echo "✗ $desc failed (exit $status):" >&2
+        sed 's/^/    /' "$log" >&2
+        rm -f "$log"
+        return "$status"
     fi
-    echo "✗ $desc failed (exit $?):" >&2
-    sed 's/^/    /' "$log" >&2
-    rm -f "$log"
-    return 1
 }
 
 # ---------- 1 · copy-assets (make output portable) ----------
@@ -235,5 +228,28 @@ case "$MODE" in
             echo "  TIP: pass --name lark-<customer>-<YYYY-MM-DD> for a named zip"
             echo "       instead of the generic deck-editable.zip."
         fi
+        ;;
+    inline)
+        echo "  · inline-assets …"
+        if [ -n "$NAME" ]; then
+            INLINE_HTML="$OUT_DIR/$NAME.html"
+        else
+            INLINE_HTML="$OUT_DIR/index-inline.html"
+        fi
+        if ! run_step "inline-assets" python3 "$SCRIPT_DIR/inline-assets.py" "$HTML" --out "$INLINE_HTML"; then
+            exit 5
+        fi
+        if [ -n "$STRICT" ]; then
+            echo "  · validate inline --strict …"
+        else
+            echo "  · validate inline …"
+        fi
+        if ! python3 "$SCRIPT_DIR/validate.py" "$INLINE_HTML" $STRICT; then
+            echo "✗ inline artifact failed validator — fix above and re-run" >&2
+            exit 4
+        fi
+        echo ""
+        echo "✓ ready (inline) — deliver this single file:"
+        echo "    $INLINE_HTML"
         ;;
 esac

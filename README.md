@@ -17,11 +17,15 @@
 - **手机能看** — 自动切换成纵向滚动浏览，发链接给客户立刻能预览
 - **单文件可直接转发** — 飞书 / 邮件 / IM 任何途径，对方双击就开，不用装 Office
 - **文字用记事本改** — 配套 `texts.md` 文本侧文件，改文字不动布局
-- **视觉跟飞书品牌完全对齐** — 15 个 DeckJSON layout enum（13 个常规 + 2 个 special）沿用飞书母版坐标，色值/字号/留白由 renderer 和 validator 约束
+- **视觉跟飞书品牌完全对齐** — 15 个 DeckJSON layout enum（12 个基础 + 3 个 special）沿用飞书母版坐标，色值/字号/留白由 renderer 和 validator 约束
 
 更完整的产品方向见 [`PRODUCT.md`](PRODUCT.md):本项目是 `lark-deck-cyrus`
-总控 skill，串联“场景规划 → 知识库 → 素材库 → DeckJSON → HTML 渲染 → 质量验收
-→ Pitch 预演 → 用户确认迭代 → 反馈入库”的产品闭环。
+总控 skill，串联“上传识别 → 场景规划 → 知识库 → 素材库 → DeckJSON → HTML 渲染
+→ 质量验收 → Pitch 预演 → 云端入库 → 用户确认迭代”的产品闭环。
+
+和 `feishu-deck-h5` 的主要区别: H5 是完整的单体生产 skill; Cyrus 沿用 H5 的
+视觉和交付标准,但按场景拆成 recognizer / planner / renderer / auditor /
+simulator / ingestor 多个子 skill,并新增 simulator 做客户情景预测。
 
 ---
 
@@ -29,6 +33,9 @@
 
 - **deck planner** — `skills/deck-planner/` 先判断行业痛点、受众、
   每页重点、关键 idea、讲法、证据缺口、素材计划和页级 layout candidate,避免只做视觉 demo。
+- **上传识别** — `skills/upload-recognizer/` 把 PDF / PPT / HTML / 飞书文档
+  拆成知识层和素材层,供 planner 规划、renderer 使用、ingestor 入库。内置
+  `recognize.py` 可直接输出 `source-dossier.json` 和 `SOURCE_DOSSIER.md`。
 - **知识库** — GitHub 安装默认使用随包 `knowledge/`;内部用户可配置飞书 Base 作为 live source。
 - **素材索引** — GitHub 安装默认读取 `assets/shared/asset-index.generated.json`;
   配置 `LARK_LIBRARY_BASE_TOKEN` 后可用飞书 Base 同步 logo、图片、video、icon、demo 等素材。
@@ -42,6 +49,17 @@
   `quality-insights.json`,把用户精调动作转成下一次生成的改进信号。
 - **Pitch 预演** — `skills/pitch-simulator/` 在 HTML deck 之后模拟
   决策者、推动者、使用者、技术和财务角色逐页反应,输出异议地图和改稿队列。
+- **Deck 入库** — `skills/deck-ingestor/` 在 auditor / simulator 之后把
+  slide、素材和知识分别写入本地候选库;显式 `--write-base` 时只把
+  `知识库` 和 `素材库` 同步到 live 飞书 Base。Slide Library 暂时保持本地,
+  由本地候选库保存整页可选复用单元。Base 记录会带 `关联SlideKey`、
+  `关联素材ID` / `关联知识ID`、来源 deck/PPT 和权限状态,用于表达知识与素材的映射。
+- **自选 PPT 入库** — 用户可直接上传团队 PPT/PPTX 到 Slide Library 候选库,
+  先登记为可搜索/可选择页面,自动生成本地缩略图,再由 recognizer / renderer
+  对选中页拆知识和素材。
+- **云端 agent 部署包** — `scripts/cloud_agent_deploy.py` 生成
+  `deploy/cloud-agent/` 下的 `.env` 模板、generator/bot 启动脚本、健康检查和
+  端点 manifest,方便用户把同一套 skill 部署给自己的云端虾/agent。
 
 ---
 
@@ -63,7 +81,7 @@
 
 ## 支持哪些 layout
 
-15 个 DeckJSON layout enum（13 个常规 + 2 个 special），覆盖一份典型客户提案
+15 个 DeckJSON layout enum（12 个基础 + 3 个 special），覆盖一份典型客户提案
 从封面到封底的所有页型。`content` / `stats` / `flow` 是多 variant layout，
 因此实际可用版式约 20 个：
 
@@ -115,6 +133,8 @@
 
 Claude 会读 [INSTALL.md](INSTALL.md) 走标准安装流程（plugin marketplace 或 install.sh），
 然后按 [lark-deck-cyrus/SKILL.md](skills/lark-deck-cyrus/SKILL.md) 的总控流程生成 deck。
+`install.sh` 默认会把 Playwright 和 Chromium 安装到项目本地 `.deps/`,这样
+`deck-renderer` 的视觉审计不用额外手动装全局 Python 包。
 
 如果你只有一段业务场景 brief,推荐先让 agent 使用 `deck-planner`
 产出 outline,确认后再交给 `deck-renderer` 渲染。
@@ -123,6 +143,22 @@ Claude 会读 [INSTALL.md](INSTALL.md) 走标准安装流程（plugin marketplac
 客户反应时,再使用 `pitch-simulator` 预演“拿这套片子去讲会发生什么”,产出
 `pitch-rehearsal.json` 和 `PITCH_REHEARSAL.md`;用户确认采纳后,再把修改队列
 回写到 outline / deck.json。
+
+上传材料可先跑识别器:
+
+```bash
+python3 skills/upload-recognizer/recognize.py path/to/source.pptx \
+  --brief "给零售客户做飞书 Base 提案" \
+  --output-dir runs/source-dossiers/retail-base
+```
+
+云端 agent 部署包可这样生成:
+
+```bash
+python3 scripts/cloud_agent_deploy.py \
+  --output deploy/cloud-agent \
+  --base-url https://your-agent.example.com
+```
 
 ---
 

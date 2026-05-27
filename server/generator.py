@@ -2359,6 +2359,16 @@ class GeneratorHandler(BaseHTTPRequestHandler):
                 has_errors = any(issue["severity"] == "error" for issue in result.get("issues", []))
                 self.send_json(400 if has_errors else 201, result)
                 return
+            if parts == ["library", "ppt-uploads"]:
+                payload = self.read_body_json()
+                ppt_path = Path(str(payload.get("ppt_path") or payload.get("pptPath") or ""))
+                result = slide_library.register_ppt_upload(
+                    ppt_path,
+                    payload,
+                    pages=[int(item) for item in (payload.get("pages") or [])],
+                )
+                self.send_json(201 if result.get("ok") else 400, result)
+                return
             if parts == ["recipes", "plan"]:
                 self.send_json(200, pitch_recipes.plan_pitch(self.read_body_json()))
                 return

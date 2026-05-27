@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Library provider for deck assets and planning knowledge.
+"""Library provider for deck assets, planning knowledge, and local slide reuse.
 
 Default mode is auto: try the configured Feishu/Lark Base when available, then
 fall back to the local package cache. This keeps external GitHub installs
 usable without private Base access while preserving the live Base path for
-internal workers.
+internal workers. Base currently stores only knowledge and material assets;
+the Slide Library remains local-only for whole-page selection/reuse.
 """
 
 from __future__ import annotations
@@ -31,6 +32,15 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     data = json.loads(config_path.read_text(encoding="utf-8"))
     if os.environ.get("LARK_LIBRARY_BASE_TOKEN"):
         data["base_token"] = os.environ["LARK_LIBRARY_BASE_TOKEN"]
+    for table_key, env_key in {
+        "assets": "LARK_LIBRARY_ASSETS_TABLE_ID",
+        "knowledge": "LARK_LIBRARY_KNOWLEDGE_TABLE_ID",
+    }.items():
+        table_cfg = data.get("tables", {}).get(table_key, {})
+        config_env_key = table_cfg.get("env_table_id")
+        value = os.environ.get(env_key) or (os.environ.get(config_env_key) if config_env_key else "")
+        if value and table_key in data.get("tables", {}):
+            data["tables"][table_key]["id"] = value
     return data
 
 
@@ -93,6 +103,11 @@ def tags(value: Any) -> list[str]:
 
 def run_lark(config: dict[str, Any], table: str, args: list[str], identity: str) -> dict[str, Any]:
     table_cfg = config["tables"][table]
+    if not table_cfg.get("id"):
+        raise SystemExit(
+            f"base_library: table '{table}' has no configured table id. "
+            f"Set {table_cfg.get('env_table_id') or 'the table id in config/base-library.json'}."
+        )
     cmd = [
         "lark-cli",
         "base",
@@ -264,7 +279,93 @@ def local_knowledge_rows(config: dict[str, Any], keyword: str, limit: int) -> li
     return rows
 
 
+def local_slide_rows(config: dict[str, Any], keyword: str, limit: int) -> list[dict[str, Any]]:
+    roots = [
+        REPO / "library/business/slides",
+        REPO / "library/business/candidates",
+        REPO / "library/business/uploads",
+    ]
+    terms = [part.lower() for part in keyword.split() if part.strip()]
+    if not terms:
+        return []
+    rows: list[dict[str, Any]] = []
+
+    def walk_text(value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            out: list[str] = []
+            for item in value:
+                out.extend(walk_text(item))
+            return out
+        if isinstance(value, dict):
+            out: list[str] = []
+            for item in value.values():
+                out.extend(walk_text(item))
+            return out
+        return []
+
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in sorted(root.glob("*.json")):
+            try:
+                entry = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                continue
+            slide = entry.get("slide") if isinstance(entry.get("slide"), dict) else {}
+            source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+            haystack = " ".join(
+                str(item)
+                for item in [
+                    entry.get("id"),
+                    entry.get("title"),
+                    entry.get("layout"),
+                    entry.get("variant"),
+                    source.get("deck"),
+                    source.get("ppt"),
+                    source.get("slide_key"),
+                    " ".join(list_value(entry.get("tags"))),
+                    " ".join(list_value(entry.get("industry"))),
+                    " ".join(list_value(entry.get("product"))),
+                    " ".join(walk_text(slide.get("data") or {})),
+                ]
+                if item
+            ).lower()
+            if not (all(term in haystack for term in terms) or any(term in haystack for term in terms)):
+                continue
+            rows.append(
+                {
+                    "SlideID": entry.get("id", path.stem),
+                    "标题": entry.get("title", ""),
+                    "SlideKey": slide.get("key") or source.get("slide_key") or "",
+                    "Layout": entry.get("layout") or slide.get("layout") or "",
+                    "Variant": entry.get("variant") or slide.get("variant", ""),
+                    "状态": entry.get("status", "candidate"),
+                    "DeckJSON": json.dumps(slide, ensure_ascii=False, sort_keys=True),
+                    "HTML片段": entry.get("html_fragment", ""),
+                    "缩略图": entry.get("thumbnail", ""),
+                    "来源Deck": source.get("deck", ""),
+                    "来源PPT": source.get("ppt", ""),
+                    "来源页码": source.get("page", ""),
+                    "知识记录ID": entry.get("knowledge_record_id", ""),
+                    "素材记录ID": entry.get("asset_record_id", ""),
+                    "标签": list_value(entry.get("tags")),
+                    "行业": list_value(entry.get("industry")),
+                    "产品": list_value(entry.get("product")),
+                    "客户阶段": list_value(entry.get("customer_stage")),
+                    "摘要": " ".join(walk_text(slide.get("data") or {}))[:240],
+                    "权限状态": entry.get("permission_status", "needs_review"),
+                }
+            )
+            if len(rows) >= limit:
+                return rows
+    return rows
+
+
 def search_with_fallback(config: dict[str, Any], table: str, keyword: str, identity: str, limit: int) -> list[dict[str, Any]]:
+    if table == "slides":
+        return local_slide_rows(config, keyword, limit)
     if can_try_base(config):
         try:
             return search_records(config, table, keyword, identity, limit)
@@ -277,6 +378,100 @@ def search_with_fallback(config: dict[str, Any], table: str, keyword: str, ident
     if table == "assets":
         return local_asset_rows(config, keyword, limit)
     return local_knowledge_rows(config, keyword, limit)
+
+
+def require_base_write(config: dict[str, Any]) -> None:
+    if not can_try_base(config):
+        raise SystemExit(
+            "base_library: write requested, but live Base is unavailable. "
+            "Set LARK_LIBRARY_BASE_TOKEN, install/configure lark-cli, and use "
+            "LARK_LIBRARY_MODE=base if you want writes to fail fast."
+        )
+
+
+def parse_json_arg(value: str) -> dict[str, Any]:
+    stripped = value.strip()
+    if stripped.startswith("{"):
+        data = json.loads(stripped)
+    else:
+        path = Path(value)
+        if not path.exists():
+            raise SystemExit("base_library: --json must be a JSON object string or an existing file path")
+        data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise SystemExit("base_library: --json must be a JSON object")
+    return data
+
+
+def create_record(
+    config: dict[str, Any],
+    table: str,
+    fields: dict[str, Any],
+    identity: str,
+    record_id: str = "",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    if table not in config.get("tables", {}):
+        known = ", ".join(sorted(config.get("tables", {}).keys()))
+        raise SystemExit(f"base_library: unknown table '{table}' (known: {known})")
+    if dry_run:
+        return {
+            "dry_run": True,
+            "table": table,
+            "table_id": config["tables"][table]["id"],
+            "fields": fields,
+        }
+    require_base_write(config)
+    args = ["+record-upsert", "--format", "json", "--json", json.dumps(fields, ensure_ascii=False)]
+    if record_id:
+        args.extend(["--record-id", record_id])
+    return run_lark(config, table, args, identity)
+
+
+def create_knowledge_fields(args: argparse.Namespace) -> dict[str, Any]:
+    content = args.content
+    if args.content_file:
+        content = Path(args.content_file).read_text(encoding="utf-8")
+    return {
+        "文档ID": args.doc_id,
+        "标题": args.title,
+        "类型": args.type,
+        "本地路径": args.local_path,
+        "内容": content,
+        "摘要": args.summary or content[:240],
+        "来源等级": args.source_level,
+        "关联行业": args.industry,
+        "关联SlideKey": args.slide_key,
+        "关联素材ID": args.related_asset_id,
+        "来源Deck": args.source_deck,
+        "来源PPT": args.source_ppt,
+        "来源页码": args.source_page,
+        "权限状态": args.permission_status,
+        "字数": len(content),
+        "SHA256": args.sha256,
+    }
+
+
+def create_asset_fields(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "素材ID": args.asset_id,
+        "显示名称": args.display_name,
+        "类型": args.kind,
+        "集合": args.collection,
+        "格式": args.format,
+        "MIME": args.mime,
+        "本地路径": args.local_path,
+        "大小KB": args.size_kb,
+        "SHA256": args.sha256,
+        "标签": args.tags,
+        "适用场景": args.usage,
+        "关联SlideKey": args.slide_key,
+        "关联知识ID": args.related_knowledge_id,
+        "来源Deck": args.source_deck,
+        "来源PPT": args.source_ppt,
+        "来源页码": args.source_page,
+        "权限状态": args.permission_status,
+    }
 
 
 def attachment_list(record: dict[str, Any]) -> list[dict[str, Any]]:
@@ -404,6 +599,38 @@ def write_asset_index(config: dict[str, Any], identity: str, output: Path | None
     return 0
 
 
+def doctor(config: dict[str, Any], identity: str, probe: bool) -> int:
+    result: dict[str, Any] = {
+        "mode": library_mode(config),
+        "lark_cli": bool(shutil.which("lark-cli")),
+        "base_token": bool(config.get("base_token")),
+        "can_try_base": can_try_base(config),
+        "slide_library": "local-only",
+        "tables": {},
+    }
+    for table in ["knowledge", "assets"]:
+        table_cfg = config.get("tables", {}).get(table, {})
+        result["tables"][table] = {
+            "id": table_cfg.get("id", ""),
+            "name": table_cfg.get("name", table),
+            "fields": table_cfg.get("fields", []),
+            "search_fields": table_cfg.get("search_fields", []),
+        }
+        if probe and can_try_base(config):
+            try:
+                list_records(config, table, identity, fields=table_cfg.get("fields", [])[:1])
+                result["tables"][table]["probe"] = {"ok": True}
+            except SystemExit as exc:
+                result["tables"][table]["probe"] = {"ok": False, "error": str(exc)}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if library_mode(config) == "base" and not result["can_try_base"]:
+        return 1
+    if probe and result["can_try_base"]:
+        probes = [item.get("probe", {}).get("ok", True) for item in result["tables"].values()]
+        return 0 if all(probes) else 1
+    return 0
+
+
 def print_records(rows: list[dict[str, Any]], table: str, fmt: str) -> None:
     if fmt == "json":
         print(json.dumps(rows, ensure_ascii=False, indent=2))
@@ -416,11 +643,18 @@ def print_records(rows: list[dict[str, Any]], table: str, fmt: str) -> None:
                 f"{scalar(row.get('类型'))}/{scalar(row.get('格式'))} | {scalar(row.get('集合'))} | "
                 f"{scalar(row.get('本地路径'))} | attachments={len(attachments)}"
             )
-        else:
+        elif table == "knowledge":
             print(
                 f"- {scalar(row.get('文档ID'))} | {scalar(row.get('标题'))} | "
                 f"{scalar(row.get('类型'))} | {scalar(row.get('关联行业'))} | {scalar(row.get('本地路径'))}\n"
                 f"  {scalar(row.get('摘要'))}"
+            )
+        else:
+            print(
+                f"- {scalar(row.get('SlideID'))} | {scalar(row.get('标题'))} | "
+                f"{scalar(row.get('Layout'))}/{scalar(row.get('Variant'))} | "
+                f"key={scalar(row.get('SlideKey'))} | ppt={scalar(row.get('来源PPT'))} | "
+                f"{scalar(row.get('摘要'))}"
             )
 
 
@@ -463,6 +697,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--limit", type=int, default=10)
     p.add_argument("--format", choices=["markdown", "json"], default="markdown")
 
+    p = sub.add_parser("search-slides", help="search reusable slides from the local Slide Library")
+    p.add_argument("keyword")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--format", choices=["markdown", "json"], default="markdown")
+
     p = sub.add_parser("sync-shared-assets", help="sync Base shared asset attachments into the local cache copy")
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--quiet", action="store_true")
@@ -476,6 +715,56 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--output", type=Path)
     p.add_argument("--check", action="store_true")
 
+    p = sub.add_parser("doctor", help="show live Base readiness and configured two-table schema")
+    p.add_argument("--probe", action="store_true", help="call lark-cli to verify table access when Base credentials are present")
+
+    p = sub.add_parser("create-record", help="create/update a live Base record in any configured table")
+    p.add_argument("table", help="configured table key, e.g. assets or knowledge")
+    p.add_argument("--json", required=True, help="JSON object string or path")
+    p.add_argument("--record-id", default="", help="update an existing record instead of creating")
+    p.add_argument("--dry-run", action="store_true")
+
+    p = sub.add_parser("create-knowledge", help="create/update a knowledge-library Base record")
+    p.add_argument("--doc-id", required=True)
+    p.add_argument("--title", required=True)
+    p.add_argument("--type", default="deck-ingest")
+    p.add_argument("--local-path", default="")
+    p.add_argument("--content", default="")
+    p.add_argument("--content-file")
+    p.add_argument("--summary", default="")
+    p.add_argument("--source-level", default="internal-draft")
+    p.add_argument("--industry", default="")
+    p.add_argument("--slide-key", default="")
+    p.add_argument("--related-asset-id", default="")
+    p.add_argument("--source-deck", default="")
+    p.add_argument("--source-ppt", default="")
+    p.add_argument("--source-page", default="")
+    p.add_argument("--permission-status", default="needs_review")
+    p.add_argument("--sha256", default="")
+    p.add_argument("--record-id", default="")
+    p.add_argument("--dry-run", action="store_true")
+
+    p = sub.add_parser("create-asset-record", help="create/update an asset-library Base metadata record")
+    p.add_argument("--asset-id", required=True)
+    p.add_argument("--display-name", required=True)
+    p.add_argument("--kind", default="other")
+    p.add_argument("--collection", default="deck-ingest")
+    p.add_argument("--format", default="")
+    p.add_argument("--mime", default="")
+    p.add_argument("--local-path", default="")
+    p.add_argument("--size-kb", default="")
+    p.add_argument("--sha256", default="")
+    p.add_argument("--tags", action="append", default=[])
+    p.add_argument("--usage", default="")
+    p.add_argument("--slide-key", default="")
+    p.add_argument("--related-knowledge-id", default="")
+    p.add_argument("--source-deck", default="")
+    p.add_argument("--source-ppt", default="")
+    p.add_argument("--source-page", default="")
+    p.add_argument("--permission-status", default="needs_review")
+    p.add_argument("--record-id", default="")
+    p.add_argument("--dry-run", action="store_true")
+
     args = parser.parse_args(argv)
     config = load_config(args.config)
 
@@ -484,6 +773,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "search-knowledge":
         print_records(search_with_fallback(config, "knowledge", args.keyword, args.identity, args.limit), "knowledge", args.format)
+        return 0
+    if args.command == "search-slides":
+        print_records(search_with_fallback(config, "slides", args.keyword, args.identity, args.limit), "slides", args.format)
         return 0
     if args.command == "sync-shared-assets":
         sync_shared_assets(config, args.identity, args.overwrite, args.quiet)
@@ -495,6 +787,41 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "export-asset-index":
         return write_asset_index(config, args.identity, args.output, args.check)
+    if args.command == "doctor":
+        return doctor(config, args.identity, args.probe)
+    if args.command == "create-record":
+        payload = create_record(
+            config,
+            args.table,
+            parse_json_arg(args.json),
+            args.identity,
+            record_id=args.record_id,
+            dry_run=args.dry_run,
+        )
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "create-knowledge":
+        payload = create_record(
+            config,
+            "knowledge",
+            create_knowledge_fields(args),
+            args.identity,
+            record_id=args.record_id,
+            dry_run=args.dry_run,
+        )
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "create-asset-record":
+        payload = create_record(
+            config,
+            "assets",
+            create_asset_fields(args),
+            args.identity,
+            record_id=args.record_id,
+            dry_run=args.dry_run,
+        )
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
     raise SystemExit(f"unknown command: {args.command}")
 
 

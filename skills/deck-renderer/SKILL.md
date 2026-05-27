@@ -4,10 +4,11 @@ description: |
   Production and rendering skill for Cyrus/Lark/Feishu-style H5 decks. Use when
   an approved outline, deck.json, source material, or existing deck needs to be
   compiled into DeckJSON, rendered to HTML, edited, converted, packaged, or
-  delivered with index.html/texts.md/FEEDBACK.md assets. It owns production
-  mechanics and low-level validation tooling. User-facing quality acceptance
-  belongs to deck-auditor, and customer-reaction rehearsal belongs to
-  pitch-simulator.
+  delivered with index.html/texts.md/FEEDBACK.md assets. It consumes approved
+  outlines plus source/material layers from upload-recognizer. It owns production
+  mechanics and validation tooling, but user-facing quality acceptance belongs
+  to deck-auditor, customer-reaction rehearsal belongs to pitch-simulator, and
+  cloud ingestion belongs to deck-ingestor.
 ---
 
 # deck-renderer
@@ -18,9 +19,10 @@ description: |
 
 `deck-renderer` owns production: DeckJSON compilation, HTML rendering, editable
 text sidecars, asset copying, packaging, and low-level validation tooling.
-It does **not** own the final acceptance verdict. After producing artifacts,
-handoff to `deck-auditor` for "ready to share / revise / replan / rerender"
-judgment.
+It does **not** own the final acceptance verdict or cloud-library writeback.
+After producing artifacts, handoff to `deck-auditor` for "ready to share /
+revise / replan / rerender" judgment. If the deck passes, `deck-ingestor`
+handles knowledge / slide / asset ingestion.
 
 ## MODE SELECTION (read this first — pick CHECK-ONLY vs GENERATION)
 
@@ -28,21 +30,48 @@ Before reading anything else in this file, decide which mode the user is in:
 
 | Mode | Trigger phrases / signals | What to do |
 |---|---|---|
-| **CHECK-ONLY** | `deck-auditor` or the controller asks for the low-level validator, or the user explicitly asks only for technical validator output such as "run check-only.sh", "validate this HTML with renderer rules", "只跑底层规则". If the user wants a readiness verdict, route through `deck-auditor` first. | **Jump to "CHECK-ONLY MODE" section below.** SKIP PREFLIGHT, SKIP `new-run.sh`, SKIP `copy-assets`, SKIP everything else in this file. |
-| **GENERATION** *(default)* | "做一份飞书 deck" · "把这个 PDF 转成 HTML" · "客户提案" · "周会汇报材料" · "改一下第 N 页" · anything where output is a new or edited HTML deck | Follow the rest of this file starting at PREFLIGHT, **then read DECK GENERATION POLICY** to pick DeckJSON-first (default) vs raw HTML authoring (escape hatch). **If input is a pure text brief** (主题列表 / Q&A 文案 / outline 描述), **also read DESIGN-FIRST POLICY** — produce the per-page layout plan and get user confirmation BEFORE touching any file. |
+| **CHECK-ONLY** *(internal)* | `deck-auditor` asks for the underlying H5 validator report. Do not expose this as a separate user-facing route; uploaded HTML deck checks route to `deck-auditor`. | **Jump to "CHECK-ONLY MODE" section below.** SKIP PREFLIGHT, SKIP `new-run.sh`, SKIP `copy-assets`, SKIP everything else in this file. |
+| **GENERATION** *(default)* | "做一份飞书 deck" · "把这个 PDF 转成 HTML" · "客户提案" · "周会汇报材料" · "改一下第 N 页" · anything where output is a new or edited HTML deck | **Run DESIGN PHASE first (chat-only, default-on)**:逐页定 page role / information hierarchy / layout path / material plan. Schema-only slides can proceed after the design pass is stated; any `layout: raw`, bespoke hero, replica, iframe/demo, or risky density choice needs explicit user confirmation before writing files. Then PREFLIGHT → run workspace → DeckJSON-first render. |
 
 If a request is genuinely ambiguous ("can you look at this HTML and improve it?"
 — check or rewrite?), ask the user once to clarify before branching.
 
 ---
 
+## DESIGN PHASE (mandatory · default-on)
+
+Before creating a run or touching files, produce a compact design pass in chat.
+This inherits the mother `feishu-deck-h5` default: design thinking is always on;
+the confirmation gate is triggered by risk, not by every ordinary schema slide.
+
+The design pass must state:
+
+- page role: cover / agenda / setup / proof / architecture / plan / close.
+- one remembered idea per page.
+- A/B/C/D hierarchy: hero message, supporting proof, chrome/meta, footnote.
+- path: DeckJSON schema layout, `layout: raw`, `replica`, or `iframe-embed`.
+- material plan: Base asset query, user-provided source, generated placeholder,
+  or explicit missing fact.
+- risk: density, evidence, permission, visual novelty, or no risk.
+
+`layout: raw` is a first-class tool for bespoke hero pages and heavily branded
+moments, not a wholesale escape hatch. Use it for the individual slide that
+cannot be expressed with DeckJSON layouts; keep the rest of the deck on schema.
+Every raw slide still needs stable `data-slide-key`, source traceability, and
+validator-safe typography.
+
+Persist the final design pass into the run as `DESIGN-PLAN.md` once the run is
+created so auditor, simulator, and ingestor can see why each layout path was
+chosen.
+
+---
+
 ## CHECK-ONLY MODE
 
-This is a technical subprocess, not the product-level acceptance flow. Use it
-when another skill needs the validator report, or when the user explicitly asks
-for renderer-rule output only. If the user asks whether a deck is ready to
-present, share, publish, or enter the slide library, call `deck-auditor` and let
-it interpret this validator output.
+This is a technical subprocess, not the product-level acceptance flow. In Cyrus,
+it is owned by `deck-auditor` as an internal H5 standards check. If the user asks
+whether a deck is ready to present, share, publish, or enter the slide library,
+call `deck-auditor`; do not present the underlying validator as a separate route.
 
 In the lark-deck-cyrus product workflow, `deck-auditor` owns quality acceptance.
 This section describes the underlying technical validator that `deck-auditor`
@@ -78,9 +107,12 @@ What it does:
   to errors. Use when the deck is going to a customer and you want zero
   warnings.
 - **`--visual`** — adds Playwright-based renderer audits (R-OVERFLOW /
-  R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR / R-VIS-ALIGN). ~5s per 30-slide
-  deck. Requires `pip install playwright && python -m playwright install
-  chromium` once.
+  R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR /
+  R-VIS-BODY-FLOOR / R-VIS-ALIGN / R-VIS-ABSPOS-DUAL-ANCHOR /
+  R-VIS-CARD-OVERFLOW / R-VIS-TITLE-POSITION / R-VIS-ORPHAN). ~5s per 30-slide
+  deck. `install.sh` installs Playwright and Chromium into project-local
+  `.deps/` by default; set `LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1` only
+  for constrained/offline installs.
 - **`--report PATH`** — write the markdown report to a file (stderr prints
   "✓ 报告已写到 …"). Default: stdout. When writing to a file, you can
   forward it on Lark / email as a review note.
@@ -106,7 +138,7 @@ Differences from default mode:
 | Report 语言 | 技术语言 (规则名 + 技术描述) | **业务语言** (症状 + 不修后果 + 修改步骤 + 技术代码小字附注) |
 | 数据来源 | 硬编码在 .py | 读 `business-rules.yaml`, 可由非工程师维护 |
 | 出口码 | exit 1 if any error | exit 1 if any 必修违规 |
-| 用途 | review-style 看 deck 卫生 | **库的 ingest-package.py 自动调** |
+| 用途 | review-style 看 deck 卫生 | **deck-ingestor 自动调** |
 
 #### 21 条必修规则 (按业务关切分组)
 
@@ -201,7 +233,7 @@ Either dump it in the chat (default) or write to a file the user names.
 | 演示模式 / 运行时 | R29-32 | `.deck-progress`, `.deck-controls`, prev/next/fs buttons, `requestFullscreen`, `fullscreenchange`, idle fade |
 | texts.md 联动 | T00 / T01 / T02 / T03 | data-text-id present; valid `slide-NN.field` shape; unique; paired `texts.md` synced |
 | 性能预算 | P50-P55 | base64 budget; blur radius; single ResizeObserver; AbortController; GPU layers |
-| 视觉 (Playwright, default-on since 2026-05-18) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR / R-VIS-BODY-FLOOR / R-VIS-ALIGN / **R-VIS-ABSPOS-DUAL-ANCHOR** | canvas overflow; **sibling bbox overlap** (catches "column bleeds into legend" — internal overlap within canvas); computed `fontSize` on ladder; meta ≤ body; **renderer-aware body-content < 24 px detection** (R-VIS-BODY-FLOOR · 2026-05-19 · catches ambiguous short class names like `.rt` / `.d` / `.ind-tag` that pass static R20/R06 because 16 is on the ladder and short class names match neither chrome nor body heuristic — checks actual rendered fontSize + ≥ 8 chars of direct text + not inside mockup containers; opt out per element with `data-allow-body-floor`); grid-children equal height; **dual-anchor pill stretch** (R-VIS-ABSPOS-DUAL-ANCHOR · 2026-05-23 · catches the cascade footgun where an override declares `top:` on a `position: absolute` chrome element without resetting an inherited `bottom:`, so the pill / badge / hint stretches to most of the parent height — see BF14 below; mutation-tests every absolutely-positioned non-layout-container element by temporarily setting `style.bottom = 'auto'` and checking if height collapses; layout shells like `.stage / .stack / .iframe-wrap / .panel` are excluded by class denylist; opt-out per element with `data-allow-dual-anchor`). ~2 s overhead. Use `--no-visual` to skip (CI without Chromium); gracefully skips if playwright is not installed |
+| 视觉 (Playwright, default-on since 2026-05-18) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-LABEL-FLOOR / R-VIS-BODY-FLOOR / R-VIS-ALIGN / **R-VIS-ABSPOS-DUAL-ANCHOR** / **R-VIS-ORPHAN** | canvas overflow; **sibling bbox overlap** (catches "column bleeds into legend" — internal overlap within canvas); computed `fontSize` on ladder; meta ≤ body; **renderer-aware body-content < 24 px detection** (R-VIS-BODY-FLOOR · 2026-05-19 · catches ambiguous short class names like `.rt` / `.d` / `.ind-tag` that pass static R20/R06 because 16 is on the ladder and short class names match neither chrome nor body heuristic — checks actual rendered fontSize + ≥ 8 chars of direct text + not inside mockup containers; opt out per element with `data-allow-body-floor`); grid-children equal height; **dual-anchor pill stretch** (R-VIS-ABSPOS-DUAL-ANCHOR · 2026-05-23 · catches the cascade footgun where an override declares `top:` on a `position: absolute` chrome element without resetting an inherited `bottom:`, so the pill / badge / hint stretches to most of the parent height — see BF14 below; mutation-tests every absolutely-positioned non-layout-container element by temporarily setting `style.bottom = 'auto'` and checking if height collapses; layout shells like `.stage / .stack / .iframe-wrap / .panel` are excluded by class denylist; opt-out per element with `data-allow-dual-anchor`); **CJK orphan / 上长下短 wrap** (R-VIS-ORPHAN · 2026-05-25 · WARN · CJK leaf text wrapping to a lonely ~1-char last line, or a short <=14-CJK label whose last line < 38% of the widest; skips block-child sub-labels / SVG / mockup / nowrap; deck slides only, not iframe prototypes). `install.sh` installs project-local Playwright + Chromium; use `--no-visual` only for constrained CI/offline runs |
 | 交付物附件 | R-FEEDBACK | `FEEDBACK.md` sidecar present (relevant ONLY for new-run flow) |
 
 When the user asks "what does [Rxx] mean", look up the rule in `validate.py`
@@ -346,6 +378,11 @@ are non-persistent and equally broken for this skill's purpose.
 
 ## DECK GENERATION POLICY (mandatory) — DeckJSON-first by default
 
+This section extends the `feishu-deck-h5` generation policy with Cyrus'
+business-outline handoff. It does not replace the H5 production contract:
+PREFLIGHT, DESIGN-FIRST confirmation, DeckJSON-first authoring, validator gates,
+text sidecars, and delivery rules remain the standard.
+
 ### Scene outline handoff (product loop)
 
 When the input is a business scene / raw brief / proposal goal, treat the deck
@@ -416,7 +453,7 @@ preserving claim discipline.
 
 | Path | When | What you write | What renders |
 |---|---|---|---|
-| **A · DeckJSON-first** *(RECOMMENDED, default)* | The deck fits one of the 15 layout enum values in `deck-json/deck-schema.json` (13 regular + 2 specials) — covers ~95% of real decks | `runs/<ts>/output/deck.json` per schema | `python3 deck-json/render-deck.py deck.json runs/<ts>/output/` → produces `index.html + texts.md + assets/` automatically |
+| **A · DeckJSON-first** *(RECOMMENDED, default)* | The deck fits one of the 15 layouts in `deck-json/deck-schema.json` (12 base + 3 specials: `raw` / `replica` / `iframe-embed`) — covers ~95% of real decks | `runs/<ts>/output/deck.json` per schema | `python3 deck-json/render-deck.py deck.json runs/<ts>/output/` → produces `index.html + texts.md + assets/` automatically |
 | **B · Raw HTML authoring** *(legacy / escape hatch)* | A pattern genuinely doesn't fit any schema layout AND can't be expressed as `raw` block embed | Hand-author `index.html` per the R02 / R06 / R20 / L1-L4 / BF1-BF12 rules below | Skill's existing `validate.py` HARD GATE before delivery |
 
 **Why Path A is the default**:
@@ -511,7 +548,7 @@ Use DeckJSON whenever the deck consists of slides matching any of:
 | `flow` | `timeline` / `process` / `tree` / `swim` | Timeline / process steps / MECE tree / multi-lane roadmap |
 | `logo-wall` | — | N industries × M client-logo grid |
 | `arch-stack` | — | 2-5 layer architecture diagram (apps / platform / AI / data) |
-| `end` | — | Closing slide (optional `slogan` for branded sign-off) |
+| `end` | — | Closing slide; fixed 飞书 slogan PNG, no custom CTA text |
 | `replica` | — | PDF page-as-image (for PDF→HTML conversion) |
 | `raw` | — | Escape hatch for one-off custom slides |
 
@@ -580,6 +617,10 @@ If 1-2 specific slides won't fit the schema but everything else does:
 | `deck-json/validate-deck.py` | Standalone schema lint of deck.json (called by render-deck.py + deck-cli.py automatically) | inline help |
 | `deck-json/sync-index-to-deck.py` | **Detect + recover post-render drift** — port edits made directly to index.html back into deck.json so re-render is byte-identical. Run before any fork / library ingest / delivery. | see ROUND-TRIP INTEGRITY section |
 | `assets/check-only.sh` | Audit an EXISTING `.html` deck (Path A or B output) against all framework rules | see CHECK-ONLY MODE section above |
+| `assets/inline-assets.py` | Convert a linked `index.html` plus local `assets/` into a portable single-file HTML. Use for edited/imported legacy decks when re-rendering with `render-deck.py --inline` is not available. | inline help |
+| `assets/deck-edit.py` | Precision-edit `data-text-id` leaves in an existing HTML deck (`--list`, `--set`, `--replace`, `--batch`, `--diff`). Prefer DeckJSON edits when `deck.json` exists. | inline help |
+| `assets/deck-manage.py` | Structural HTML repair for legacy/external decks: inspect slides, replace images, change accent/decor/layout, duplicate/move/remove/add slides. Prefer `deck-cli.py` for DeckJSON decks. | inline help |
+| `assets/deck-screenshot.py` | Generate a slide map / slide metadata for screenshot-driven edits and review handoff. | inline help |
 
 > *Visual editing — default on since 2026-05-21*. Every rendered deck
 > ships with a zero-dep client-side editor (`assets/edit-mode/deck-edit-
@@ -1336,15 +1377,16 @@ Rules:
   That's how the slide-library detects "this is a new version" without
   losing the link to the old one.
 
-#### Why this matters (consumer: feishu-slide-library)
+#### Why this matters (consumer: deck-ingestor / Slide库)
 
-The companion `feishu-slide-library` skill ingests rendered decks into a
-reusable slide asset library. Its locator (`canonical_source.slide_key`)
-points back to `[data-slide-key="..."]` in the deck's source.html. **No key
-→ no locator → the slide is unindexable**.
+The companion `deck-ingestor` skill ingests rendered decks into three cloud
+tables: `知识库` for how to tell the story, `素材库` for media/materials, and
+`Slide库` for the reusable whole-page unit. Its locator points back to
+`[data-slide-key="..."]` in the deck source. **No key → no locator → the slide
+is unindexable**.
 
 If a deck is authored without `data-slide-key` on every `.slide`, the
-slide-library ingestion will halt and require the keys to be backfilled.
+Slide库 ingestion will halt and require the keys to be backfilled.
 Don't ship without them.
 
 #### Bundled cover/agenda/end fragments
@@ -1501,7 +1543,7 @@ verify the artifact form. Pick exactly **one** of three valid shapes:
 
 | Shape | When | What goes back |
 |---|---|---|
-| **A · inline single-file HTML** *(default for "show me / 给客户看 / IM 转发 / 链接预览")* | The user just wants to OPEN and SEE the deck. 90% of cases. | `bash build.sh --inline` → ship `examples/sample-deck-inline.html` (or its renamed copy under `runs/<ts>/output/`). Single self-contained file, base64-inlined CSS/JS/images, ~360 KB. Double-click anywhere, works offline. |
+| **A · inline single-file HTML** *(default for "show me / 给客户看 / IM 转发 / 链接预览")* | The user just wants to OPEN and SEE the deck. 90% of cases. | Preferred: `python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/ --inline` so `runs/<ts>/output/index.html` itself is portable. For an already-linked HTML, run `bash assets/finalize.sh runs/<ts>/output/ inline --name lark-<customer>-<YYYY-MM-DD>` or `python3 assets/inline-assets.py runs/<ts>/output/index.html --out runs/<ts>/output/lark-<customer>-<YYYY-MM-DD>.html`. |
 | **B · zipped output folder** *(when the user needs to edit text)* | The user (or their downstream customer / sales / 大客户经理) needs to change copy without Claude in the loop. | `bash assets/package-deliverable.sh runs/<ts>/output/` → ship the resulting `deck-editable.zip`. Includes `index.html` + `assets/` + `texts.md` + `deck.json`/`FEEDBACK.md`/`assets-manifest.yaml` when present + `apply-texts.py` + `apply.command`/`apply.bat` launchers. Recipient unzips, edits `texts.md`, double-clicks the launcher to regenerate. |
 | **C · hosted URL** *(when the user already deploys to Pages / a CDN)* | Deck lives at a stable web URL. | Ship the URL string. No file attachment. |
 
@@ -1542,12 +1584,11 @@ say "客户要改文字" / "我要自己改" / mention apply-texts.
 
 ### Self-contained output (mandatory · runs before every hand-back)
 
-The HTML files in `runs/<ts>/output/` reference assets via relative
-paths back into the skill folder:
-`../../../../skills/deck-renderer/assets/<file>`. That works **only**
-while the run folder lives next to the skill folder. The moment the
-user moves, zips, or shares `runs/<ts>/output/`, every image / logo /
-CSS / video link breaks.
+Linked HTML files in `runs/<ts>/output/` may reference assets via
+relative paths back into the skill folder or copied `output/assets/`.
+That works **only** while the run folder and its sibling assets stay
+together. The moment the user moves, emails, or IM-sends a single
+linked HTML, every image / logo / CSS / video link can break.
 
 **Rule**: before handing the artifact back to the user, run
 
@@ -1736,7 +1777,9 @@ The user does not need Claude Code, OpenClaw, or pip. Only stock
 
 If the recipient is "客户/老板看一眼就行" and editing is not in scope,
 ship just the inlined `index.html` (no zip, no texts.md, no scripts).
-Use `build.sh --inline` to produce a fully self-contained single file.
+When `deck.json` is the source of truth, render with `deck-json/render-deck.py
+... --inline`. For an existing linked HTML, run `assets/finalize.sh ... inline`
+or `assets/inline-assets.py`.
 
 This loses the texts.md edit loop — only choose it when you're certain
 the recipient is consuming, not authoring.
@@ -3730,16 +3773,22 @@ If a source page doesn't fit any of these 13, it's almost always a
 content page in disguise — most likely `content-3up` or `content-2col`.
 Do NOT invent a 14th layout.
 
-### Step 2 · Cover page (`data-layout="cover"`) — MUST follow master spec
+### Step 2 · Cover page (`data-layout="cover"`) — H5 geometry, Cyrus cover style
 
 The cover is intentionally minimal: **title + initiator name + date,
 nothing else**. NO English subtitle, NO team/company line, NO meeting
 type label. The cover earns its weight through composition, not text
-volume — the right-half flower image carries the atmosphere.
+volume.
+
+Cyrus keeps the H5 cover geometry (1920×1080 canvas, color logo, left-half
+title, 100/700 hero type, author/date block), but generated customer business
+pitches default to `variant: "plain"` so the cover does **not** use the flower
+artwork. Use `variant: "master"` only when the user explicitly asks for the
+original 飞书母版封面 / brand-template cover.
 
 | Element | Spec |
 |---|---|
-| Background | `lark-cover-bg.jpg` (the master flower image — NOT a solid color, NOT a gradient invented on the fly) |
+| Background | `variant: "plain"` = dark H5 content background, no flower; `variant: "master"` = `lark-cover-bg.jpg` flower master |
 | Logo | top-LEFT at (120, 113), size 235×74, **COLORED** tri-petal `--fs-asset-logo` |
 | Title | left-half only (max-width 884px), 100/700, can be 1-2 lines (hero allowed `<br>`) |
 | Subtitle | **NONE** (no EN translation, no marketing tagline — drop it; if you really need a sentence, put it on slide 02) |
@@ -4402,12 +4451,11 @@ opening comment. Default = stay with the master.
 ### Step 5 · Run the validator BEFORE responding
 
 ```bash
-bash build.sh --inline
-python3 assets/validate.py examples/sample-deck.html --strict
-python3 assets/validate.py examples/sample-deck-inline.html --strict
+python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/ --inline
+python3 assets/validate.py runs/<ts>/output/index.html --strict
 ```
 
-All four must exit 0. If any check fails (R49 cyan-as-accent, L1 mono
+Both commands must exit 0. If any check fails (R49 cyan-as-accent, L1 mono
 logo, R13 br-in-title, R56 eyebrow-in-header, P50 base64 budget),
 **fix the markup, don't suppress the check**.
 
@@ -4674,17 +4722,17 @@ change back into `deck.json` before delivery, fork, or library ingest**.
 
 **Half B — Fork / clone / download side**: when you derive a new deck from
 an existing one (cp the run folder, clone a slide, install from the
-slide-library), **copy BOTH `deck.json` AND `index.html`**, OR run a
+Slide库), **copy BOTH `deck.json` AND `index.html`**, OR run a
 parity check first and reconcile drift. If you copy only `deck.json`
 because it looks like "the spec", you silently lose every post-render
 edit the original author made.
 
 ### Why this matters for slide-library ingest
 
-The `feishu-slide-library` skill stores the FULL rendered `source.html`
-per deck (intentionally — its CSS, fonts, decoration are shared across
-slides). So library ingest itself is safe: animations travel with the
-slide because the library ingests `index.html`, not `deck.json`.
+The `deck-ingestor` flow stores a Slide库 record and references the source
+`index.html` / `deck.json` provenance. Library ingest itself is safe when both
+artifacts stay together: animations travel with the slide because the source
+HTML remains the visual reference, while DeckJSON remains the editable source.
 
 The risk is at the AUTHORING boundary BEFORE ingest: if your `index.html`
 carries post-render edits that aren't in `deck.json`, and your ingest
@@ -4879,11 +4927,13 @@ Do not change the DOM order: `.deck > .slide-frame > .slide`. The runtime relies
 Each recipe below is the exact markup the agent should drop into a `.slide-frame`.
 The markup uses only tokens defined in `assets/feishu-deck.css`.
 
-### 1. Cover (`data-layout="cover"`) — matches 飞书 母版 slideLayout1
+### 1. Cover (`data-layout="cover"`) — H5 layout with Cyrus plain default
 
-The cover uses the master flower background (`lark-cover-bg.jpg`) with content positioned on the **left half** (the dark negative space). The color logo sits **top-left** at master coordinates. Title is **100 px / 700** (smaller than you'd expect — that's the master's spec). No eyebrow, no subtitle, no keyline bar, no footer chrome.
+Cyrus-generated pitch covers use the H5 cover composition with content positioned on the **left half** (dark negative space). The color logo sits **top-left** at master coordinates. Title is **100 px / 700** (smaller than you'd expect — that's the master's spec). No eyebrow, no keyline bar, no footer chrome.
 
-The cover is intentionally minimal: **title + initiator's personal name + date, nothing else.** No English subtitle. No team / company / department label. The flower image and the title carry the entire composition. (See "Step 2 · Cover page" above for the full rationale.)
+`variant: "plain"` is the default for business pitches: it uses the dark H5 content background and avoids the flower artwork. `variant: "master"` keeps the original H5 flower cover (`lark-cover-bg.jpg`) for explicit brand-template requests.
+
+The cover is intentionally minimal: **title + initiator's personal name + date, nothing else.** No team / company / department label. A short subtitle is allowed for Cyrus pitch framing, but avoid long marketing taglines. (See "Step 2 · Cover page" above for the full rationale.)
 
 ```html
 <div class="slide" data-layout="cover" data-screen-label="01 Cover">
@@ -4905,7 +4955,7 @@ Master pixel grid (1920×1080 design canvas):
 - Logo top-left: `120, 113` size `235×74` (color logo with petals + 飞书 wordmark — `lark-logo.png`)
 - Title: `124, 285`, max-width `884`, font 100/700
 - Author block: `124, 720` (2026-05-06 · was 803), font 30/600 — two stacked spans, name on top, date below. Do NOT use `.role` muted prefix on the cover (the date alone is enough chrome).
-- Right half: reserved for the flower image — DO NOT place text there.
+- Right half: reserved as negative space in `plain`; reserved for the flower image in `master`. DO NOT place text there.
 
 ### 2. Agenda (`data-layout="agenda"`) — vertical pill stack (v2, 2026-05-06)
 
@@ -5262,27 +5312,28 @@ a new icon, it should hand-write the SVG path rather than reference a remote URL
 
 ## Single-file inlined output (recommended for delivery)
 
-For a portable artifact, the agent should produce ONE `.html` file with CSS + JS inlined:
+For a portable artifact, produce ONE `.html` file with CSS, JS, and local
+image assets inlined. Do not manually paste CSS/JS. Use the deterministic
+pipeline:
 
-```html
-<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>...</title>
-  <style>/* paste contents of assets/feishu-deck.css */</style>
-</head>
-<body>
-  <div class="deck">
-    <!-- slide-frame entries -->
-  </div>
-  <script>/* paste contents of assets/feishu-deck.js */</script>
-</body>
-</html>
+```bash
+# Best path when deck.json is the source of truth.
+python3 skills/deck-renderer/deck-json/render-deck.py \
+  runs/<ts>/output/deck.json \
+  runs/<ts>/output/ \
+  --inline
+
+# Retrofit path for a linked HTML deck that already exists.
+bash skills/deck-renderer/assets/finalize.sh \
+  runs/<ts>/output/ \
+  inline \
+  --name lark-<customer>-<YYYY-MM-DD>
 ```
 
-The `examples/sample-deck.html` file is built this way and is the reference output.
+`render-deck.py --inline` and `finalize.sh inline` both use
+`assets/inline-assets.py`, which resolves CSS `url(...)` assets relative to the
+CSS file that declared them. This is what makes logo/background variables in
+`feishu-deck.css` survive after the HTML leaves the repo.
 
 ---
 
@@ -7146,7 +7197,7 @@ top-bright decors need the per-slide `:has()` override above.
 
 ---
 
-## Slide media auto-restart on enter (framework behavior, 2026-05-24)
+## Slide media auto-restart + auto-sound on enter (framework behavior)
 
 **Problem**: present mode keeps EVERY `.slide-frame` in the DOM at once
 (only `.is-current` toggles visibility). So a `<video autoplay loop>` on a
@@ -7163,12 +7214,12 @@ exists in ≥ 5 decks and `@keyframes`/`animation:` in ≥ 10.
 EVERY navigation path (present-mode `goTo`, hash nav, prev/next buttons,
 and the separate mobile-patch IIFE's direct `.is-current` toggles).
 
-- **Enter** a frame → each `<video>` is reset to `currentTime = 0`, and
-  if it carries the `autoplay` attribute it is `.play()`ed (muted videos
-  are allowed to play programmatically; non-muted rejections are caught
-  and ignored).
+- **Enter** a frame → each `<video>` is reset to `currentTime = 0`, and if it
+  carries the `autoplay` attribute it is `.play()`ed. Videos authored without a
+  `muted` attribute play with sound after a user gesture; videos authored with
+  `muted` or `data-keep-muted` stay silent.
 - **Leave** a frame → its `<video>`s are `.pause()`d (stops hidden
-  background looping).
+  background looping and prevents audio overlap).
 - On both transitions a `CustomEvent` is dispatched on the `.slide`:
   **`fs-slide-enter`** / **`fs-slide-leave`** (bubbling). CSS-keyframe
   decks that need to re-trigger an animation on revisit can listen for
@@ -7176,15 +7227,28 @@ and the separate mobile-patch IIFE's direct `.is-current` toggles).
   animation to `.slide-frame.is-current .x { animation: … }` so re-adding
   `.is-current` re-applies (and thus restarts) the animation.
 
-**Opt out** per element with `data-no-restart` (e.g. a video that should
-keep its position across slide visits — rare).
+**Opt out** per element:
+
+- `data-no-restart`: keep video position across slide visits.
+- `data-keep-muted`: keep a decorative or secondary video silent even if it is
+  authored without `muted`.
 
 **Authoring guidance**:
 - Want a video to play from the top each time the slide is shown → just
-  give it `autoplay muted` (keep `loop` if you want it to repeat while the
-  slide is on screen). The framework handles the reset.
+  give it `autoplay` (and `loop` if needed). Omit `muted` when sound is part of
+  the presentation; add `muted` or `data-keep-muted` for silent background
+  loops. The framework handles reset, pause, and first-gesture sound upgrade.
 - Want a CSS animation to replay on revisit → scope it to
   `.slide-frame.is-current` (preferred) or hook `fs-slide-enter`.
+
+## CJK wrap balance / R-VIS-ORPHAN
+
+Playwright visual audit now includes `R-VIS-ORPHAN` for Chinese leaf text that
+wraps into a lonely final character or a visibly imbalanced short label. This
+is a warning, not a hard gate, but it matters for projection polish. Fix in
+this order: `text-wrap: balance`; widen the container or loosen flex clamps;
+use `white-space: nowrap` for very short labels; or rewrite the phrase so the
+two lines are balanced.
 
 **Caveat — existing decks**: this fix lives in the skill's
 `feishu-deck.js`. Decks that link to the skill copy get it on next load.
@@ -7440,7 +7504,7 @@ require an external dependency.
 
 | ID  | Budget | Hard cap | Fix |
 |-----|--------|----------|-----|
-| P50 | base64 in `<style>` ≤ 100 KB (default delivery) | 250 KB error | Use `bash build.sh` (linked); single-file mode requires `<meta name="fs-deck-mode" content="inline">` |
+| P50 | base64 in `<style>` ≤ 100 KB (default delivery) | 250 KB error | Use linked `index.html` for repo/hosted decks; single-file mode requires `<meta name="fs-deck-mode" content="inline">` |
 | P51 | `backdrop-filter: blur(N)` ≤ 10 px | warn always | Drop blur radius or replace with opaque rgba |
 | P52 | `new ResizeObserver()` count ≤ 1 | warn at 2+ | One document-level RO with rAF batching, iterate frames in callback |
 | P53 | `addEventListener` count ≥ 8 must use `AbortController` | warn always | Wrap init in `new AbortController()` + pass `{ signal }` to every listener; expose `destroy()` |
@@ -7454,9 +7518,11 @@ require an external dependency.
 | **Linked (default)** | Internal use, hosted, repo deck | `examples/sample-deck.html` ≈ 24 KB + external `assets/*` | 0 KB | passes P50 |
 | **Inlined (opt-in)**  | Email attachment, IM, "send-me-the-html" | `examples/sample-deck-inline.html` ≈ 360 KB | 250 KB | skips P50 (signaled by `<meta name="fs-deck-mode" content="inline">`) |
 
-`bash build.sh` produces the linked version; `bash build.sh --inline` produces both.
-The inlined HTML must include the `fs-deck-mode=inline` meta tag — `build.sh` adds it
-automatically. Hand-built single-file decks must add it manually or get flagged P50.
+`deck-json/render-deck.py` produces the linked version by default and writes an
+inline `index.html` when `--inline` is passed. `assets/finalize.sh ... inline`
+retrofitted linked HTML. Both paths add the `fs-deck-mode=inline` meta tag
+automatically; hand-built single-file decks must add it manually or get flagged
+P50.
 
 ---
 
@@ -7539,7 +7605,7 @@ The validator covers programmable rules (last refreshed 2026-05-18):
 | Slide keys | R-KEY | every `.slide` has unique semantic `data-slide-key` (kebab-case); positional slugs warned |
 | Text-id sidecar | T00 / T01 / T02 / T03 | data-text-id present (T00); valid `slide-NN.field` shape (T01); unique (T02); paired `texts.md` in sync (T03) |
 | Performance | P50-P55 | base64 budget, blur cap, single ResizeObserver, AbortController, GPU layers |
-| Visual (Playwright, default-on) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-ALIGN / R-VIS-LABEL-FLOOR / **R-VIS-CARD-OVERFLOW** | slide-level overflow > 1920×1080; sibling bbox intersection inside `.stage / .grid / .flow / .nodes / .toc / .stack / .table-wrap` (catches "column bleeds into legend"); computed `font-size` on 4-tier ladder; meta ≤ body in rendered DOM; grid-children equal height; hero-context cards forbid 16 px non-chrome labels; **inner element with `overflow:hidden` + `scrollHeight > clientHeight` (catches the SILENT TEXT CLIP bug where dense 3-up cards swallow content past their flex-1 boundary — added 2026-05-22)**. ~2 s overhead. `--no-visual` skips; gracefully skips when playwright not installed |
+| Visual (Playwright, default-on) | R-OVERFLOW / R-OVERLAP / R-VIS-TIER / R-VIS-HIER / R-VIS-ALIGN / R-VIS-LABEL-FLOOR / **R-VIS-CARD-OVERFLOW** | slide-level overflow > 1920×1080; sibling bbox intersection inside `.stage / .grid / .flow / .nodes / .toc / .stack / .table-wrap` (catches "column bleeds into legend"); computed `font-size` on 4-tier ladder; meta ≤ body in rendered DOM; grid-children equal height; hero-context cards forbid 16 px non-chrome labels; **inner element with `overflow:hidden` + `scrollHeight > clientHeight` (catches the SILENT TEXT CLIP bug where dense 3-up cards swallow content past their flex-1 boundary — added 2026-05-22)**. Project-local dependency installed by `install.sh`; `--no-visual` skips only when needed |
 | Run-feedback | R-FEEDBACK | every run produces a `FEEDBACK.md` capturing decisions made for maintainer follow-up |
 | Preflight | PREFLIGHT | local mount writable; not ephemeral |
 
@@ -7590,6 +7656,7 @@ visually, fix the slide; the validator only catches programmable rules.
 
 ## Examples
 
-- `examples/sample-deck.html` — inlined HTML demo deck.
+- `examples/sample-deck.html` — linked HTML demo deck.
+- `examples/sample-deck-inline.html` — inlined HTML demo deck.
 - `preview-dark.html` — token swatches and component gallery for visual self-test.
 - `templates/slide-recipes.html` — every layout in one reference deck (open and copy).

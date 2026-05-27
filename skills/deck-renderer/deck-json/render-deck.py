@@ -54,6 +54,7 @@ VALIDATE_DECK = HERE / "validate-deck.py"
 VALIDATE_HTML = ASSETS_DIR / "validate.py"
 EXTRACT_TEXTS = ASSETS_DIR / "extract-texts.py"
 COPY_ASSETS   = ASSETS_DIR / "copy-assets.py"
+INLINE_ASSETS = ASSETS_DIR / "inline-assets.py"
 BASE_LIBRARY  = REPO_ROOT / "scripts" / "base_library.py"
 
 # Phase 4 / post-review-medium-6: there's now ONE pathway for \n→<br>.
@@ -116,6 +117,80 @@ def get_path(d, dotted: str):
             raise KeyError(dotted)
         cur = cur[k]
     return cur
+
+
+# ---------------------------------------------------------------------------
+# content/story-case schema-fit refusal + accent review
+# Ported from the mother feishu-deck-h5 renderer. JSON schema enforces field
+# presence; this catches placeholder, too-short, or duplicated story beats.
+# ---------------------------------------------------------------------------
+
+_PLACEHOLDER_PATTERNS = (
+    r"\b(TBD|TBC|TODO|XXX|N/?A|FIXME)\b",
+    r"(待补|具体待补|占位|稍后补充|有待补充|待定|暂无|未填|None)",
+    r"^[\s\.\-…—_]+$",
+    r"^(\?+|？+)$",
+    r"\.\.\.{2,}|…{2,}",
+)
+_MIN_LEN_FULL = 10
+_MIN_LEN_ACCENT = 2
+_MIN_LEN_CONNECTIVE = 1
+
+STORY_CASE_FIT_CHECK = (
+    "hook.lead", "hook.accent", "hook.tail",
+    "arc.pain", "arc.conflict", "arc.solution",
+    "arc.value.lead", "arc.value.accent", "arc.value.tail",
+)
+STORY_CASE_ACCENT_PATHS = (
+    ("hook", "hook"),
+    ("value", "arc.value"),
+)
+
+
+def _min_len_for(path: str) -> int:
+    if path.endswith(".accent"):
+        return _MIN_LEN_ACCENT
+    if path.endswith((".lead", ".tail")):
+        return _MIN_LEN_CONNECTIVE
+    return _MIN_LEN_FULL
+
+
+def check_story_case_fit(data: dict) -> list[str]:
+    issues: list[str] = []
+    seen: dict[str, str] = {}
+    for path in STORY_CASE_FIT_CHECK:
+        try:
+            text = get_path(data, path)
+        except KeyError:
+            continue
+        text = text.strip() if isinstance(text, str) else ""
+        for pat in _PLACEHOLDER_PATTERNS:
+            if re.search(pat, text, flags=re.IGNORECASE):
+                issues.append(f"{path}: 占位词 ({text!r}) — 这一拍承不起,改内容或换 layout")
+                break
+        else:
+            min_len = _min_len_for(path)
+            if len(text) < min_len:
+                issues.append(f"{path}: 只有 {len(text)} 字 ({text!r}) — 太短,该 beat 可能不存在")
+            elif text in seen and not path.endswith((".lead", ".tail", ".accent")):
+                issues.append(f"{path}: 与 {seen[text]} 完全相同 ({text!r}) — 这一拍可能不存在")
+            else:
+                seen[text] = path
+    return issues
+
+
+def show_story_case_accents(data: dict, slide_key: str) -> None:
+    use_color = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+    hl_o = "\033[1;36m" if use_color else "["
+    hl_c = "\033[0m" if use_color else "]"
+    for label, base in STORY_CASE_ACCENT_PATHS:
+        try:
+            lead = get_path(data, f"{base}.lead")
+            accent = get_path(data, f"{base}.accent")
+            tail = get_path(data, f"{base}.tail")
+        except KeyError:
+            continue
+        print(f"  {slide_key} · {label:>5}  ·  {lead}{hl_o}{accent}{hl_c}{tail}")
 
 
 def relpath_from_to(src_dir: Path, dst_dir: Path) -> str:
@@ -216,6 +291,9 @@ def _build_data_attrs(slide: dict) -> str:
         parts.append(f'data-title-style="{_esc_br(slide["title_style"])}"')
     if slide.get("logo_position"):
         parts.append(f'data-logo-position="{_esc_br(slide["logo_position"])}"')
+    if slide.get("layout") == "cover":
+        cover_style = slide.get("variant") if slide.get("variant") in {"plain", "master"} else "plain"
+        parts.append(f'data-cover-style="{_esc_br(cover_style)}"')
     return " ".join(parts)
 
 
@@ -687,7 +765,7 @@ def _render_visual(visual, slide_no_padded):
         return (
             f'              <div style="display:flex;align-items:center;justify-content:center;'
             f'width:100%;height:100%;min-height:400px;border:1px dashed rgba(255,255,255,0.20);'
-            f'border-radius:16px;color:rgba(255,255,255,0.55);'
+            f'border-radius:16px;color:#fff;'
             f'font:500 24px/1 var(--fs-font-cjk)">{label}</div>'
         )
     return ""
@@ -698,10 +776,9 @@ def _enrich_end(ctx, slide):
     ctx["contact_html"] = _optional_text_node(
         ctx.get("contact"), snp, "contact",
         tag="div", classes="contact", indent="        ")
-    # Optional slogan — mirrors PPT '封底(带 slogan)' layout master.
-    ctx["slogan_html"] = _optional_text_node(
-        ctx.get("slogan"), snp, "slogan",
-        tag="div", classes="slogan", indent="        ")
+    # H5 master closing is intentionally fixed: colored logo + slogan PNG.
+    # Do not render arbitrary CTA copy as `.slogan`; it overlaps the flower bg.
+    ctx["slogan_html"] = ""
 
 
 def _enrich_section(ctx, slide):
@@ -1301,6 +1378,8 @@ def _enrich_raw(ctx, slide):
 
 ENRICHERS = {
     ("cover",   None):           _enrich_cover,
+    ("cover",   "plain"):        _enrich_cover,
+    ("cover",   "master"):       _enrich_cover,
     ("agenda",  None):           _enrich_agenda,
     ("section", None):           _enrich_section,
     ("content", "3up"):          _enrich_content_3up,
@@ -1389,6 +1468,9 @@ def main(argv=None) -> int:
                     help="skip post-render HTML validator (NOT recommended)")
     ap.add_argument("--skip-texts", action="store_true",
                     help="skip texts.md sidecar generation (NOT recommended)")
+    ap.add_argument("--skip-fit-check", action="store_true",
+                    help="skip the content/story-case schema-fit refusal "
+                         "(placeholder / too-short / duplicate beat detection)")
     ap.add_argument("--skip-copy-assets", action="store_true",
                     help="skip copy-assets step — output will reference skill-relative paths "
                          "(works only while output sits in <repo>/runs/<ts>/output/)")
@@ -1406,7 +1488,7 @@ def main(argv=None) -> int:
     ap.add_argument("--visual", action="store_true",
                     help="run Playwright visual audits after render (R-VIS-OVERFLOW / "
                          "R-VIS-OVERLAP / R-VIS-TIER / R-VIS-LABEL-FLOOR). Adds ~5-10s. "
-                         "Requires `pip install playwright && python -m playwright install chromium`.")
+                         "Installed project-locally by `bash install.sh`.")
     args = ap.parse_args(argv)
 
     if args.inline and not args.skip_copy_assets:
@@ -1437,6 +1519,23 @@ def main(argv=None) -> int:
         print(f"render-deck: deck file not found: {args.deck}", file=sys.stderr); return 2
     except json.JSONDecodeError as e:
         print(f"render-deck: invalid JSON: {e}", file=sys.stderr); return 2
+
+    # 2.5 content/story-case schema-fit refusal. Schema enforces field
+    # presence; this catches placeholder / too-short / duplicate beats.
+    if not args.skip_fit_check:
+        fit_issues = []
+        for i, slide in enumerate(deck.get("slides", [])):
+            if (slide.get("layout") == "content" and slide.get("variant") == "story-case"
+                    and not slide.get("_disabled")):
+                for msg in check_story_case_fit(slide.get("data", {})):
+                    fit_issues.append(f"  slide[{i}] key='{slide.get('key')}' · {msg}")
+        if fit_issues:
+            print("render-deck: content/story-case 内容撑不起 schema (schema-fit refusal):",
+                  file=sys.stderr)
+            print("\n".join(fit_issues), file=sys.stderr)
+            print("  → 改 deck.json 把这些 beat 写实,或换 layout(别硬塞)。"
+                  "确认有意为之就加 --skip-fit-check。", file=sys.stderr)
+            return 4
 
     # 3. Setup output dir
     args.output_dir = args.output_dir.resolve()
@@ -1550,7 +1649,7 @@ def main(argv=None) -> int:
     #    (c) --skip-copy-assets: leave skill-relative paths (works only inside
     #        the repo's runs/<ts>/output/ structure)
     if args.inline:
-        inline_html(out_html, deck)
+        inline_html(out_html)
         print(f"\nOK  →  {out_html}  (inline single-file mode)")
     elif not args.skip_copy_assets:
         # copy-assets.py requires output under <repo>/runs/<ts>/output/
@@ -1593,80 +1692,37 @@ def main(argv=None) -> int:
     print(f"       slides: {total}")
     if not args.skip_texts:
         print(f"       sidecar: texts.md")
+
+    sc_slides = [
+        slide for slide in deck.get("slides", [])
+        if slide.get("layout") == "content" and slide.get("variant") == "story-case"
+        and not slide.get("_disabled")
+    ]
+    if sc_slides:
+        print("\nACCENT 复核 (1 秒目测,被高亮的词是该突出的吗?)")
+        for slide in sc_slides:
+            show_story_case_accents(slide.get("data", {}), slide.get("key", "?"))
     return 0
 
 
-def inline_html(out_html: Path, deck: dict) -> None:
-    """Phase 1.d --inline implementation. Replaces external <link>/<script>
-    references with inlined <style>/<script> blocks. Also base64-encodes
-    referenced images. Adds <meta name=\"fs-deck-mode\" content=\"inline\">
-    so the HTML validator skips the P50 base64 budget warn."""
-    import base64, mimetypes
+def inline_html(out_html: Path) -> None:
+    """Convert the rendered linked HTML into a portable single-file deck.
 
-    html_text = out_html.read_text(encoding="utf-8")
-
-    def _inline_stylesheet(m):
-        href = m.group(1)
-        css_path = (out_html.parent / href).resolve()
-        if not css_path.is_file():
-            return m.group(0)  # leave as-is if not findable
-        return f"<style>{css_path.read_text(encoding='utf-8')}</style>"
-
-    def _inline_script(m):
-        src = m.group(1)
-        js_path = (out_html.parent / src).resolve()
-        if not js_path.is_file():
-            return m.group(0)
-        return f"<script>{js_path.read_text(encoding='utf-8')}</script>"
-
-    # Order matters: stylesheet first (cheap), then script, then bg images
-    html_text = re.sub(
-        r'<link\s+rel="stylesheet"\s+href="([^"]+)"\s*/?>',
-        _inline_stylesheet, html_text,
+    Keep the implementation in assets/inline-assets.py so render-deck.py,
+    finalize.sh, and manual repair flows use exactly the same asset resolver.
+    """
+    rc = subprocess.run(
+        [sys.executable, str(INLINE_ASSETS), str(out_html), "--out", str(out_html)],
+        capture_output=True,
+        text=True,
     )
-    html_text = re.sub(
-        r'<script\s+src="([^"]+)"></script>',
-        _inline_script, html_text,
-    )
-    # bg images: handle url('...') and url("...")
-    html_text = re.sub(
-        r"(background-image\s*:\s*url\()'([^']+)'(\))",
-        lambda m: f"{m.group(1)}{_resolve_bg(out_html, m.group(2))}{m.group(3)}",
-        html_text,
-    )
-    html_text = re.sub(
-        r'(background-image\s*:\s*url\()"([^"]+)"(\))',
-        lambda m: f"{m.group(1)}{_resolve_bg(out_html, m.group(2))}{m.group(3)}",
-        html_text,
-    )
-
-    # Add fs-deck-mode=inline meta (skips P50 base64 budget). Check for the
-    # exact meta tag, not the bare string — feishu-deck.js inlines a
-    # `const MODE_KEY = 'fs-deck-mode'` constant that matches a naive search.
-    if '<meta name="fs-deck-mode"' not in html_text:
-        html_text = html_text.replace(
-            '<meta name="fs-language"',
-            '<meta name="fs-deck-mode" content="inline">\n  <meta name="fs-language"',
-            1,
-        )
-
-    out_html.write_text(html_text, encoding="utf-8")
-
-
-def _resolve_bg(out_html: Path, url: str) -> str:
-    """Resolve a background-image url() to data: URI if local file exists."""
-    import base64, mimetypes
-    if url.startswith(("http://", "https://", "data:")):
-        return f"'{url}'"
-    img_path = (out_html.parent / url).resolve()
-    if not img_path.is_file():
-        return f"'{url}'"
-    mime, _ = mimetypes.guess_type(str(img_path))
-    if not mime:
-        mime = "image/png"
-    b64 = base64.b64encode(img_path.read_bytes()).decode("ascii")
-    return f"'data:{mime};base64,{b64}'"
-
+    if rc.returncode != 0:
+        print("render-deck: inline-assets.py failed:", file=sys.stderr)
+        if rc.stdout.strip():
+            print(rc.stdout, file=sys.stderr)
+        if rc.stderr.strip():
+            print(rc.stderr, file=sys.stderr)
+        raise SystemExit(5)
 
 if __name__ == "__main__":
     sys.exit(main())

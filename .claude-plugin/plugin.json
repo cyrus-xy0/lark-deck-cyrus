@@ -1,7 +1,7 @@
 {
   "name": "lark-deck-cyrus",
   "version": "1.2.0",
-  "description": "lark-deck-cyrus 总控技能：场景规划、deck-renderer 渲染、飞书风格 H5 deck 生成和 pitch 预演",
+  "description": "lark-deck-cyrus 总控技能：上传识别、场景规划、deck-renderer 渲染、质量验收、pitch 预演和云端入库",
   "author": {
     "name": "FuQiang",
     "url": "https://github.com/FuQiang"

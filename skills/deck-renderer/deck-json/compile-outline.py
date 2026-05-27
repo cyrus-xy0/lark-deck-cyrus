@@ -51,6 +51,8 @@ DEFAULT_VARIANT = {
     "stats": "row",
     "flow": "process",
 }
+COVER_VARIANTS = {"plain", "master"}
+DEFAULT_COVER_VARIANT = "plain"
 ICONS = ["message-circle", "check-circle", "users", "sparkles", "database", "flag"]
 
 
@@ -280,6 +282,19 @@ class OutlineCompiler:
                     )
                 else:
                     mapping["warnings"].append(f"variant missing for {layout!r}; used {variant!r}")
+        elif layout == "cover":
+            if requested_variant in COVER_VARIANTS:
+                variant = requested_variant
+            else:
+                variant = DEFAULT_COVER_VARIANT
+                if requested_variant:
+                    mapping["warnings"].append(
+                        f"cover variant {requested_variant!r} is not valid; used {variant!r}"
+                    )
+                else:
+                    mapping["warnings"].append(
+                        f"cover variant missing; used {variant!r} Cyrus business-pitch cover"
+                    )
         elif requested_variant:
             mapping["warnings"].append(f"variant {requested_variant!r} dropped for single-layout {layout!r}")
         mapping["layout_candidate"] = candidate
@@ -627,11 +642,12 @@ class OutlineCompiler:
     def data_arch_stack(self, slide: dict[str, Any]) -> dict[str, Any]:
         beats = self.beats(slide, 3, 6)
         layer_titles = ["用户入口", "Agent 能力", "业务协同", "知识数据"]
+        layer_subtitles = ["入口层", "智能体层", "流程层", "数据层"]
         layers = []
         for i, name in enumerate(layer_titles):
             modules = clamp_items(beats[i:] + beats[:i], 3, 8, ["任务", "知识", "数据"])
             layers.append({
-                "name": {"title": name, "sub": ["ENTRY", "AGENT", "WORKFLOW", "DATA"][i]},
+                "name": {"title": name, "sub": layer_subtitles[i]},
                 "modules": modules,
             })
         return {"title": self.title(slide), "layers": layers}
@@ -666,8 +682,9 @@ class OutlineCompiler:
 
     def data_end(self, slide: dict[str, Any]) -> dict[str, Any]:
         return {
+            # End follows the H5 master: logo + fixed slogan PNG only.
+            # Keep title for screen_label / source trace; do not render CTA copy here.
             "title": self.title(slide),
-            "slogan": self.message(slide),
         }
 
     def first_asset(self, slide: dict[str, Any]) -> str | None:
