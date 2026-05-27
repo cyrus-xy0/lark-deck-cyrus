@@ -284,6 +284,8 @@ def report_md(manifest: dict[str, Any]) -> str:
         "# Ingestion Report",
         "",
         f"- task_id: `{manifest['task_id']}`",
+        f"- dry_run: {manifest.get('dry_run', False)}",
+        f"- local_write_enabled: {manifest.get('local_write_enabled', True)}",
         f"- local_candidates: {len(manifest['local_candidates'])}",
         f"- base_writes: {len(manifest['base_writes'])}",
         "",
@@ -366,6 +368,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--write-base", action="store_true", help="also write knowledge and slide-fragment asset records to live Base; Slide Library remains local-only")
     ap.add_argument("--base-as", choices=["user", "bot"], default="user")
     ap.add_argument("--dry-run-base", action="store_true")
+    ap.add_argument("--dry-run", action="store_true", help="do not write local candidates or live Base; only emit the manifest shape")
+    ap.add_argument("--no-local-write", action="store_true", help="skip writing local Slide Library candidate files")
     ap.add_argument("--allow-unaudited", action="store_true", help="bypass the default deck-auditor pass requirement; intended only for local fixture/debug use")
     args = ap.parse_args(argv)
     if args.ppt_library:
@@ -404,22 +408,35 @@ def main(argv: list[str] | None = None) -> int:
         "slide_records": [],
         "base_writes": [],
         "skipped": [],
+        "dry_run": args.dry_run,
+        "local_write_enabled": not (args.dry_run or args.no_local_write or args.dry_run_base),
     }
+    local_write_enabled = bool(manifest["local_write_enabled"])
 
     for slide_key in selected_slide_keys(deck, args.slide_key):
         slide = slides_by_key.get(slide_key)
         if not slide:
             manifest["skipped"].append({"slide_key": slide_key, "reason": "slide key not found"})
             continue
-        local = slide_library.mark_reuse_candidate(args.task_id, slide_key, metadata)
-        manifest["local_candidates"].append(local)
-        manifest["slide_records"].append({
-            "type": "slide",
-            "mode": "local",
-            "ok": not any(issue.get("severity") == "error" for issue in local.get("issues", [])),
-            "slide_key": slide_key,
-            "path": local.get("path", ""),
-        })
+        if local_write_enabled:
+            local = slide_library.mark_reuse_candidate(args.task_id, slide_key, metadata)
+            manifest["local_candidates"].append(local)
+            manifest["slide_records"].append({
+                "type": "slide",
+                "mode": "local",
+                "ok": not any(issue.get("severity") == "error" for issue in local.get("issues", [])),
+                "slide_key": slide_key,
+                "path": local.get("path", ""),
+            })
+        else:
+            manifest["slide_records"].append({
+                "type": "slide",
+                "mode": "dry-run",
+                "ok": True,
+                "slide_key": slide_key,
+                "path": "",
+            })
+            manifest["skipped"].append({"slide_key": slide_key, "reason": "local write disabled by dry-run"})
         if args.write_base:
             knowledge_write = write_base_knowledge(
                 task_id=args.task_id,
@@ -427,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
                 slide=slide,
                 metadata=metadata,
                 identity=args.base_as,
-                dry_run=args.dry_run_base,
+                dry_run=args.dry_run_base or args.dry_run,
             )
             asset_write = write_base_asset_record(
                 task_id=args.task_id,
@@ -435,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
                 slide=slide,
                 metadata=metadata,
                 identity=args.base_as,
-                dry_run=args.dry_run_base,
+                dry_run=args.dry_run_base or args.dry_run,
             )
             manifest["knowledge_records"].append(knowledge_write)
             manifest["asset_records"].append(asset_write)

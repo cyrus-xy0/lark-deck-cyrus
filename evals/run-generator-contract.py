@@ -23,6 +23,7 @@ REPO = Path(__file__).resolve().parents[1]
 GENERATOR = REPO / "server/generator.py"
 REQUEST = REPO / "server/examples/brief-request.json"
 os.environ.setdefault("CYRUS_MAGIC_DRY_RUN", "1")
+os.environ.setdefault("GENERATOR_VISUAL_AUDIT", "0")
 REQUIRED = [
     "deck.json",
     "index.html",
@@ -106,6 +107,42 @@ def main() -> int:
         source_outline = json.loads((source_output / "outline.json").read_text(encoding="utf-8"))
         if not any(ref.get("provider") == "upload-recognizer" for ref in source_outline.get("knowledge_refs", [])):
             print("outline did not include upload-recognizer knowledge refs", file=sys.stderr)
+            return 1
+
+        missing_request_path = Path(td) / "request-with-missing-source.json"
+        missing_request_path.write_text(
+            json.dumps(
+                {
+                    "brief": {
+                        "title": "缺素材路径仍继续",
+                        "customer_name": "示例客户",
+                        "industry": "消费零售",
+                        "audience": "COO 和运营负责人",
+                        "objective": "确认一个门店 SOP 试点",
+                        "product_scope": ["飞书 AI", "知识库", "任务"],
+                    },
+                    "sources": [str(Path(td) / "missing.pdf")],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        missing_proc = subprocess.run(
+            ["python3", str(GENERATOR), "create", "--request", str(missing_request_path), "--plan-only"],
+            cwd=REPO,
+            text=True,
+            capture_output=True,
+        )
+        if missing_proc.returncode != 0:
+            print(missing_proc.stdout)
+            print(missing_proc.stderr, file=sys.stderr)
+            return missing_proc.returncode
+        missing_task = json.loads(missing_proc.stdout)
+        if missing_task.get("status") != "awaiting_outline_confirmation":
+            print(json.dumps(missing_task, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 1
+        if not any("素材/来源需确认" in warning for warning in missing_task.get("warnings", [])):
+            print("missing source was not surfaced as a non-blocking warning", file=sys.stderr)
             return 1
 
     proc = subprocess.run(

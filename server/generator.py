@@ -71,6 +71,10 @@ REQUIRED_OUTPUTS = [
 TEXT_LEAF_SKIP_KEYS = {"title", "icon", "img", "image", "src", "url", "href", "company_logo"}
 
 
+class FlowPaused(Exception):
+    """Internal sentinel for non-failure pauses that still need task persistence."""
+
+
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -185,9 +189,21 @@ def magic_dry_run() -> bool:
     return str(raw).lower() in {"1", "true", "yes", "mock"}
 
 
+def visual_audit_enabled() -> bool:
+    raw = os.environ.get("GENERATOR_VISUAL_AUDIT")
+    if raw is None:
+        return True
+    return raw.lower() not in {"0", "false", "no", "skip", "off"}
+
+
+def require_brief_clarification(request: dict[str, Any]) -> bool:
+    return bool(request.get("require_brief_confirmation") or request.get("require_brief_clarification"))
+
+
 def success_like_status(status: str) -> bool:
     return status in {
         "succeeded",
+        "visual_unverified",
         "awaiting_outline_confirmation",
         "awaiting_brief_clarification",
         "awaiting_rehearsal_decision",
@@ -1081,6 +1097,63 @@ def write_runtime_library(input_dir: Path, dossier: dict[str, Any], sources: lis
     return {"path": str(library_dir), **manifest}
 
 
+def source_confirmation_items(dossier: dict[str, Any]) -> list[str]:
+    confidence = dossier.get("confidence") if isinstance(dossier.get("confidence"), dict) else {}
+    items = confidence.get("needs_confirmation") if isinstance(confidence.get("needs_confirmation"), list) else []
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def add_source_warnings(task: dict[str, Any], dossier: dict[str, Any], journey: dict[str, Any]) -> None:
+    items = source_confirmation_items(dossier)
+    if not items:
+        return
+    task.setdefault("warnings", [])
+    for item in items:
+        warning = f"素材/来源需确认,已继续流程: {item}"
+        if warning not in task["warnings"]:
+            task["warnings"].append(warning)
+    append_journey_event(
+        journey,
+        "source_confirmation_recorded",
+        "system",
+        "上传素材存在缺失或不可解析项,已明文记录并继续进入 planner。",
+        {"items": items[:20]},
+    )
+
+
+def auditor_visual_flag() -> str:
+    return "--visual" if visual_audit_enabled() else "--no-visual"
+
+
+def visual_audit_unverified(output_dir: Path) -> bool:
+    if not visual_audit_enabled():
+        return False
+    report_path = output_dir / "audit-report.json"
+    payload: dict[str, Any] = {}
+    if report_path.exists():
+        try:
+            payload = read_json(report_path)
+        except Exception:
+            payload = {}
+    h5 = payload.get("h5_checkonly_summary") if isinstance(payload.get("h5_checkonly_summary"), dict) else {}
+    flags = h5.get("flags") if isinstance(h5.get("flags"), list) else []
+    if "visual" not in flags:
+        return True
+    h5_report = output_dir / "H5_CHECKONLY_REPORT.md"
+    h5_text = h5_report.read_text(encoding="utf-8", errors="ignore") if h5_report.exists() else ""
+    visual_failed_markers = [
+        "visual checks could not run",
+        "BrowserType.launch",
+        "TargetClosedError",
+        "unable to launch",
+    ]
+    return any(marker in h5_text for marker in visual_failed_markers)
+
+
+def visual_audit_verified(output_dir: Path) -> bool:
+    return visual_audit_enabled() and not visual_audit_unverified(output_dir)
+
+
 def attach_source_dossier_to_brief(brief: dict[str, Any], dossier: dict[str, Any], runtime_library: dict[str, Any]) -> dict[str, Any]:
     enriched = copy.deepcopy(brief)
     enriched["source_dossier"] = dossier
@@ -1121,17 +1194,22 @@ def run_upload_recognizer(
             str(recognizer_dir),
             "--task-id",
             task_id,
+            "--allow-missing",
         ],
         recognizer_log,
     )
     task["logs"]["upload_recognizer"] = str(recognizer_log)
     if proc.returncode != 0:
-        append_journey_event(journey, "upload_recognizer_failed", "system", "上传素材识别失败。", {"exit": proc.returncode})
-        raise RuntimeError("upload recognizer failed")
+        dossier_path = recognizer_dir / "source-dossier.json"
+        if not dossier_path.exists():
+            append_journey_event(journey, "upload_recognizer_failed", "system", "上传素材识别失败。", {"exit": proc.returncode})
+            raise RuntimeError("upload recognizer failed")
+        task.setdefault("warnings", []).append("upload-recognizer 返回非 0,但已读取 source-dossier 并继续流程。")
     dossier_path = recognizer_dir / "source-dossier.json"
     if not dossier_path.exists():
         raise RuntimeError("upload recognizer did not write source-dossier.json")
     dossier = read_json(dossier_path)
+    add_source_warnings(task, dossier, journey)
     runtime_library = write_runtime_library(input_dir, dossier, sources)
     shutil.copy2(dossier_path, output_dir / "source-dossier.json")
     report_path = recognizer_dir / "SOURCE_DOSSIER.md"
@@ -1809,7 +1887,7 @@ def html_page(title: str, body: str) -> bytes:
     .succeeded {{ background: #e9f8ef; color: #137333; }}
     .failed {{ background: #fdeaea; color: #b42318; }}
     .running {{ background: #fff6db; color: #8a5a00; }}
-    .awaiting_outline_confirmation, .awaiting_brief_clarification, .awaiting_rehearsal_decision, .awaiting_deck_confirmation {{ background: #eaf1ff; color: #1457d9; }}
+    .awaiting_outline_confirmation, .awaiting_brief_clarification, .awaiting_rehearsal_decision, .awaiting_deck_confirmation, .visual_unverified {{ background: #eaf1ff; color: #1457d9; }}
     .completed_without_ingestion {{ background: #eef6f1; color: #236b3a; }}
     pre {{ white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 14px; }}
     table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
@@ -1930,6 +2008,7 @@ def render_status_page(task_id: str) -> bytes:
         "succeeded",
         "failed",
         "running",
+        "visual_unverified",
         "awaiting_brief_clarification",
         "awaiting_outline_confirmation",
         "awaiting_rehearsal_decision",
@@ -2820,7 +2899,7 @@ def create_outline_task(
         brief = request.get("brief") or {}
         write_json(input_dir / "request.json", request)
         missing_critical = critical_brief_questions(brief)
-        if missing_critical and not request.get("allow_assumptions"):
+        if missing_critical and require_brief_clarification(request) and not request.get("allow_assumptions"):
             task["status"] = "awaiting_brief_clarification"
             task["confirmation_required"] = "brief"
             task["brief_questions"] = missing_critical
@@ -2841,6 +2920,17 @@ def create_outline_task(
             write_journey_artifacts(output_dir, journey)
             save_task(task_dir, task)
             return task
+        if missing_critical:
+            task.setdefault("warnings", []).append(
+                "缺少关键 pitch 背景,已按合理假设继续: " + "；".join(missing_critical)
+            )
+            append_journey_event(
+                journey,
+                "brief_assumptions_recorded",
+                "system",
+                "缺少部分 pitch 背景,未阻塞流程;问题已进入 outline 的 open questions。",
+                {"questions": missing_critical},
+            )
         if request.get("outline"):
             outline = request["outline"]
             append_journey_event(journey, "outline_loaded", "system", "使用请求中提供的 outline,等待用户确认。")
@@ -3226,6 +3316,8 @@ def confirm_deck_task(task_id: str, *, base_url: str | None = None) -> dict[str,
         raise RuntimeError("deck confirmation is only allowed after rehearsal is accepted")
     if not task_audit_passed(output_dir):
         raise RuntimeError("deck-auditor pass verdict is required before ingestion")
+    if visual_audit_enabled() and not visual_audit_verified(output_dir):
+        raise RuntimeError("visual audit pass is required before ingestion")
     journey = load_journey_for_task(task) or new_journey(task, {}, str(task.get("source") or "unknown"))
     append_journey_event(journey, "deck_confirmed", "user", "用户确认 deckhtml 可以入库。")
     task = ingest_confirmed_deck(task, base_url=base_url)
@@ -3461,7 +3553,7 @@ def create_or_run_task(
                 str(output_dir / "index.html"),
                 "--deck-json",
                 str(output_dir / "deck.json"),
-                "--no-visual",
+                auditor_visual_flag(),
                 "--report",
                 str(validator_report),
                 "--json-report",
@@ -3491,7 +3583,7 @@ def create_or_run_task(
                     str(output_dir / "index.html"),
                     "--deck-json",
                     str(output_dir / "deck.json"),
-                    "--no-visual",
+                    auditor_visual_flag(),
                     "--report",
                     str(retry_report),
                     "--json-report",
@@ -3530,7 +3622,7 @@ def create_or_run_task(
                     str(output_dir / "index.html"),
                     "--deck-json",
                     str(output_dir / "deck.json"),
-                    "--no-visual",
+                    auditor_visual_flag(),
                     "--report",
                     str(validator_report),
                     "--json-report",
@@ -3545,6 +3637,20 @@ def create_or_run_task(
                 append_journey_event(journey, "inline_audit_failed", "system", "inline 后 deck-auditor 未通过。", {"exit": proc.returncode})
                 raise RuntimeError("inline deck-auditor failed under strict gate")
             append_journey_event(journey, "inline_audited", "system", "inline 后 deck-auditor 通过。")
+        if visual_audit_unverified(output_dir):
+            task["status"] = "visual_unverified"
+            task["confirmation_required"] = "visual_audit"
+            task.setdefault("warnings", []).append("视觉审计未能在当前环境运行,已暂停发布/预演/入库;请在可运行浏览器的环境重跑 auditor --visual。")
+            task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+            append_journey_event(
+                journey,
+                "visual_audit_unverified",
+                "system",
+                "deck-auditor 的视觉审计未能运行,不进入发布、预演或入库 handoff。",
+                {"h5_report": str(output_dir / "H5_CHECKONLY_REPORT.md")},
+            )
+            write_journey_artifacts(output_dir, journey)
+            raise FlowPaused()
         magic_doc_publish = publish_deck_to_magic_doc(task, request, deck, log_dir=log_dir)
         task["magic_doc_publish"] = magic_doc_publish
         if magic_doc_publish.get("ok"):
@@ -3616,6 +3722,8 @@ def create_or_run_task(
             task["status"] = "succeeded"
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
         append_journey_event(journey, "result_ready", "system", "用户可通过状态页、飞书妙笔文档和预演报告拿到结果。")
+    except FlowPaused:
+        pass
     except Exception as exc:  # noqa: BLE001 - task wrapper should persist any failure.
         task["status"] = "failed"
         task["error"] = str(exc)
