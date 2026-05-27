@@ -132,7 +132,7 @@
         "data": { "type": "object" }
       },
       "allOf": [
-        { "if": { "properties": { "layout": { "const": "cover" } },      "required": ["layout"] }, "then": { "properties": { "variant": { "enum": ["plain", "master"], "description": "plain = Cyrus business-pitch cover without flower artwork; master = H5 flower cover." }, "data": { "$ref": "#/$defs/data_cover" } },      "required": ["data"] } },
+        { "if": { "properties": { "layout": { "const": "cover" } },      "required": ["layout"] }, "then": { "properties": { "variant": { "enum": ["plain", "master"], "description": "master = default H5 flower cover; plain = optional quiet no-flower cover." }, "data": { "$ref": "#/$defs/data_cover" } },      "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "agenda" } },     "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_agenda" } },     "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "section" } },    "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_section" } },    "required": ["data"] } },
         { "if": { "properties": { "layout": { "const": "quote" } },      "required": ["layout"] }, "then": { "properties": { "data": { "$ref": "#/$defs/data_quote" } },      "required": ["data"] } },
@@ -560,7 +560,7 @@
     },
 
     "data_cover": {
-      "description": "Cover spec: title + initiator name + date. Cyrus-generated business pitches default to variant=plain (no flower artwork); variant=master keeps the H5 flower cover.",
+      "description": "Cover spec: title + initiator name + date. Default is variant=master, the H5 flower cover; variant=plain is an explicit no-flower option.",
       "type": "object",
       "required": ["title", "author", "date"],
       "additionalProperties": false,

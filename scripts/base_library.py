@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -59,7 +61,11 @@ def can_try_base(config: dict[str, Any]) -> bool:
 
 
 def repo_rel(path: Path) -> str:
-    return path.resolve().relative_to(REPO).as_posix()
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(REPO).as_posix()
+    except ValueError:
+        return resolved.as_posix()
 
 
 def field_value(record: dict[str, Any], name: str, default: Any = None) -> Any:
@@ -77,6 +83,17 @@ def scalar(value: Any, default: str = "") -> str:
             return str(first.get("name") or first.get("text") or first.get("id") or default)
         return str(first)
     return str(value)
+
+
+def scalar_any(record: dict[str, Any], *names: str, default: str = "") -> str:
+    for name in names:
+        value = record.get(name)
+        if value is None or value == []:
+            continue
+        rendered = scalar(value)
+        if rendered:
+            return rendered
+    return default
 
 
 def list_value(value: Any) -> list[str]:
@@ -99,6 +116,198 @@ def tags(value: Any) -> list[str]:
     else:
         raw = [part.strip() for part in str(value or "").split(",") if part.strip()]
     return list(dict.fromkeys(raw))
+
+
+def split_terms(value: Any) -> list[str]:
+    raw: list[str] = []
+    for item in list_value(value):
+        raw.extend(part.strip() for part in re.split(r"[,，、/|]", item) if part.strip())
+    return [item for item in dict.fromkeys(raw) if item and item != "待标注"]
+
+
+def join_tags(values: list[Any]) -> str:
+    out: list[str] = []
+    for value in values:
+        out.extend(split_terms(value))
+    return ", ".join(out)
+
+
+def table_field_names(config: dict[str, Any], table: str) -> set[str]:
+    return set(config.get("tables", {}).get(table, {}).get("fields", []))
+
+
+def table_has(config: dict[str, Any], table: str, field: str) -> bool:
+    return field in table_field_names(config, table)
+
+
+def configured_fields(config: dict[str, Any], table: str, fields: dict[str, Any]) -> dict[str, Any]:
+    names = table_field_names(config, table)
+    if not names:
+        return fields
+    out: dict[str, Any] = {}
+    for key, value in fields.items():
+        if key not in names:
+            continue
+        if value is None or value == "" or value == []:
+            continue
+        out[key] = value
+    return out
+
+
+def source_text(*parts: Any) -> str:
+    rendered = [str(part).strip() for part in parts if str(part or "").strip()]
+    return " | ".join(rendered)
+
+
+def mapped_industries(value: Any) -> list[str]:
+    mapped: list[str] = []
+    for term in split_terms(value):
+        low = term.lower()
+        if any(key in term for key in ["连锁", "门店"]):
+            mapped.append("连锁门店")
+        elif any(key in term for key in ["零售", "消费", "餐饮"]):
+            mapped.append("零售消费")
+        elif any(key in term for key in ["金融", "投资", "银行", "保险", "证券"]):
+            mapped.append("金融投资")
+        elif any(key in term for key in ["制造", "供应链", "工厂"]):
+            mapped.append("制造供应链")
+        elif any(key in term for key in ["企业服务", "saas", "SaaS", "软件", "互联网"]) or "enterprise" in low:
+            mapped.append("企业服务")
+        elif "通用" in term:
+            mapped.append("通用")
+    return list(dict.fromkeys(mapped or ["通用"]))
+
+
+def mapped_products(value: Any) -> list[str]:
+    mapped: list[str] = []
+    for term in split_terms(value):
+        low = term.lower()
+        if "aily" in low:
+            mapped.append("Aily")
+        elif "妙搭" in term or "miaoda" in low:
+            mapped.append("妙搭")
+        elif "多维" in term or "base" in low:
+            mapped.append("多维表格")
+        elif "知识库" in term or "wiki" in low:
+            mapped.append("知识库")
+        elif "会议" in term or "meeting" in low:
+            mapped.append("飞书会议")
+        elif "飞书" in term or "lark" in low or "feishu" in low:
+            mapped.append("飞书")
+    return list(dict.fromkeys(mapped))
+
+
+def mapped_scenes(value: Any) -> list[str]:
+    mapped: list[str] = []
+    for term in split_terms(value):
+        low = term.lower()
+        if "知识" in term or "ai" in low:
+            mapped.append("AI知识库")
+        elif "协同" in term or "办公" in term:
+            mapped.append("协同办公")
+        elif "门店" in term or "运营" in term:
+            mapped.append("门店运营")
+        elif "项目" in term:
+            mapped.append("项目管理")
+        elif "客户" in term or "案例" in term:
+            mapped.append("客户案例")
+        elif "品牌" in term:
+            mapped.append("品牌规范")
+    return list(dict.fromkeys(mapped))
+
+
+def mapped_knowledge_type(value: str) -> str:
+    low = str(value or "").strip().lower()
+    allowed = {"idea", "case-story", "objection", "metric", "qa", "lesson", "prompt", "feedback"}
+    if low in allowed:
+        return low
+    if any(key in low for key in ["case", "story", "客户", "案例"]):
+        return "case-story"
+    if any(key in low for key in ["objection", "异议", "风险"]):
+        return "objection"
+    if any(key in low for key in ["metric", "数据", "指标"]):
+        return "metric"
+    if "qa" in low or "q&a" in low or "问答" in low:
+        return "qa"
+    if "lesson" in low or "复盘" in low:
+        return "lesson"
+    if "prompt" in low:
+        return "prompt"
+    if "feedback" in low or "反馈" in low:
+        return "feedback"
+    return "idea"
+
+
+def mapped_asset_type(kind: str, fmt: str, path: str) -> str:
+    raw = " ".join([kind or "", fmt or "", Path(path or "").suffix.lstrip(".")]).lower()
+    if "logo" in raw:
+        return "logo"
+    if "video" in raw or raw.endswith("mp4") or raw.endswith("mov"):
+        return "video"
+    if "demo" in raw:
+        return "demo"
+    if "template" in raw:
+        return "template"
+    if "code" in raw:
+        return "code"
+    if "deckjson" in raw or "deck-json" in raw or "json" in raw:
+        return "deck-json"
+    if "html" in raw:
+        return "html-deck"
+    if "ppt" in raw:
+        return "ppt"
+    if "pdf" in raw:
+        return "pdf"
+    return "image" if any(key in raw for key in ["image", "icon", "avatar", "png", "jpg", "jpeg", "svg", "webp"]) else "image"
+
+
+def mapped_credibility(value: str) -> str:
+    low = str(value or "").lower()
+    if any(key in low for key in ["high", "official", "verified", "approved", "public"]):
+        return "high"
+    if any(key in low for key in ["low", "draft", "unverified", "needs"]):
+        return "low"
+    return "medium"
+
+
+def mapped_knowledge_status(value: str) -> str:
+    low = str(value or "").lower()
+    if any(key in low for key in ["disable", "forbid", "禁用"]):
+        return "禁用"
+    if any(key in low for key in ["verify", "验证"]):
+        return "需验证"
+    if any(key in low for key in ["approved", "reusable", "pass", "可复用"]):
+        return "可复用"
+    return "待整理"
+
+
+def mapped_asset_status(value: str) -> str:
+    low = str(value or "").lower()
+    if any(key in low for key in ["disable", "forbid", "禁用"]):
+        return "禁用"
+    if any(key in low for key in ["redo", "fail", "重做"]):
+        return "需重做"
+    if any(key in low for key in ["approved", "reusable", "pass", "可复用"]):
+        return "可复用"
+    return "待审核"
+
+
+def slugify_id(*values: str) -> str:
+    raw = "-".join(value for value in values if value).lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
+    return slug[:96] or "asset"
+
+
+def row_path(row: dict[str, Any]) -> str:
+    return scalar_any(row, "本地路径", "相对路径", "云端URL")
+
+
+def collection_from_row(row: dict[str, Any], rel_path: str) -> str:
+    raw = scalar_any(row, "集合", "所属目录", default="")
+    if raw.startswith(("skills/feishu-deck-h5/assets/shared/", "skills/deck-renderer/assets/shared/", "assets/shared/")):
+        parts = Path(rel_path).parts
+        return parts[2] if len(parts) > 2 else "root"
+    return raw or "root"
 
 
 def run_lark(config: dict[str, Any], table: str, args: list[str], identity: str) -> dict[str, Any]:
@@ -428,10 +637,36 @@ def create_record(
     return run_lark(config, table, args, identity)
 
 
-def create_knowledge_fields(args: argparse.Namespace) -> dict[str, Any]:
+def create_knowledge_fields(args: argparse.Namespace, config: dict[str, Any]) -> dict[str, Any]:
     content = args.content
     if args.content_file:
         content = Path(args.content_file).read_text(encoding="utf-8")
+    if table_has(config, "knowledge", "知识标题"):
+        fields = {
+            "知识标题": args.title,
+            "知识类型": mapped_knowledge_type(args.type),
+            "正文/要点": content,
+            "摘要": args.summary or content[:240],
+            "可信度": mapped_credibility(args.source_level),
+            "行业": mapped_industries(args.industry),
+            "场景": mapped_scenes(args.scene),
+            "客户": args.customer,
+            "产品": mapped_products(args.product),
+            "沉淀状态": mapped_knowledge_status(args.permission_status),
+            "来源": source_text(args.source_deck, args.source_ppt, args.source_page, args.local_path),
+            "标签": join_tags([args.type, f"slide:{args.slide_key}", f"asset:{args.related_asset_id}"]),
+            "适用页面": args.slide_key or args.source_page,
+            "关联SlideKey": args.slide_key,
+            "关联素材ID": args.related_asset_id,
+            "来源Deck": args.source_deck,
+            "来源PPT": args.source_ppt,
+            "来源页码": args.source_page,
+            "权限状态": args.permission_status,
+            "本地路径": args.local_path,
+            "字数": len(content),
+            "SHA256": args.sha256,
+        }
+        return configured_fields(config, "knowledge", fields)
     return {
         "文档ID": args.doc_id,
         "标题": args.title,
@@ -452,7 +687,45 @@ def create_knowledge_fields(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def create_asset_fields(args: argparse.Namespace) -> dict[str, Any]:
+def create_asset_fields(args: argparse.Namespace, config: dict[str, Any]) -> dict[str, Any]:
+    if table_has(config, "assets", "素材标题"):
+        asset_type = mapped_asset_type(args.kind, args.format, args.local_path)
+        fields = {
+            "素材标题": args.display_name,
+            "素材类型": asset_type,
+            "产品": mapped_products(args.product),
+            "行业": mapped_industries(args.industry),
+            "场景": mapped_scenes(args.scene),
+            "客户": args.customer,
+            "云端URL": args.local_path if str(args.local_path).startswith(("http://", "https://")) else "",
+            "质量状态": mapped_asset_status(args.permission_status),
+            "相对路径": "" if str(args.local_path).startswith(("http://", "https://")) else args.local_path,
+            "适用页面": args.slide_key or args.source_page,
+            "DriveFileToken": args.drive_file_token,
+            "所属目录": args.collection,
+            "文件大小KB": args.size_kb,
+            "来源": source_text(args.source_deck, args.source_ppt, args.source_page, args.local_path),
+            "摘要": args.usage,
+            "移动端可用": asset_type in {"image", "logo", "html-deck", "deck-json"},
+            "标签": join_tags([args.tags, args.collection, f"slide:{args.slide_key}", f"knowledge:{args.related_knowledge_id}"]),
+            "SHA256": args.sha256,
+            "关联SlideKey": args.slide_key,
+            "关联知识ID": args.related_knowledge_id,
+            "来源Deck": args.source_deck,
+            "来源PPT": args.source_ppt,
+            "来源页码": args.source_page,
+            "权限状态": args.permission_status,
+            "素材ID": args.asset_id,
+            "显示名称": args.display_name,
+            "类型": args.kind,
+            "集合": args.collection,
+            "格式": args.format,
+            "MIME": args.mime,
+            "本地路径": args.local_path,
+            "大小KB": args.size_kb,
+            "适用场景": args.usage,
+        }
+        return configured_fields(config, "assets", fields)
     return {
         "素材ID": args.asset_id,
         "显示名称": args.display_name,
@@ -475,7 +748,7 @@ def create_asset_fields(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def attachment_list(record: dict[str, Any]) -> list[dict[str, Any]]:
-    value = record.get("附件") or []
+    value = record.get("附件") or record.get("素材附件") or []
     return value if isinstance(value, list) else []
 
 
@@ -516,12 +789,16 @@ def shared_asset_records(config: dict[str, Any], identity: str) -> list[dict[str
     return [
         row
         for row in rows
-        if scalar(row.get("本地路径")).startswith("skills/deck-renderer/assets/shared/")
-        and Path(scalar(row.get("本地路径"))).name not in SKIP_INDEX_NAMES
+        if normalize_shared_asset_path(row_path(row)).startswith("skills/deck-renderer/assets/shared/")
+        and Path(normalize_shared_asset_path(row_path(row))).name not in SKIP_INDEX_NAMES
     ]
 
 
 def normalize_shared_asset_path(path: str) -> str:
+    if path.startswith("skills/feishu-deck-h5/assets/shared/"):
+        return path.replace("skills/feishu-deck-h5/assets/shared/", "skills/deck-renderer/assets/shared/", 1)
+    if path.startswith("assets/shared/"):
+        return f"skills/deck-renderer/{path}"
     return path
 
 
@@ -536,7 +813,7 @@ def sync_shared_assets(config: dict[str, Any], identity: str, overwrite: bool, q
     downloaded = 0
     skipped = 0
     for row in records:
-        target = REPO / normalize_shared_asset_path(scalar(row.get("本地路径")))
+        target = REPO / normalize_shared_asset_path(row_path(row))
         if download_attachment(config, "assets", row, target, identity, overwrite):
             downloaded += 1
         else:
@@ -549,17 +826,23 @@ def sync_shared_assets(config: dict[str, Any], identity: str, overwrite: bool, q
 def asset_index_from_base(config: dict[str, Any], identity: str) -> dict[str, Any]:
     items = []
     for row in shared_asset_records(config, identity):
-        full_path = normalize_shared_asset_path(scalar(row.get("本地路径")))
+        full_path = normalize_shared_asset_path(row_path(row))
         rel_path = full_path.removeprefix("skills/deck-renderer/")
         attachments = attachment_list(row)
-        size_bytes = int(attachments[0].get("size", 0)) if attachments else int(float(row.get("大小KB") or 0) * 1024)
+        size_kb = scalar_any(row, "大小KB", "文件大小KB", default="0")
+        size_bytes = int(attachments[0].get("size", 0)) if attachments else int(float(size_kb or 0) * 1024)
+        display_name = scalar_any(row, "显示名称", "素材标题", default=Path(rel_path).stem)
+        collection = collection_from_row(row, rel_path)
+        item_id = scalar_any(row, "素材ID") or slugify_id(collection, display_name, scalar_any(row, "SHA256")[:12])
+        kind = scalar_any(row, "类型", "素材类型", default="other")
+        mime = scalar_any(row, "MIME") or mimetypes.guess_type(rel_path)[0] or "application/octet-stream"
         items.append(
             {
-                "collection": scalar(row.get("集合"), "root"),
-                "display_name": scalar(row.get("显示名称")),
-                "id": scalar(row.get("素材ID")),
-                "kind": scalar(row.get("类型"), "other"),
-                "mime": scalar(row.get("MIME"), "application/octet-stream"),
+                "collection": collection,
+                "display_name": display_name,
+                "id": item_id,
+                "kind": kind,
+                "mime": mime,
                 "path": rel_path,
                 "sha256": scalar(row.get("SHA256")),
                 "size_bytes": size_bytes,
@@ -638,15 +921,26 @@ def print_records(rows: list[dict[str, Any]], table: str, fmt: str) -> None:
     for row in rows:
         if table == "assets":
             attachments = attachment_list(row)
+            asset_id = scalar_any(row, "素材ID", "素材标题")
+            title = scalar_any(row, "显示名称", "素材标题")
+            kind = scalar_any(row, "类型", "素材类型")
+            fmt_value = scalar_any(row, "格式", "所属目录")
+            collection = scalar_any(row, "集合", "产品", "行业")
+            path = row_path(row)
             print(
-                f"- {scalar(row.get('素材ID'))} | {scalar(row.get('显示名称'))} | "
-                f"{scalar(row.get('类型'))}/{scalar(row.get('格式'))} | {scalar(row.get('集合'))} | "
-                f"{scalar(row.get('本地路径'))} | attachments={len(attachments)}"
+                f"- {asset_id} | {title} | "
+                f"{kind}/{fmt_value} | {collection} | "
+                f"{path} | attachments={len(attachments)}"
             )
         elif table == "knowledge":
+            doc_id = scalar_any(row, "文档ID", "知识标题")
+            title = scalar_any(row, "标题", "知识标题")
+            kind = scalar_any(row, "类型", "知识类型")
+            industry = scalar_any(row, "关联行业", "行业", "场景")
+            path = scalar_any(row, "本地路径", "来源", "适用页面")
             print(
-                f"- {scalar(row.get('文档ID'))} | {scalar(row.get('标题'))} | "
-                f"{scalar(row.get('类型'))} | {scalar(row.get('关联行业'))} | {scalar(row.get('本地路径'))}\n"
+                f"- {doc_id} | {title} | "
+                f"{kind} | {industry} | {path}\n"
                 f"  {scalar(row.get('摘要'))}"
             )
         else:
@@ -670,7 +964,7 @@ def sync_knowledge_cache(config: dict[str, Any], identity: str, overwrite: bool,
     downloaded = 0
     skipped = 0
     for row in records:
-        local_path = scalar(row.get("本地路径")) or f"{scalar(row.get('文档ID'))}.md"
+        local_path = scalar_any(row, "本地路径", "适用页面") or f"{scalar_any(row, '文档ID', '知识标题')}.md"
         target = cache_root / local_path
         if download_attachment(config, "knowledge", row, target, identity, overwrite):
             downloaded += 1
@@ -734,6 +1028,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--summary", default="")
     p.add_argument("--source-level", default="internal-draft")
     p.add_argument("--industry", default="")
+    p.add_argument("--product", action="append", default=[])
+    p.add_argument("--scene", action="append", default=[])
+    p.add_argument("--customer", default="")
     p.add_argument("--slide-key", default="")
     p.add_argument("--related-asset-id", default="")
     p.add_argument("--source-deck", default="")
@@ -756,6 +1053,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sha256", default="")
     p.add_argument("--tags", action="append", default=[])
     p.add_argument("--usage", default="")
+    p.add_argument("--industry", action="append", default=[])
+    p.add_argument("--product", action="append", default=[])
+    p.add_argument("--scene", action="append", default=[])
+    p.add_argument("--customer", default="")
+    p.add_argument("--drive-file-token", default="")
     p.add_argument("--slide-key", default="")
     p.add_argument("--related-knowledge-id", default="")
     p.add_argument("--source-deck", default="")
@@ -804,7 +1106,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = create_record(
             config,
             "knowledge",
-            create_knowledge_fields(args),
+            create_knowledge_fields(args, config),
             args.identity,
             record_id=args.record_id,
             dry_run=args.dry_run,
@@ -815,7 +1117,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = create_record(
             config,
             "assets",
-            create_asset_fields(args),
+            create_asset_fields(args, config),
             args.identity,
             record_id=args.record_id,
             dry_run=args.dry_run,

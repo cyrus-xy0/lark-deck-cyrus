@@ -91,12 +91,13 @@ bash ~/.claude/skills/deck-renderer/assets/preflight.sh
 - No Feishu/Lark Base access is required for first use. The package falls back
   to local `knowledge/` and `assets/shared/` cache files. Internal users can set
   `LARK_LIBRARY_BASE_TOKEN` and `LARK_LIBRARY_MODE=base` to require live Base.
-  Live Base currently covers only `知识库` and `素材库`; Slide Library remains a
-  local candidate library.
+  The default internal Base is `DBtybdvHYaovVwsWLatcipJBnrg` and covers only
+  `知识库` / `素材库`; Slide Library remains a local candidate library.
 - To hand the same generator/bot to a cloud agent, run
   `python3 scripts/cloud_agent_deploy.py --output deploy/cloud-agent --base-url <public-url>`.
-  It writes start scripts, `.env` template, health check and endpoint manifest;
-  it does not deploy remotely or copy secrets.
+  It writes start scripts, `.env` template, health check, endpoint manifest and
+  `ONE-SHOT-PROMPT.md`; it does not deploy remotely or copy secrets. See
+  `CLOUD_AGENT.md` for the exact agent prompt.
 
 If `ssh -T git@github.com` fails, stop and ask the user to set up their SSH key first — every install path depends on it.
 

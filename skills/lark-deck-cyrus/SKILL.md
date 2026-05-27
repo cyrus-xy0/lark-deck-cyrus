@@ -2,14 +2,16 @@
 name: lark-deck-cyrus
 description: |
   End-to-end controller for Cyrus/Lark/Feishu-style H5 pitch decks. Use when
-  the user wants to turn a business need, customer brief, sales idea, raw
-  materials, or proposal direction into a talk-ready Feishu / Lark-style HTML
-  deck. Cyrus coordinates requirement clarification, narrative planning,
-  upload recognition, DeckJSON/HTML rendering, quality acceptance, pitch
-  rehearsal, cloud ingestion, user-confirmed iteration, and final delivery
-  across upload-recognizer, deck-planner, deck-renderer, deck-auditor,
-  pitch-simulator, and deck-ingestor. The visual style, layout discipline,
-  generation gates, and delivery contract remain the feishu-deck-h5 standard.
+  the user asks for 飞书风格 PPT, Lark deck, H5 deck, 16:9 网页演示,
+  用 HTML 模仿 PPT, 汇报材料, 客户提案, sales pitch, or when they want to
+  convert/check/edit/package a PPT/PDF/HTML/source brief into a talk-ready
+  Feishu / Lark-style deckhtml. Cyrus coordinates requirement clarification,
+  narrative planning, upload recognition, DeckJSON/HTML rendering, quality
+  acceptance, pitch rehearsal, cloud ingestion, user-confirmed iteration, and
+  final delivery across upload-recognizer, deck-planner, deck-renderer,
+  deck-auditor, pitch-simulator, and deck-ingestor. The visual style, layout
+  discipline, generation gates, check-only behavior, and delivery contract
+  remain the feishu-deck-h5 standard.
 ---
 
 # lark-deck-cyrus

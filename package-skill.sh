@@ -76,6 +76,7 @@ INCLUDE_PATHS=(
   "library"
   "README.md"
   "INSTALL.md"
+  "CLOUD_AGENT.md"
   "requirements.txt"
   "install.sh"
   "package-skill.sh"

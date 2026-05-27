@@ -93,6 +93,20 @@ fi
 BASE="${GENERATOR_PUBLIC_BASE_URL:-http://127.0.0.1:8765}"
 curl -fsS "$BASE/health"
 """
+    one_shot_prompt = f"""# One-shot prompt for a cloud agent
+
+请部署 lark-deck-cyrus：获取或更新当前仓库，运行 `bash install.sh`；如果云端不能下载浏览器组件，先设置 `LARK_DECK_CYRUS_SKIP_PLAYWRIGHT_INSTALL=1`。然后运行：
+
+```bash
+python3 scripts/cloud_agent_deploy.py --output deploy/cloud-agent --base-url {base_url}
+cp deploy/cloud-agent/env.example deploy/cloud-agent/.env
+bash deploy/cloud-agent/start-generator.sh
+```
+
+启动后运行 `bash deploy/cloud-agent/healthcheck.sh` 验证。部署完成后，用户可以直接说“给某客户/主题做一份飞书风格 H5 deck”，agent 调用 `POST /decks`，并把返回的 `preview_url`、`download_url`、`edit_url` 发给用户。
+
+注意：Slide Library 保持本地；飞书 Base 只写 `知识库` 和 `素材库`。如果需要 live Base 或 Feishu bot，先确保云端的 `lark-cli` 身份有权限并完成事件订阅。
+"""
     manifest = {
         "version": "1.0",
         "name": "lark-deck-cyrus-cloud-agent",
@@ -102,6 +116,7 @@ curl -fsS "$BASE/health"
             "generator": "deploy/cloud-agent/start-generator.sh",
             "feishu_bot": "deploy/cloud-agent/start-feishu-bot.sh",
             "healthcheck": "deploy/cloud-agent/healthcheck.sh",
+            "one_shot_prompt": "deploy/cloud-agent/ONE-SHOT-PROMPT.md",
         },
         "endpoints": {
             "health": "/health",
@@ -117,6 +132,7 @@ curl -fsS "$BASE/health"
     write(output / "start-generator.sh", start_sh, executable=True)
     write(output / "start-feishu-bot.sh", bot_sh, executable=True)
     write(output / "healthcheck.sh", health_sh, executable=True)
+    write(output / "ONE-SHOT-PROMPT.md", one_shot_prompt)
     write(output / "cloud-agent.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     readme = f"""# lark-deck-cyrus Cloud Agent Bundle
 
@@ -130,6 +146,7 @@ Generated bundle for exposing Cyrus from a user's cloud agent.
 - `start-feishu-bot.sh`: starts the Feishu bot listener.
 - `healthcheck.sh`: checks `{base_url}/health`.
 - `cloud-agent.json`: machine-readable endpoint manifest.
+- `ONE-SHOT-PROMPT.md`: copy-paste prompt for Aily/OpenClaw-style agents.
 
 ## Start
 
@@ -153,6 +170,7 @@ Slide Library stays local. `--write-base` writes only `知识库` and `素材库
         "generator": "start-generator.sh",
         "bot": "start-feishu-bot.sh",
         "healthcheck": "healthcheck.sh",
+        "one_shot_prompt": "ONE-SHOT-PROMPT.md",
     }.items()}
 
 

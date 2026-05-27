@@ -615,7 +615,8 @@ body {
 }
 .slide[data-layout="cover"] h1.title {
   font: 700 100px/1.18 var(--fs-font-cjk);  /* master: 50pt → 100px on 1920 canvas */
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
+  text-wrap: balance;
   color: #fff;
   margin: 0;
 }

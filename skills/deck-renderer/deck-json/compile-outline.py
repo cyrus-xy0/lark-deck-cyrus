@@ -52,7 +52,7 @@ DEFAULT_VARIANT = {
     "flow": "process",
 }
 COVER_VARIANTS = {"plain", "master"}
-DEFAULT_COVER_VARIANT = "plain"
+DEFAULT_COVER_VARIANT = "master"
 ICONS = ["message-circle", "check-circle", "users", "sparkles", "database", "flag"]
 
 
@@ -293,7 +293,7 @@ class OutlineCompiler:
                     )
                 else:
                     mapping["warnings"].append(
-                        f"cover variant missing; used {variant!r} Cyrus business-pitch cover"
+                        f"cover variant missing; used {variant!r} H5 flower master cover"
                     )
         elif requested_variant:
             mapping["warnings"].append(f"variant {requested_variant!r} dropped for single-layout {layout!r}")

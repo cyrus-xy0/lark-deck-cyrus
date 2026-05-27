@@ -151,6 +151,10 @@ def write_base_knowledge(
         "--permission-status",
         metadata.get("permission_status") or "needs_review",
     ]
+    for product in normalize_list(metadata.get("product"), []):
+        cmd.extend(["--product", product])
+    for scene in normalize_list(metadata.get("deck_type"), []):
+        cmd.extend(["--scene", scene])
     if dry_run:
         cmd.append("--dry-run")
     proc = subprocess.run(cmd, cwd=REPO, text=True, capture_output=True)
@@ -217,6 +221,12 @@ def write_base_asset_record(
         "--permission-status",
         metadata.get("permission_status") or "needs_review",
     ]
+    for industry in normalize_list(metadata.get("industry"), []):
+        cmd.extend(["--industry", industry])
+    for product in normalize_list(metadata.get("product"), []):
+        cmd.extend(["--product", product])
+    for scene in normalize_list(metadata.get("deck_type"), []):
+        cmd.extend(["--scene", scene])
     for tag in normalize_list(metadata.get("tags"), ["needs-review"]):
         cmd.extend(["--tags", tag])
     for tag in [str(slide.get("layout") or ""), str(slide.get("variant") or "")]:

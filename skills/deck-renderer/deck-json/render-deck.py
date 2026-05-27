@@ -292,7 +292,7 @@ def _build_data_attrs(slide: dict) -> str:
     if slide.get("logo_position"):
         parts.append(f'data-logo-position="{_esc_br(slide["logo_position"])}"')
     if slide.get("layout") == "cover":
-        cover_style = slide.get("variant") if slide.get("variant") in {"plain", "master"} else "plain"
+        cover_style = slide.get("variant") if slide.get("variant") in {"plain", "master"} else "master"
         parts.append(f'data-cover-style="{_esc_br(cover_style)}"')
     return " ".join(parts)
 
@@ -985,7 +985,7 @@ def _enrich_arch_stack(ctx, slide):
         name = layer.get("name") or {}
         title = _esc_br(name.get("title", ""))
         sub = name.get("sub")
-        sub_html = (f'              <div class="sub" data-text-id="slide-{snp}.layer-{ln}.name.sub">{_esc_br(sub)}</div>'
+        sub_html = (f'              <div class="sub" data-allow-body-floor data-text-id="slide-{snp}.layer-{ln}.name.sub">{_esc_br(sub)}</div>'
                     if sub else "")
         modules = layer.get("modules") or []
         modules_html = "\n".join(

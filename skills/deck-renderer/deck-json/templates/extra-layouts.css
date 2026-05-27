@@ -4,11 +4,10 @@
    Linked from deck-json/templates/_shell.html.
    ============================================================================ */
 
-/* Cyrus business-pitch cover.
-   H5's master cover uses the flower artwork. Cyrus keeps the same canvas,
-   logo, type scale, and left-half title placement, but defaults generated
-   customer pitches to a quieter non-flower cover unless variant=master is
-   explicitly requested. */
+/* Optional quiet cover.
+   H5's flower master is the default. This opt-in variant keeps the same
+   canvas, logo, type scale, and left-half title placement, but removes the
+   flower artwork when a user explicitly requests a quieter cover. */
 .slide[data-layout="cover"][data-cover-style="plain"] {
   background:
     linear-gradient(90deg, rgba(0, 6, 20, 0.98) 0%, rgba(4, 10, 30, 0.97) 46%, rgba(8, 18, 45, 0.86) 100%),

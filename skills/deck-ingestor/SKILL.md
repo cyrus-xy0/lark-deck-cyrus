@@ -78,10 +78,11 @@ python3 skills/deck-ingestor/ingest.py \
 ```
 
 调试 Base 字段映射时可用 `--dry-run-base`,只打印将写入的 JSON,不访问 live Base。
-Base 字段映射必须显式保留知识/素材关系:`知识库` 记录写 `关联SlideKey`、
-`关联素材ID`、`来源Deck`、`来源PPT`、`来源页码` 和 `权限状态`;`素材库` 记录写
-`关联SlideKey`、`关联知识ID`、同样的来源与权限字段。这样 Slide Library 虽然不建云端
-Slide 表,仍能由“讲什么”的知识记录和“怎么呈现”的素材记录联合表达。
+Base 字段映射必须保留知识/素材关系:目标表有 `关联SlideKey`、`关联素材ID`、
+`关联知识ID`、`来源Deck`、`来源PPT`、`来源页码` 和 `权限状态` 时优先写这些
+显式字段;若当前 Base 表暂缺字段,则把同一关系降级写入 `适用页面`、`来源` 和
+`标签`。这样 Slide Library 虽然不建云端 Slide 表,仍能由“讲什么”的知识记录和
+“怎么呈现”的素材记录联合表达。
 
 用户直接上传一份想作为 Slide Library 自选来源的 PPT/PPTX 时,可以先登记为
 可选候选,不立即转换成 H5:

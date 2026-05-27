@@ -84,7 +84,7 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 
 | Layout | Variants | 用于 |
 |---|---|---|
-| `cover` | `plain` / `master` | 标题页;Cyrus 默认 plain 无花卉图,master 保留 H5 花卉母版 |
+| `cover` | `master` / `plain` | 标题页;默认 `master` 保留 H5 花卉母版,`plain` 是显式无花卉选项 |
 | `agenda` | — | 目录 / TOC pills |
 | `section` | — | 章节分隔 + 大编号(可选 `parent_label` 子章节) |
 | `content` | `3up` / `2col` / `story-case` / `blocks` / `matrix` / **`before-after`** | 3 卡片 / 左文右图 / 一页纸案例 / 全宽 body / 2×2 矩阵 / 痛点-方案对比 |

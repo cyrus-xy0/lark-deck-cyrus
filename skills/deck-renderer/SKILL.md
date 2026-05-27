@@ -3773,22 +3773,22 @@ If a source page doesn't fit any of these 13, it's almost always a
 content page in disguise — most likely `content-3up` or `content-2col`.
 Do NOT invent a 14th layout.
 
-### Step 2 · Cover page (`data-layout="cover"`) — H5 geometry, Cyrus cover style
+### Step 2 · Cover page (`data-layout="cover"`) — H5 geometry and flower master
 
 The cover is intentionally minimal: **title + initiator name + date,
 nothing else**. NO English subtitle, NO team/company line, NO meeting
 type label. The cover earns its weight through composition, not text
 volume.
 
-Cyrus keeps the H5 cover geometry (1920×1080 canvas, color logo, left-half
-title, 100/700 hero type, author/date block), but generated customer business
-pitches default to `variant: "plain"` so the cover does **not** use the flower
-artwork. Use `variant: "master"` only when the user explicitly asks for the
-original 飞书母版封面 / brand-template cover.
+Cyrus keeps the H5 cover geometry and default visual (1920×1080 canvas,
+color logo, left-half title, 100/700 hero type, author/date block, and
+`lark-cover-bg.jpg` flower artwork). `variant: "master"` is the default.
+Use `variant: "plain"` only when the user explicitly asks for a quieter
+no-flower cover.
 
 | Element | Spec |
 |---|---|
-| Background | `variant: "plain"` = dark H5 content background, no flower; `variant: "master"` = `lark-cover-bg.jpg` flower master |
+| Background | `variant: "master"` = `lark-cover-bg.jpg` flower master; `variant: "plain"` = optional dark H5 content background, no flower |
 | Logo | top-LEFT at (120, 113), size 235×74, **COLORED** tri-petal `--fs-asset-logo` |
 | Title | left-half only (max-width 884px), 100/700, can be 1-2 lines (hero allowed `<br>`) |
 | Subtitle | **NONE** (no EN translation, no marketing tagline — drop it; if you really need a sentence, put it on slide 02) |
@@ -4927,11 +4927,11 @@ Do not change the DOM order: `.deck > .slide-frame > .slide`. The runtime relies
 Each recipe below is the exact markup the agent should drop into a `.slide-frame`.
 The markup uses only tokens defined in `assets/feishu-deck.css`.
 
-### 1. Cover (`data-layout="cover"`) — H5 layout with Cyrus plain default
+### 1. Cover (`data-layout="cover"`) — H5 flower master default
 
 Cyrus-generated pitch covers use the H5 cover composition with content positioned on the **left half** (dark negative space). The color logo sits **top-left** at master coordinates. Title is **100 px / 700** (smaller than you'd expect — that's the master's spec). No eyebrow, no keyline bar, no footer chrome.
 
-`variant: "plain"` is the default for business pitches: it uses the dark H5 content background and avoids the flower artwork. `variant: "master"` keeps the original H5 flower cover (`lark-cover-bg.jpg`) for explicit brand-template requests.
+`variant: "master"` is the default: it keeps the original H5 flower cover (`lark-cover-bg.jpg`). `variant: "plain"` is an explicit opt-in for a quiet no-flower cover.
 
 The cover is intentionally minimal: **title + initiator's personal name + date, nothing else.** No team / company / department label. A short subtitle is allowed for Cyrus pitch framing, but avoid long marketing taglines. (See "Step 2 · Cover page" above for the full rationale.)
 
@@ -4955,7 +4955,7 @@ Master pixel grid (1920×1080 design canvas):
 - Logo top-left: `120, 113` size `235×74` (color logo with petals + 飞书 wordmark — `lark-logo.png`)
 - Title: `124, 285`, max-width `884`, font 100/700
 - Author block: `124, 720` (2026-05-06 · was 803), font 30/600 — two stacked spans, name on top, date below. Do NOT use `.role` muted prefix on the cover (the date alone is enough chrome).
-- Right half: reserved as negative space in `plain`; reserved for the flower image in `master`. DO NOT place text there.
+- Right half: reserved for the flower image in `master`; reserved as negative space in `plain`. DO NOT place text there.
 
 ### 2. Agenda (`data-layout="agenda"`) — vertical pill stack (v2, 2026-05-06)
 
