@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lark-deck-cyrus/audit-report.schema.json",
+  "title": "Audit Report",
+  "type": "object",
+  "required": ["h5_checkonly_summary", "deck_validation", "sidecars", "talk_readiness", "design_readiness", "interaction_readiness", "verdict", "blockers", "warnings", "routing", "reuse_assessment", "ingestion_handoff"],
+  "additionalProperties": false,
+  "properties": {
+    "h5_checkonly_summary": { "$ref": "#/$defs/h5_summary" },
+    "deck_validation": { "$ref": "#/$defs/status_message" },
+    "sidecars": { "type": "object" },
+    "talk_readiness": { "type": "object" },
+    "design_readiness": { "type": "object" },
+    "interaction_readiness": { "type": "object" },
+    "verdict": {
+      "enum": ["pass", "revise-before-share", "rerender-required", "replan-required"]
+    },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "routing": { "type": "object" },
+    "reuse_assessment": { "$ref": "#/$defs/reuse_assessment" },
+    "ingestion_handoff": { "$ref": "#/$defs/ingestion_handoff" },
+    "validation": { "$ref": "#/$defs/validation" }
+  },
+  "$defs": {
+    "h5_summary": {
+      "type": "object",
+      "required": ["status", "errors", "warnings", "flags", "exit_code", "report_path", "visual_requested", "visual_unavailable"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["PASS", "FAIL"] },
+        "errors": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "flags": { "type": "array", "items": { "type": "string" } },
+        "exit_code": { "type": "integer" },
+        "report_path": { "type": "string" },
+        "visual_requested": { "type": "boolean" },
+        "visual_unavailable": { "type": "boolean" }
+      }
+    },
+    "status_message": {
+      "type": "object",
+      "required": ["ok", "exit_code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "exit_code": { "type": "integer" },
+        "message": { "type": "string" }
+      }
+    },
+    "reuse_assessment": {
+      "type": "object",
+      "required": ["knowledge_candidate", "presentation_candidate", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "knowledge_candidate": { "type": "boolean" },
+        "presentation_candidate": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    },
+    "ingestion_handoff": {
+      "type": "object",
+      "required": ["ready", "reason", "deck_json", "html"],
+      "additionalProperties": false,
+      "properties": {
+        "ready": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "deck_json": { "type": "string" },
+        "html": { "type": "string" },
+        "target_skill": { "const": "deck-ingestor" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "type": "string" },
+        "validated": { "type": "boolean" }
+      }
+    }
+  }
+}

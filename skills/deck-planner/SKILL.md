@@ -34,6 +34,9 @@ description: |
 - `upload-parser` 输出的 source dossier:知识层、素材层、slide inventory、来源和置信度
 - 已有 outline,需要升级为更专业的 deck 规划
 
+进入 Cyrus 标准链路时,不要新增 planning request 包装对象。brief-only 由用户 brief
+直接进入 planner;brief + materials 直接消费 `source-dossier.json`。
+
 ## 输入模式
 
 - **Brief-only:**用户只有纯文字 brief。先读取场景索引和 Outline 模板,再结合知识库和本地 recipe 生成 outline,不要先调用 `pitch-simulator`。
@@ -57,9 +60,33 @@ python3 skills/deck-planner/validate-outline.py \
 - `scene`:行业、角色、业务时刻、核心冲突、信心等级。
 - `thesis`:一句话主张、痛点、解法角度、差异化。
 - `outline.slides[]`:每页 key、角色、核心信息、关键 idea、建议讲法、候选 DeckJSON layout、素材需求。
+- `outline.slides[].design_spec`:每页的 Q0-Q4 设计判断、A/B/C/D 信息层级和 6 维规格。
+- `outline.slides[].density_budget`:每页实际容量,例如几张卡、几行表、几个阶段、几个证据块、是否有主图 / demo。
+- `outline.slides[].content_completion`:生产前这一页需要怎样从源材料补全内容,哪些是改写、抽取或安全推断。
+- `outline.slides[].fact_boundary`:这一页能说什么、只能作为假设说什么、绝不能补什么。
 - `asset_plan`:图片、视频、icon、logo、demo 等素材请求和兜底。
 - `source_dossier_refs`:使用了哪些上传解析结果,包括文件名、页码、slide key、素材 id 或引用路径。
 - `claim_discipline`:哪些判断是用户给的,哪些只是推断,哪些必须确认。
+
+### 细粒度输出要求
+
+planner 输出不能只是一张“页码 + 标题 + layout”的目录表。进入生产前,用户可见
+`DESIGN_PLAN.md` 必须至少包含:
+
+- **叙事弧:**用 1 段话说明整套 deck 如何从现状 / 冲突走到方案 / 路线图 / 决策。
+- **逐页方案表:**每页列出页码、角色、唯一重点、`layout/variant` path、是否 Hero 页、密度预算。
+- **页级设计规格:**每页都要回答 Q0-Q4:
+  - Q0:这页在整套 deck 里的角色是什么?
+  - Q1:观众第一眼必须记住的唯一一句话是什么?
+  - Q2:A/B/C/D 信息层级分别是什么?A 档必须是视觉和叙事焦点。
+  - Q3:这页的商务气质 / 视觉语气是什么?
+  - Q4:这页要避免的误读、堆料或视觉冲突是什么?
+- **6 维 spec:**每页给出密度、层级、证据锚点、视觉节奏、语言风格、会议用途六个维度;Hero 页要展开写,普通页也要在 `design_spec.six_dimensions` 里落字段。
+- **内容补全计划:**逐页说明哪些内容来自源文档,哪些需要从原文压缩改写,哪些是 planner 的结构化编排,哪些必须等用户确认。
+- **事实边界:**明确不新增外部数据、ROI、客户证言、公开市场数字或未授权案例;每页的假设必须写入 `fact_boundary` 或 `claim_discipline`。
+
+如果 brief / source dossier 信息不足,仍要先给“带假设的细粒度规划”,把缺口写进
+`open_questions` 和页级 `fact_boundary`;不要因为信息不足退回到粗略目录。
 
 ## 工作流
 
@@ -149,11 +176,12 @@ python3 skills/deck-planner/validate-outline.py \
 
 用户确认 outline 后才允许 handoff;确认前只交付单一用户可见确认稿 `DESIGN_PLAN.md`,不生成 deckhtml。`input/outline.json` 是给 renderer / simulator 消费的机器契约,不要作为重复用户产物暴露:
 
-1. 把 outline JSON 放进本次 run 的 `input/outline.json`。
-2. 调用 `deck-renderer` 的 DeckJSON-first 流程。
-3. 根据 `outline.slides[].layout_candidate` 写 `deck.json`。
-4. 根据 `asset_plan` 和 `source_dossier_refs` 解析素材;缺素材时用 open question 或安全兜底。
-5. 生成后在 FEEDBACK.md 记录:哪些 outline 判断被保留、修改或无法落地。
+1. 把 outline JSON 放进本次 run 的 `input/outline.json`,并校验 `schema/deck-outline.schema.json`。
+2. 用户确认只改变 workflow gate,不另建中间 JSON;避免产生第二份规划事实。
+3. 调用 `deck-renderer` 的 DeckJSON-first 流程。
+4. 根据 `outline.slides[].layout_candidate` 写 `deck.json`。
+5. 根据 `asset_plan` 和 `source_dossier_refs` 解析素材;缺素材时用 open question 或安全兜底。
+6. 生成后在 FEEDBACK.md 记录:哪些 outline 判断被保留、修改或无法落地。
 
 ## Quality handoff
 

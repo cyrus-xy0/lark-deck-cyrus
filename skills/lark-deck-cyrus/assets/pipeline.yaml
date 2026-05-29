@@ -69,6 +69,53 @@ compatibility:
     base_library: scripts/base_library.py
     ingest: skills/deck-ingestor/ingest.py
 
+contracts:
+  rule: downstream agents consume canonical artifacts only; markdown is explanatory, not a machine payload
+  schemas:
+    source_dossier: skills/lark-deck-cyrus/schema/source-dossier.schema.json
+    deck_outline: skills/deck-planner/schema/deck-outline.schema.json
+    deck_json: skills/deck-renderer/deck-json/deck-schema.json
+    audit_report: skills/lark-deck-cyrus/schema/audit-report.schema.json
+    pitch_rehearsal: skills/pitch-simulator/schema/pitch-rehearsal.schema.json
+    ingestion_manifest: skills/lark-deck-cyrus/schema/ingestion-manifest.schema.json
+  handoff_edges:
+    - from: upload-parser
+      to: deck-planner
+      payload_schema: skills/lark-deck-cyrus/schema/source-dossier.schema.json
+      payload_path: runs/{{ timestamp }}/input/runtime-library/source-dossier.json
+    - from: deck-planner
+      to: deck-renderer
+      payload_schema: skills/deck-planner/schema/deck-outline.schema.json
+      payload_path: runs/{{ timestamp }}/input/outline.json
+      required_fields: [brief, scene, thesis, outline, asset_plan, claim_discipline, handoff]
+    - from: deck-renderer
+      to: deck-auditor
+      payloads:
+        - path: runs/{{ timestamp }}/output/deck.json
+          schema: skills/deck-renderer/deck-json/deck-schema.json
+        - path: runs/{{ timestamp }}/output/index.html
+          validator: skills/deck-renderer/assets/check-only.sh
+    - from: deck-auditor
+      to: pitch-simulator
+      payloads:
+        - path: runs/{{ timestamp }}/output/audit-report.json
+          schema: skills/lark-deck-cyrus/schema/audit-report.schema.json
+        - path: runs/{{ timestamp }}/input/outline.json
+          schema: skills/deck-planner/schema/deck-outline.schema.json
+        - path: runs/{{ timestamp }}/output/deck.json
+          schema: skills/deck-renderer/deck-json/deck-schema.json
+      condition: audit-report.json.verdict == pass
+    - from: pitch-simulator
+      to: deck-ingestor
+      payloads:
+        - path: runs/{{ timestamp }}/output/audit-report.json
+          schema: skills/lark-deck-cyrus/schema/audit-report.schema.json
+        - path: runs/{{ timestamp }}/output/pitch-rehearsal.json
+          schema: skills/pitch-simulator/schema/pitch-rehearsal.schema.json
+        - path: runs/{{ timestamp }}/output/deck.json
+          schema: skills/deck-renderer/deck-json/deck-schema.json
+      condition: user_confirmed_no_revision == true and user_confirmed_ingestion == true
+
 stages:
   - id: S0
     name: 需求分流
@@ -94,6 +141,7 @@ stages:
         name: 生成 source dossier
         type: skill
         invoke: upload-parser
+        output_schema: skills/lark-deck-cyrus/schema/source-dossier.schema.json
         produces:
           - path: "runs/{{ timestamp }}/input/runtime-library/source-dossier.json"
             type: file
@@ -106,6 +154,7 @@ stages:
         name: 生成 outline
         type: skill
         invoke: deck-planner
+        output_schema: skills/deck-planner/schema/deck-outline.schema.json
         consumes:
           - "{{ brief }}"
           - "{{ source_dossier }}"
@@ -139,6 +188,8 @@ stages:
         name: 编译 outline 为 DeckJSON
         type: script
         invoke: skills/deck-renderer/deck-json/compile-outline.py
+        input_schema: skills/deck-planner/schema/deck-outline.schema.json
+        output_schema: skills/deck-renderer/deck-json/deck-schema.json
         args: ["{{ outline_json }}", "{{ output_dir }}/deck.json", "--report", "{{ output_dir }}/FEEDBACK.md"]
         condition: "outline_json != ''"
         produces:
@@ -157,6 +208,7 @@ stages:
         name: 渲染 H5 deck
         type: script
         invoke: skills/deck-renderer/deck-json/render-deck.py
+        input_schema: skills/deck-renderer/deck-json/deck-schema.json
         args: ["{{ deck_json }}", "{{ output_dir }}"]
         produces:
           - path: "runs/{{ timestamp }}/output/index.html"
@@ -172,6 +224,7 @@ stages:
         name: 运行 deck-auditor 验收
         type: skill
         invoke: deck-auditor
+        output_schema: skills/lark-deck-cyrus/schema/audit-report.schema.json
         args: ["{{ html_path }}", "--deck-json", "{{ deck_json }}"]
         max_retries: 3
         produces:
@@ -179,6 +232,7 @@ stages:
             type: file
           - path: "runs/{{ timestamp }}/output/audit-report.json"
             type: file
+            schema: skills/lark-deck-cyrus/schema/audit-report.schema.json
 
   - id: S5
     name: 预演发布门禁
@@ -188,10 +242,12 @@ stages:
         name: 生成 pitch rehearsal
         type: skill
         invoke: pitch-simulator
+        output_schema: skills/pitch-simulator/schema/pitch-rehearsal.schema.json
         condition: "auditor_verdict == passed"
         produces:
           - path: "runs/{{ timestamp }}/output/pitch-rehearsal.json"
             type: file
+            schema: skills/pitch-simulator/schema/pitch-rehearsal.schema.json
       - id: T5.2
         name: 执行 rehearsal gate
         type: script
@@ -246,6 +302,7 @@ stages:
         name: 写入本地候选库
         type: script
         invoke: skills/deck-ingestor/ingest.py
+        output_schema: skills/lark-deck-cyrus/schema/ingestion-manifest.schema.json
         args: ["--task-id", "{{ task_id }}", "--title", "{{ title }}", "--contributor", "{{ contributor }}", "--contributed-at", "{{ now_iso }}"]
         condition: "auditor_verdict == passed and user_confirmed_ingestion == true"
         produces:
@@ -257,6 +314,7 @@ stages:
         name: 可选写入飞书 Base 知识库/素材库
         type: script
         invoke: skills/deck-ingestor/ingest.py
+        output_schema: skills/lark-deck-cyrus/schema/ingestion-manifest.schema.json
         args: ["--task-id", "{{ task_id }}", "--title", "{{ title }}", "--write-base", "--contributor", "{{ contributor }}", "--contributed-at", "{{ now_iso }}"]
         condition: "auditor_verdict == passed and user_confirmed_ingestion == true and write_base == true"
 

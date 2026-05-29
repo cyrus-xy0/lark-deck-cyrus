@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lark-deck-cyrus/source-dossier.schema.json",
+  "title": "Source Dossier",
+  "type": "object",
+  "required": ["version", "task_id", "brief", "source_library", "source_inventory", "knowledge_layer", "material_layer", "slide_layer", "confidence", "handoff"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": "1.0" },
+    "task_id": { "type": "string", "minLength": 1 },
+    "brief": { "type": "string" },
+    "source_library": { "$ref": "#/$defs/source_library" },
+    "source_inventory": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/inventory_item" }
+    },
+    "knowledge_layer": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/knowledge_item" }
+    },
+    "material_layer": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/material_item" }
+    },
+    "slide_layer": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/slide_item" }
+    },
+    "confidence": { "$ref": "#/$defs/confidence" },
+    "ppt_library_uploads": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "handoff": { "$ref": "#/$defs/parser_handoff" },
+    "validation": { "$ref": "#/$defs/validation" }
+  },
+  "$defs": {
+    "source_library": {
+      "type": "object",
+      "required": ["root", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "root": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "inventory_item": {
+      "type": "object",
+      "required": ["path", "name", "type", "exists"],
+      "properties": {
+        "path": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "exists": { "type": "boolean" },
+        "original_source": { "type": "string" },
+        "runtime_source": { "type": "string" },
+        "runtime_library_path": { "type": "string" },
+        "preservation_status": { "type": "string" },
+        "preservation_kind": { "type": "string" },
+        "processing_status": { "type": "string" },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "slides": { "type": "array", "items": { "type": "object" } },
+        "media": { "type": "array", "items": { "type": "string" } },
+        "html_assets": { "type": "array", "items": { "type": "string" } },
+        "material_kind": { "type": "string" },
+        "slide_count": { "type": "integer" },
+        "page_count": { "type": "integer" },
+        "size_bytes": { "type": "integer" },
+        "sha256": { "type": "string" },
+        "file_count": { "type": "integer" },
+        "children": { "type": "array", "items": { "type": "string" } },
+        "error": { "type": "string" }
+      }
+    },
+    "knowledge_item": {
+      "type": "object",
+      "required": ["id", "title", "content", "provenance", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "confidence": { "type": "string" }
+      }
+    },
+    "material_item": {
+      "type": "object",
+      "required": ["id", "type", "path", "provenance"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string" },
+        "path": { "type": "string" },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "slide_item": {
+      "type": "object",
+      "required": ["slide_key", "title", "source", "runtime_source", "page", "layout_hint", "text_summary"],
+      "additionalProperties": false,
+      "properties": {
+        "slide_key": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "source": { "type": "string" },
+        "runtime_source": { "type": "string" },
+        "page": { "type": ["integer", "string"] },
+        "layout_hint": { "type": "string" },
+        "text_summary": { "type": "string" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source", "runtime_source"],
+      "properties": {
+        "source": { "type": "string" },
+        "runtime_source": { "type": "string" },
+        "page": { "type": ["integer", "string"] },
+        "slide_key": { "type": "string" }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["needs_confirmation"],
+      "additionalProperties": false,
+      "properties": {
+        "needs_confirmation": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "parser_handoff": {
+      "type": "object",
+      "required": ["deck_planner", "deck_renderer", "deck_ingestor"],
+      "additionalProperties": false,
+      "properties": {
+        "deck_planner": { "$ref": "#/$defs/handoff_target" },
+        "deck_renderer": { "$ref": "#/$defs/handoff_target" },
+        "deck_ingestor": { "$ref": "#/$defs/handoff_target" }
+      }
+    },
+    "handoff_target": {
+      "type": "object",
+      "required": ["target_skill", "payload_schema", "consumes", "ready", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "target_skill": {
+          "enum": ["deck-planner", "deck-renderer", "deck-ingestor"]
+        },
+        "payload_schema": { "type": "string" },
+        "consumes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "ready": { "type": "boolean" },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["schema", "validated"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "type": "string" },
+        "validated": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-implementation-sequence",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "建议推进节奏：底座先行",
+    "经营场景分批做深"
+  ],
+  "layout": "flow",
+  "variant": "timeline",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "implementation-sequence",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "implementation-sequence",
+    "layout": "flow",
+    "variant": "timeline",
+    "accent": "blue",
+    "motion_policy": "sequence-highlight",
+    "screen_label": "13 推进节奏",
+    "data": {
+      "title": "建议推进节奏：底座先行，经营场景分批做深",
+      "cols": 3,
+      "nodes": [
+        {
+          "when": "0-3 个月",
+          "what": "让 AI 可用",
+          "desc": "建设 AI 先锋、知识库和门店圈，确定统一入口、知识维护与场景运营机制。"
+        },
+        {
+          "when": "3-6 个月",
+          "what": "让闭环跑通",
+          "desc": "优先打穿门店运营标准化和生鲜 AI 出清，沉淀数据输入、AI 建议和复盘看板。"
+        },
+        {
+          "when": "6-12 个月",
+          "what": "让能力复制",
+          "desc": "扩展门店助手和供应商 360，把样板经验复制到更多门店、品类和供应商场景。"
+        }
+      ]
+    },
+    "notes": "推进节奏为规划建议，不是源文档事实。"
+  }
+}

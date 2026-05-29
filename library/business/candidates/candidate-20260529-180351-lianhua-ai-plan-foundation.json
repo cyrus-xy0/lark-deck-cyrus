@@ -1,0 +1,79 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-foundation",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "L1｜夯实 AI 基础能力",
+    "让组织具备持续用 AI 的土壤"
+  ],
+  "layout": "content",
+  "variant": "3up",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "foundation",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "foundation",
+    "layout": "content",
+    "variant": "3up",
+    "accent": "blue",
+    "screen_label": "08 AI 基础能力",
+    "data": {
+      "title": "L1｜夯实 AI 基础能力，让组织具备持续用 AI 的土壤",
+      "lede": "基础能力不是单个培训或知识库，而是支撑后续所有经营场景的共用底盘。",
+      "cards": [
+        {
+          "num": "01",
+          "icon": "sparkles",
+          "title_zh": "AI 先锋",
+          "body": "通过 AI 训练营提升员工使用 AI 的能力，形成可推广的内部种子人群。",
+          "footer_label": "PEOPLE · TRAINING"
+        },
+        {
+          "num": "02",
+          "icon": "database",
+          "title_zh": "AI 知识库",
+          "body": "体系化梳理制度、流程和 SOP，为问答、审核、识别等应用奠定知识基础。",
+          "footer_label": "KNOWLEDGE · SOP"
+        },
+        {
+          "num": "03",
+          "icon": "message-circle",
+          "title_zh": "门店圈",
+          "body": "构建门店交流、经验沉淀和运营触达空间，让一线经验进入组织复用。",
+          "footer_label": "STORE · COMMUNITY"
+        }
+      ]
+    },
+    "notes": "来源：源文档第 7 页。"
+  }
+}

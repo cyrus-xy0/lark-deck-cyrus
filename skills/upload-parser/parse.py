@@ -712,9 +712,31 @@ def main(argv: list[str] | None = None) -> int:
         **layers,
         "ppt_library_uploads": ppt_uploads,
         "handoff": {
-            "deck_planner": "Use knowledge_layer as sourced facts and open questions.",
-            "deck_renderer": "Use material_layer and slide_layer as visual/source constraints.",
-            "deck_ingestor": "Ingest only after deck-auditor passes or user marks knowledge-only candidates.",
+            "deck_planner": {
+                "target_skill": "deck-planner",
+                "payload_schema": "skills/lark-deck-cyrus/schema/source-dossier.schema.json",
+                "consumes": ["knowledge_layer", "confidence.needs_confirmation", "source_inventory"],
+                "ready": True,
+                "notes": ["Use knowledge_layer as sourced facts; keep confidence gaps as open questions."],
+            },
+            "deck_renderer": {
+                "target_skill": "deck-renderer",
+                "payload_schema": "skills/deck-planner/schema/deck-outline.schema.json",
+                "consumes": ["material_layer", "slide_layer", "source_library"],
+                "ready": True,
+                "notes": ["Use material_layer and slide_layer only after planner has produced a confirmed outline."],
+            },
+            "deck_ingestor": {
+                "target_skill": "deck-ingestor",
+                "payload_schema": "skills/lark-deck-cyrus/schema/source-dossier.schema.json",
+                "consumes": ["knowledge_layer", "material_layer", "slide_layer", "provenance"],
+                "ready": False,
+                "notes": ["Ingest only after deck-auditor passes or the user marks records as knowledge-only candidates."],
+            },
+        },
+        "validation": {
+            "schema": "skills/lark-deck-cyrus/schema/source-dossier.schema.json",
+            "validated": False,
         },
     }
     write_json(out_dir / "source-dossier.json", dossier)

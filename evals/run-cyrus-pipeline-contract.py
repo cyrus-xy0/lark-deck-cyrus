@@ -13,6 +13,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PIPELINE = REPO / "scripts" / "run_cyrus_pipeline.py"
 OUTLINE = REPO / "skills" / "deck-planner" / "examples" / "retail-agent-outline.json"
+CONTRACT_VALIDATOR = REPO / "skills" / "lark-deck-cyrus" / "schema" / "validate-contract.py"
+CONTRACT_SCHEMA_DIR = REPO / "skills" / "lark-deck-cyrus" / "schema"
 
 
 def main() -> int:
@@ -46,6 +48,7 @@ def main() -> int:
             "texts.md",
             "FEEDBACK.md",
             "AUDIT_REPORT.md",
+            "audit-report.json",
             "pitch-rehearsal.json",
             "PITCH_REHEARSAL.md",
             "PIPELINE_REPORT.md",
@@ -54,6 +57,20 @@ def main() -> int:
         if missing:
             print("missing pipeline outputs: " + ", ".join(missing), file=sys.stderr)
             return 1
+        contract_pairs = [
+            (CONTRACT_SCHEMA_DIR / "audit-report.schema.json", run_dir / "output" / "audit-report.json"),
+        ]
+        for schema, instance in contract_pairs:
+            proc = subprocess.run(
+                [sys.executable, str(CONTRACT_VALIDATOR), "--schema", str(schema), "--instance", str(instance)],
+                cwd=REPO,
+                text=True,
+                capture_output=True,
+            )
+            if proc.returncode != 0:
+                print(proc.stdout)
+                print(proc.stderr, file=sys.stderr)
+                return proc.returncode
     return 0
 
 

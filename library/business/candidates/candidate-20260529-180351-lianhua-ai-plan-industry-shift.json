@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-industry-shift",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "零售行业 AI 正从工具提效走向经营闭环"
+  ],
+  "layout": "table",
+  "variant": "",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "industry-shift",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "industry-shift",
+    "layout": "table",
+    "accent": "blue",
+    "screen_label": "02 行业转向",
+    "data": {
+      "title": "零售行业 AI 正从工具提效走向经营闭环",
+      "headers": [
+        "核心环节",
+        "线下化",
+        "数字化",
+        "智能化"
+      ],
+      "rows": [
+        [
+          "商品经营",
+          "经验选品、人工定价",
+          "销售库存毛利线上化",
+          "AI 辅助选品、定价、促销与汰换"
+        ],
+        [
+          "生鲜经营",
+          "经验订货、损耗事后统计",
+          "订收存损流程可追踪",
+          "AI 预测销量、动态订货与出清"
+        ],
+        [
+          "供应商管理",
+          "资质合同线下流转",
+          "资料合同履约线上沉淀",
+          "AI 审核、风险识别、进出评估"
+        ],
+        [
+          "门店运营",
+          "人工巡检、整改靠追踪",
+          "巡检整改任务在线闭环",
+          "AI 识别异常、生成整改建议"
+        ],
+        [
+          "员工赋能",
+          "师傅带教、制度靠人问",
+          "制度流程培训在线查询",
+          "AI 助手实时问答、岗位指引"
+        ],
+        [
+          "顾客会员",
+          "活动策划与触达粗放",
+          "活动客诉数据线上沉淀",
+          "AI 分群、活动推荐、服务优化"
+        ],
+        [
+          "经营复盘",
+          "人工拉数、事后复盘",
+          "驾驶舱报表多维分析",
+          "AI 异常识别、归因分析、行动建议"
+        ]
+      ],
+      "footnote": "来源：联华超市2026年AI应用规划，第 1 页。"
+    },
+    "notes": "此页用于建立行业转向，不引入外部未验证数据。"
+  }
+}

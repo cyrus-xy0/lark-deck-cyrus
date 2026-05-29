@@ -1,0 +1,93 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-fresh-clearance",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "L3/L4｜生鲜 AI 智能出清：在毛利",
+    "周转与损耗之间动态平衡"
+  ],
+  "layout": "content",
+  "variant": "2col",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "fresh-clearance",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "fresh-clearance",
+    "layout": "content",
+    "variant": "2col",
+    "accent": "blue",
+    "screen_label": "11 生鲜 AI 出清",
+    "data": {
+      "title": "L3/L4｜生鲜 AI 智能出清：在毛利、周转与损耗之间动态平衡",
+      "text": {
+        "lede": "基于库存、销售、时段和损耗数据，提升生鲜动态定价与出清决策能力。",
+        "feature_list": [
+          "核心前提：打通库存、销售、折扣、损耗数据，明确毛利底线和权限边界。",
+          "建设内容：数据底座、规则库、AI 建议引擎、门店入口和复盘看板。",
+          "预期收益：降低损耗和无效深折扣，提升正价销售、售罄率和门店毛利。"
+        ],
+        "body_blocks": [
+          {
+            "type": "data-panel",
+            "title": "经营闭环",
+            "tone": "teal",
+            "rows": [
+              {
+                "lbl": "数据输入",
+                "val": "库存 · 销售 · 时段 · 损耗"
+              },
+              {
+                "lbl": "策略建议",
+                "val": "折扣幅度 · 出清时点"
+              },
+              {
+                "lbl": "结果复盘",
+                "val": "毛利 · 周转 · 损耗"
+              }
+            ]
+          }
+        ]
+      },
+      "visual": {
+        "type": "image",
+        "image": {
+          "src": "assets/source-media/img-fresh-clearance-WfB0bGZifotR.png",
+          "alt": "生鲜 AI 智能出清",
+          "fit": "contain"
+        },
+        "min_height": 500
+      }
+    },
+    "notes": "来源：源文档第 10 页。未写量化收益，因源文档未提供可核验指标。"
+  }
+}

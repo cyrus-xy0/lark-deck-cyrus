@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-store-ops",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "L2/L3｜门店运营标准化：让一线动作可追踪",
+    "可复盘"
+  ],
+  "layout": "content",
+  "variant": "2col",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "store-ops",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "store-ops",
+    "layout": "content",
+    "variant": "2col",
+    "accent": "blue",
+    "screen_label": "09 门店运营标准化",
+    "data": {
+      "title": "L2/L3｜门店运营标准化：让一线动作可追踪、可复盘",
+      "text": {
+        "lede": "把总部标准、门店执行和整改复查放在同一个闭环中运行。",
+        "feature_list": [
+          "核心前提：统一巡检标准、照片规范、整改责任，并沉淀 AI 识别样本。",
+          "建设内容：任务库、执行入口、AI 判定、整改复查和多层级看板。",
+          "预期收益：降低门店执行波动和管理盲区，提升服务一致性与督导人效。"
+        ],
+        "body_blocks": [
+          {
+            "type": "data-panel",
+            "title": "闭环对象",
+            "rows": [
+              {
+                "lbl": "输入",
+                "val": "巡检标准 · 照片 · 表单"
+              },
+              {
+                "lbl": "判断",
+                "val": "AI 初判 · 人工复核"
+              },
+              {
+                "lbl": "输出",
+                "val": "整改任务 · 复查结果 · 看板"
+              }
+            ]
+          }
+        ]
+      },
+      "visual": {
+        "type": "image",
+        "image": {
+          "src": "assets/source-media/img-store-inspection-loop-T2vTbe29lodZ.png",
+          "alt": "门店巡检 AI 执行与整改闭环",
+          "fit": "contain"
+        },
+        "min_height": 500
+      }
+    },
+    "notes": "来源：源文档第 8 页。"
+  }
+}

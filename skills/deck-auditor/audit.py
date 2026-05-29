@@ -531,6 +531,11 @@ def main(argv: list[str] | None = None) -> int:
             "reason": "ready for user-confirmed ingestion" if verdict == "pass" else "do not ingest failed deck/material candidates",
             "deck_json": str(deck_json) if deck_json else "",
             "html": str(html),
+            "target_skill": "deck-ingestor",
+        },
+        "validation": {
+            "schema": "skills/lark-deck-cyrus/schema/audit-report.schema.json",
+            "validated": False,
         },
     }
     write_json(json_report, payload)

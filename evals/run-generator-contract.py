@@ -55,6 +55,30 @@ ZIP_REQUIRED = [
     "JOURNEY.md",
     "quality-insights.json",
 ]
+DESIGN_PLAN_REQUIRED_PHRASES = ["叙事弧", "逐页方案表", "页级设计 Spec", "内容补全计划", "事实边界", "密度预算"]
+OUTLINE_SLIDE_REQUIRED_FIELDS = ["hero", "density_budget", "design_spec", "content_completion", "fact_boundary"]
+
+
+def assert_rich_design_plan(path: Path) -> bool:
+    text = path.read_text(encoding="utf-8")
+    missing = [phrase for phrase in DESIGN_PLAN_REQUIRED_PHRASES if phrase not in text]
+    if missing:
+        print(f"design plan missing rich outline sections: {', '.join(missing)}", file=sys.stderr)
+        return False
+    return True
+
+
+def assert_rich_outline(outline: dict) -> bool:
+    slides = (outline.get("outline") or {}).get("slides") or []
+    if not slides:
+        print("outline missing slides", file=sys.stderr)
+        return False
+    for index, slide in enumerate(slides, start=1):
+        missing = [field for field in OUTLINE_SLIDE_REQUIRED_FIELDS if field not in slide]
+        if missing:
+            print(f"outline slide {index} missing fine-grained fields: {', '.join(missing)}", file=sys.stderr)
+            return False
+    return True
 
 
 def main() -> int:
@@ -106,7 +130,11 @@ def main() -> int:
             if not path.exists():
                 print(f"source parser artifact missing: {path}", file=sys.stderr)
                 return 1
+        if not assert_rich_design_plan(source_output / "DESIGN_PLAN.md"):
+            return 1
         source_outline = json.loads((source_input / "outline.json").read_text(encoding="utf-8"))
+        if not assert_rich_outline(source_outline):
+            return 1
         if not any(ref.get("provider") == "upload-parser" for ref in source_outline.get("knowledge_refs", [])):
             print("outline did not include upload-parser knowledge refs", file=sys.stderr)
             return 1
@@ -186,6 +214,8 @@ def main() -> int:
     output_dir = Path(task["output_dir"])
     if not (output_dir / "DESIGN_PLAN.md").exists():
         print("design plan was not written", file=sys.stderr)
+        return 1
+    if not assert_rich_design_plan(output_dir / "DESIGN_PLAN.md"):
         return 1
 
     confirm_proc = subprocess.run(

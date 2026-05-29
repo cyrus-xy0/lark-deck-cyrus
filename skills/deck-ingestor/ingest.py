@@ -410,6 +410,10 @@ def main(argv: list[str] | None = None) -> int:
         "skipped": [],
         "dry_run": args.dry_run,
         "local_write_enabled": not (args.dry_run or args.no_local_write or args.dry_run_base),
+        "validation": {
+            "schema": "skills/lark-deck-cyrus/schema/ingestion-manifest.schema.json",
+            "validated": False,
+        },
     }
     local_write_enabled = bool(manifest["local_write_enabled"])
 

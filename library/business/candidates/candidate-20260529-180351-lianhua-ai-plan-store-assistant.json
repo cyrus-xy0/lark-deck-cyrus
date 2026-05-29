@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-store-assistant",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "L3｜门店智能助手：把总部知识变成一线即时能力"
+  ],
+  "layout": "content",
+  "variant": "2col",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "store-assistant",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "store-assistant",
+    "layout": "content",
+    "variant": "2col",
+    "accent": "blue",
+    "screen_label": "10 门店智能助手",
+    "data": {
+      "title": "L3｜门店智能助手：把总部知识变成一线即时能力",
+      "text": {
+        "lede": "将总部制度、流程、SOP 和经验知识转化为可即时调用的一线作业支持。",
+        "feature_list": [
+          "核心前提：沉淀权威知识库，明确维护、审核、权限和反馈机制。",
+          "建设内容：知识体系、问答入口、可信回答、转人工和反馈闭环。",
+          "预期收益：降低重复培训和跨层级沟通成本，提升新人上手速度与执行效率。"
+        ],
+        "body_blocks": [
+          {
+            "type": "data-panel",
+            "title": "可信回答机制",
+            "rows": [
+              {
+                "lbl": "来源",
+                "val": "制度 · SOP · 经验沉淀"
+              },
+              {
+                "lbl": "边界",
+                "val": "权限控制 · 版本审核"
+              },
+              {
+                "lbl": "反馈",
+                "val": "无答案转人工 · 高频问题回流"
+              }
+            ]
+          }
+        ]
+      },
+      "visual": {
+        "type": "image",
+        "image": {
+          "src": "assets/source-media/img-store-assistant-IcW2bTe3yosW.png",
+          "alt": "门店智能问答助手",
+          "fit": "contain"
+        },
+        "min_height": 500
+      }
+    },
+    "notes": "来源：源文档第 9 页。"
+  }
+}

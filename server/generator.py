@@ -160,6 +160,17 @@ def normalize_list(value: Any) -> list[str]:
     return [str(value).strip()]
 
 
+def text_items(value: Any) -> list[str]:
+    """Normalize already-authored phrases without splitting Chinese punctuation."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    return [str(value).strip()] if str(value).strip() else []
+
+
 def walk_text(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value]
@@ -433,6 +444,131 @@ def critical_brief_questions(brief: dict[str, Any]) -> list[str]:
     return [question for key, question in checks if not brief.get(key)]
 
 
+def layout_label(slide: dict[str, Any]) -> str:
+    candidate = slide.get("layout_candidate") if isinstance(slide.get("layout_candidate"), dict) else {}
+    layout = str(candidate.get("layout") or "content")
+    variant = str(candidate.get("variant") or "")
+    return f"{layout}/{variant}" if variant else layout
+
+
+def infer_hero_slide(slide: dict[str, Any]) -> bool:
+    candidate = slide.get("layout_candidate") if isinstance(slide.get("layout_candidate"), dict) else {}
+    layout = str(candidate.get("layout") or "")
+    variant = str(candidate.get("variant") or "")
+    role = str(slide.get("role") or "")
+    assets = normalize_list(slide.get("assets")) or normalize_list(slide.get("asset_need"))
+    if role in {"cover", "closing", "demo"}:
+        return True
+    if layout in {"cover", "end", "quote", "image-text", "iframe-embed", "replica", "raw"}:
+        return True
+    if layout == "stats" and variant in {"hero", "waterfall"}:
+        return True
+    return layout == "content" and variant == "2col" and bool(assets)
+
+
+def density_budget_for_slide(slide: dict[str, Any]) -> str:
+    candidate = slide.get("layout_candidate") if isinstance(slide.get("layout_candidate"), dict) else {}
+    layout = str(candidate.get("layout") or "")
+    variant = str(candidate.get("variant") or "")
+    beats = normalize_list(slide.get("content_beats"))
+    proof = normalize_list(slide.get("proof_needed")) or normalize_list(slide.get("evidence"))
+    assets = normalize_list(slide.get("asset_need")) or normalize_list(slide.get("assets"))
+    if layout == "cover":
+        return "标题 1 个,副信息 2-3 个,可放客户/飞书品牌锚点;不叠加论证内容。"
+    if layout == "end":
+        return "收束句 1 个,next step / 联系信息 1 组;不新增论点。"
+    if layout == "agenda":
+        return f"{max(len(beats), 3)} 个章节以内,每项 1 行短句。"
+    if layout == "table":
+        rows = max(len(beats), len(proof), 4)
+        return f"{min(rows, 7)} 行 x 3-4 列以内,每格短语化,保留来源/口径列。"
+    if layout == "arch-stack":
+        layers = max(min(len(beats), 5), 3)
+        return f"{layers} 层架构,每层 2-5 个模块;只保留能解释因果链的模块。"
+    if layout == "flow":
+        steps = max(min(len(beats), 6), 3)
+        return f"{steps} 个阶段/节点,每节点标题 + 1 句输出物;避免流程说明过长。"
+    if layout == "stats":
+        return "3-4 个指标或 1 个主指标 + 2-3 个辅助指标;无真实数据时只写口径。"
+    if layout == "logo-wall":
+        return "8-16 个 logo / 素材位以内,必须区分客户证据与相邻启发。"
+    if layout == "content" and variant == "3up":
+        return "3 张卡,每卡标题 + 1-2 句;可加 1 条 pullquote 或原则带。"
+    if layout == "content" and variant == "2col":
+        return "左侧 3-5 条判断,右侧 1 个主图/demo/mock;图文主次必须明确。"
+    if layout == "content" and variant == "matrix":
+        return "2x2 或 3x2 矩阵,每格 1 个判断 + 1 个证据/动作。"
+    if layout == "content" and variant == "story-case":
+        return "案例 1 个,按背景/冲突/动作/结果四段;结果无证据时写价值方向。"
+    if layout == "quote":
+        return "主句 1 个,解释 1-2 句;只作为节奏页或观点页。"
+    if layout in {"iframe-embed", "raw", "replica"}:
+        return "保留 1 个核心画面/交互,旁注不超过 3 条;复杂性放进素材说明。"
+    return "3-5 个信息块以内,每块只承载 1 个判断或动作。"
+
+
+def content_completion_for_slide(slide: dict[str, Any]) -> str:
+    title = str(slide.get("title") or "本页")
+    beats = normalize_list(slide.get("content_beats"))
+    proof = normalize_list(slide.get("proof_needed")) or normalize_list(slide.get("evidence"))
+    assets = normalize_list(slide.get("asset_need")) or normalize_list(slide.get("assets"))
+    parts = [f"围绕“{title}”把原始材料压缩成可讲短句"]
+    if beats:
+        parts.append("保留 " + "、".join(beats[:4]) + (" 等内容节拍" if len(beats) > 4 else " 作为内容节拍"))
+    if proof:
+        parts.append("补齐/标注证据: " + "、".join(proof[:3]))
+    if assets:
+        parts.append("素材优先级: " + "、".join(assets[:3]))
+    parts.append("缺失事实进入 open questions,不在页面里硬补数字")
+    return "；".join(parts) + "。"
+
+
+def fact_boundary_for_slide(slide: dict[str, Any]) -> str:
+    role = str(slide.get("role") or "")
+    risks = text_items(slide.get("risk")) or text_items(slide.get("risk_flags"))
+    proof = text_items(slide.get("proof_needed")) or text_items(slide.get("evidence"))
+    if risks:
+        return "；".join(risks)
+    if proof:
+        return "可以表达为基于已列证据方向的规划判断;未拿到来源前不写成客户已验证事实。"
+    if role in {"cover", "agenda", "closing"}:
+        return "只做标题、议程或收束,不新增业务事实。"
+    return "缺少客户事实时只写成假设或待验证判断,不补 ROI、百分比或具名案例。"
+
+
+def design_spec_for_slide(slide: dict[str, Any]) -> dict[str, Any]:
+    title = str(slide.get("title") or "页面")
+    role = str(slide.get("role") or "context")
+    message = str(slide.get("message") or title)
+    key_idea = str(slide.get("key_idea") or message)
+    beats = normalize_list(slide.get("content_beats"))
+    proof = normalize_list(slide.get("proof_needed")) or normalize_list(slide.get("evidence"))
+    assets = normalize_list(slide.get("asset_need")) or normalize_list(slide.get("assets"))
+    risk = fact_boundary_for_slide(slide)
+    hero = bool(slide.get("hero"))
+    hierarchy = {
+        "a": message,
+        "b": " / ".join(beats[:3]) if beats else key_idea,
+        "c": " / ".join((proof or assets)[:3]) if (proof or assets) else "证据缺口需在页面注脚或 open questions 中保留。",
+        "d": risk,
+    }
+    return {
+        "q0_role": f"{role} 页: {title}",
+        "q1_memory": message,
+        "q2_hierarchy": hierarchy,
+        "q3_mood": "飞书深色商务科技感;判断要咨询式、短句化,视觉锚点服务业务因果。",
+        "q4_tradeoff": risk,
+        "six_dimensions": [
+            f"密度: {slide.get('density_budget') or density_budget_for_slide(slide)}",
+            f"层级: A 档是“{hierarchy['a']}”,B 档是支撑节拍,C 档是证据/素材。",
+            f"证据: {hierarchy['c']}",
+            "节奏: " + ("作为 Hero / 视觉锚点页,要让观众短暂停顿。" if hero else "作为承接页,优先保证扫描效率和页间递进。"),
+            "语言: 中文短句,避免行业领先、全面赋能等空泛表达。",
+            "用途: 服务现场讲解和用户确认,确认后才交给 renderer 生产 H5。",
+        ],
+    }
+
+
 def enrich_slide_plan(slide: dict[str, Any]) -> dict[str, Any]:
     """Fill required deck-planner talk-intent fields for generated outlines."""
     out = copy.deepcopy(slide)
@@ -441,7 +577,7 @@ def enrich_slide_plan(slide: dict[str, Any]) -> dict[str, Any]:
     role = str(out.get("role") or "context")
     assets = normalize_list(out.get("assets"))
     evidence = normalize_list(out.get("evidence"))
-    risks = normalize_list(out.get("risk_flags"))
+    risks = text_items(out.get("risk_flags"))
     out.setdefault("key_idea", message)
     out.setdefault("emphasis", f"让客户在这一页明确理解: {message}")
     out.setdefault("talk_track", f"讲这一页时先点题“{title}”,再用业务语境解释为什么它会影响下一步决策。")
@@ -450,6 +586,11 @@ def enrich_slide_plan(slide: dict[str, Any]) -> dict[str, Any]:
     out.setdefault("risk", risks)
     if role not in {"cover", "closing"} and not out["risk"]:
         out["risk"] = ["缺少客户事实时,只能作为待验证判断。"]
+    out.setdefault("hero", infer_hero_slide(out))
+    out.setdefault("density_budget", density_budget_for_slide(out))
+    out.setdefault("content_completion", content_completion_for_slide(out))
+    out.setdefault("fact_boundary", fact_boundary_for_slide(out))
+    out.setdefault("design_spec", design_spec_for_slide(out))
     return out
 
 
@@ -462,10 +603,27 @@ def outline_slide_notes(slide: dict[str, Any]) -> str:
         ("emphasis", "emphasis"),
         ("talk_track", "talk_track"),
         ("visual_intent", "visual_intent"),
+        ("density_budget", "density_budget"),
+        ("content_completion", "content_completion"),
+        ("fact_boundary", "fact_boundary"),
     ]:
         value = slide.get(key)
         if isinstance(value, str) and value.strip():
             lines.append(f"{label}: {value.strip()}")
+    if isinstance(slide.get("hero"), bool):
+        lines.append(f"hero: {'yes' if slide.get('hero') else 'no'}")
+    spec = slide.get("design_spec") if isinstance(slide.get("design_spec"), dict) else {}
+    if spec:
+        hierarchy = spec.get("q2_hierarchy") if isinstance(spec.get("q2_hierarchy"), dict) else {}
+        lines.append("design_spec:")
+        for key in ["q0_role", "q1_memory", "q3_mood", "q4_tradeoff"]:
+            if isinstance(spec.get(key), str) and spec.get(key).strip():
+                lines.append(f"  {key}: {spec[key].strip()}")
+        if hierarchy:
+            lines.append(
+                "  q2_hierarchy: "
+                + " / ".join(f"{tier.upper()}={hierarchy.get(tier)}" for tier in ["a", "b", "c", "d"] if hierarchy.get(tier))
+            )
     for label, key in [
         ("proof_needed", "proof_needed"),
         ("asset_need", "asset_need"),
@@ -975,7 +1133,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
                         "type": "image",
                         "need": "质量异常闭环工作台或看板原型图,用于说明工程师/督导/IT 共用同一事实面板。",
                         "query": "制造 质量异常 工作台 review panel",
-                        "preferred_source": "generated-placeholder",
+                        "preferred_source": "generated",
                         "fallback": "用 H5 原生 2col mock 表达,并标注为待验证原型。",
                         "required": False,
                     },
@@ -984,7 +1142,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
                         "type": "image",
                         "need": "工厂质量异常 review panel / 复盘面板示意图,用于案例页的视觉锚点。",
                         "query": "质量异常 8D 巡检 邮件 复盘 看板",
-                        "preferred_source": "generated-placeholder",
+                        "preferred_source": "generated",
                         "fallback": "用 story-case 的结构化案例视觉表达,不伪造真实客户截图。",
                         "required": False,
                     },
@@ -1832,39 +1990,92 @@ def outline_review_markdown(outline: dict[str, Any]) -> str:
     scene = outline.get("scene") or {}
     slides = (outline.get("outline") or {}).get("slides") or []
     library = library_usage_summary(outline)
+    source_refs = outline.get("source_dossier_refs") if isinstance(outline.get("source_dossier_refs"), list) else []
+    knowledge_refs = outline.get("knowledge_refs") if isinstance(outline.get("knowledge_refs"), list) else []
+    source_labels: list[str] = []
+    for ref in [*source_refs[:4], *knowledge_refs[:4]]:
+        if not isinstance(ref, dict):
+            continue
+        label = str(ref.get("title") or ref.get("source") or ref.get("query") or ref.get("cache_path") or "").strip()
+        if label and label not in source_labels:
+            source_labels.append(label)
     lines = [
-        f"# Outline Review · {brief.get('title', 'deck')}",
+        f"# {brief.get('title', 'deck')} H5 Deck 设计方案",
         "",
-        f"- 受众: {brief.get('audience', '')}",
-        f"- 目标: {brief.get('objective', '')}",
-        f"- 行业/场景: {scene.get('industry', '')} · {scene.get('business_moment', '')}",
-        f"- 云端库状态: {library['message']}",
-        "",
-        "## 主线",
-        "",
-        (outline.get("outline") or {}).get("arc", ""),
-        "",
-        "## 页级框架",
-        "",
+        f"受众：{brief.get('audience', '')}",
+        f"目标：{brief.get('objective', '')}",
+        f"行业 / 场景：{scene.get('industry', '')} · {scene.get('business_moment', '')}",
+        f"云端库状态：{library['message']}",
     ]
+    if source_labels:
+        lines.append(f"来源线索：{'；'.join(source_labels[:6])}")
+    lines.extend(
+        [
+            "",
+            "## 叙事弧",
+            "",
+            (outline.get("outline") or {}).get("arc", ""),
+            "",
+            "## 逐页方案表",
+            "",
+            "| 页码 | 角色 | 唯一重点 | Layout / Path | Hero | 密度预算 |",
+            "|-|-|-|-|-|-|",
+        ]
+    )
     for index, slide in enumerate(slides, start=1):
-        layout = slide.get("layout_candidate") or {}
-        layout_label = str(layout.get("layout") or "")
-        if layout.get("variant"):
-            layout_label += "/" + str(layout.get("variant"))
-        risk = "；".join(slide.get("risk") or slide.get("risk_flags") or []) or "无明显风险"
+        density = str(slide.get("density_budget") or density_budget_for_slide(slide)).replace("\n", " ")
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(index),
+                    str(slide.get("role", "")),
+                    str(slide.get("message", "")),
+                    f"`{layout_label(slide)}`",
+                    "是" if slide.get("hero") else "否",
+                    density,
+                ]
+            )
+            + " |"
+        )
+    lines.extend(["", "## 页级设计 Spec", ""])
+    for index, slide in enumerate(slides, start=1):
+        spec = slide.get("design_spec") if isinstance(slide.get("design_spec"), dict) else design_spec_for_slide(slide)
+        hierarchy = spec.get("q2_hierarchy") if isinstance(spec.get("q2_hierarchy"), dict) else {}
         lines.extend(
             [
-                f"### {index:02d}. {slide.get('title', '')} · `{slide.get('key', '')}`",
+                f"### P{index} {slide.get('title', '')}",
                 "",
-                f"- 角色: {slide.get('role', '')}",
-                f"- 重点: {slide.get('message', '')}",
-                f"- 讲法: {slide.get('talk_track', '')}",
-                f"- 候选 layout: `{layout_label}`",
-                f"- 风险/待确认: {risk}",
-                "",
+                f"- Q0：{spec.get('q0_role', '')}",
+                f"- Q1：{spec.get('q1_memory', '')}",
+                f"- Q2：A 档={hierarchy.get('a', '')}；B 档={hierarchy.get('b', '')}；C 档={hierarchy.get('c', '')}"
+                + (f"；D 档={hierarchy.get('d', '')}" if hierarchy.get("d") else ""),
+                f"- Q3：{spec.get('q3_mood', '')}",
+                f"- Q4：{spec.get('q4_tradeoff', '')}",
             ]
         )
+        dimensions = spec.get("six_dimensions") if isinstance(spec.get("six_dimensions"), list) else []
+        if dimensions:
+            lines.append("- 六维：" + "；".join(str(item) for item in dimensions))
+        if slide.get("visual_intent"):
+            lines.append(f"- 视觉意图：{slide.get('visual_intent')}")
+        lines.append("")
+    lines.extend(["## 内容补全计划", ""])
+    for index, slide in enumerate(slides, start=1):
+        lines.append(f"- P{index}：{slide.get('content_completion') or content_completion_for_slide(slide)}")
+    lines.append("")
+    lines.extend(["## 事实边界", ""])
+    claim_discipline = outline.get("claim_discipline") if isinstance(outline.get("claim_discipline"), dict) else {}
+    unsupported = normalize_list(claim_discipline.get("unsupported_claims"))
+    confirmations = normalize_list(claim_discipline.get("needs_user_confirmation"))
+    if unsupported:
+        lines.append("- 不支持直接声称：" + "；".join(unsupported))
+    if confirmations:
+        lines.append("- 需要用户确认：" + "；".join(confirmations))
+    for index, slide in enumerate(slides, start=1):
+        boundary = slide.get("fact_boundary") or fact_boundary_for_slide(slide)
+        lines.append(f"- P{index}：{boundary}")
+    lines.append("")
     questions = outline.get("open_questions") or []
     if questions:
         lines.extend(["## 需要确认", ""])
@@ -1874,7 +2085,7 @@ def outline_review_markdown(outline: dict[str, Any]) -> str:
         [
             "## 下一步",
             "",
-            "请确认这个大纲框架后再生成 deckhtml。确认后系统会渲染 H5、运行验收、生成 pitch 预演;成稿还会再等你确认后才入库。",
+            "请确认这个大纲框架后再生成 deckhtml。确认后系统会渲染 H5、运行验收、生成 pitch 预演；成稿还会再等你确认后才入库。",
         ]
     )
     return "\n".join(lines).strip() + "\n"

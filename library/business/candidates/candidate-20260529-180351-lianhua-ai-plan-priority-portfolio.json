@@ -1,0 +1,100 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-priority-portfolio",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "2026 年重点推进：1 个基础构建 + 4 个经营能力突破"
+  ],
+  "layout": "content",
+  "variant": "blocks",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "priority-portfolio",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "priority-portfolio",
+    "layout": "content",
+    "variant": "blocks",
+    "accent": "blue",
+    "screen_label": "07 五个重点",
+    "data": {
+      "title": "2026 年重点推进：1 个基础构建 + 4 个经营能力突破",
+      "lede": "五个重点把年度投入从需求清单收束为可建设的项目组合。",
+      "body_blocks": [
+        {
+          "type": "verdict-grid",
+          "cards": [
+            {
+              "verdict": "go",
+              "badge": "L1",
+              "title": "AI 基础能力建设",
+              "body": "夯实入口、知识与运营机制，让组织具备持续使用 AI 的土壤。"
+            },
+            {
+              "verdict": "go",
+              "badge": "L2/L3",
+              "title": "门店运营标准化",
+              "body": "让一线动作可管理、可追踪、可复盘，夯实连锁复制能力。"
+            },
+            {
+              "verdict": "conditional",
+              "badge": "L3/L4",
+              "title": "经营闭环突破",
+              "body": "门店助手、生鲜出清、供应商 360 分批做深，逐步连接经营结果。"
+            }
+          ]
+        },
+        {
+          "type": "principle-band",
+          "principles": [
+            {
+              "text": "基础先行",
+              "color": "blue"
+            },
+            {
+              "text": "高频优先",
+              "color": "teal"
+            },
+            {
+              "text": "经营牵引",
+              "color": "purple"
+            },
+            {
+              "text": "可复制推广",
+              "color": "blue"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

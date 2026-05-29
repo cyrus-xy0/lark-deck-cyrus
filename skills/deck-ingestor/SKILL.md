@@ -44,6 +44,16 @@ ingestion-manifest.json   # 写入计划、记录 id、失败项和回滚提示
 INGESTION_REPORT.md       # 用户可读入库报告
 ```
 
+标准机器输出 `ingestion-manifest.json` 必须符合:
+
+```text
+skills/lark-deck-cyrus/schema/ingestion-manifest.schema.json
+```
+
+不新增 `ingestion-request.json`;入库直接消费 `audit-report.json`、`deck.json`、
+可选 `source-dossier.json` / `pitch-rehearsal.json`,并由用户确认作为 workflow
+gate。`INGESTION_REPORT.md` 只是用户可读入库报告;后续复用和审计只看 manifest JSON。
+
 核心字段:
 
 - `source`: deck、HTML、source dossier、audit report、rehearsal report。

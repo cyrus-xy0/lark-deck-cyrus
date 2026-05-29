@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-supplier-360",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "L3/L4｜供应商 360：以合同 AI 检查切入生命周期管理"
+  ],
+  "layout": "content",
+  "variant": "2col",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "supplier-360",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "supplier-360",
+    "layout": "content",
+    "variant": "2col",
+    "accent": "blue",
+    "screen_label": "12 供应商 360",
+    "data": {
+      "title": "L3/L4｜供应商 360：以合同 AI 检查切入生命周期管理",
+      "text": {
+        "lede": "以合同和协议审核为切入点，提升供应商管理数字化、合规化和风险识别能力。",
+        "feature_list": [
+          "核心前提：完成资料数字化，统一模板规则，并建立人工复核机制。",
+          "建设内容：资料解析、规则库、AI 初审、复核闭环和风险看板。",
+          "预期收益：降低合同返工、条款遗漏和供应商争议，提升采购协同效率与利润安全。"
+        ],
+        "body_blocks": [
+          {
+            "type": "data-panel",
+            "title": "从合同到 360",
+            "rows": [
+              {
+                "lbl": "短期切入",
+                "val": "合同条款 AI 初审"
+              },
+              {
+                "lbl": "过程控制",
+                "val": "人工复核 · 风险看板"
+              },
+              {
+                "lbl": "长期目标",
+                "val": "供应商生命周期精细化"
+              }
+            ]
+          }
+        ]
+      },
+      "visual": {
+        "type": "image",
+        "image": {
+          "src": "assets/source-media/img-supplier-contract-check-JI4RbEs8kos2.png",
+          "alt": "供应商合同 AI 智能检查与管理",
+          "fit": "contain"
+        },
+        "min_height": 500
+      }
+    },
+    "notes": "来源：源文档第 11 页。保留人工复核边界，不暗示合同自动决策。"
+  }
+}

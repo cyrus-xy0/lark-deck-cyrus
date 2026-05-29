@@ -24,6 +24,20 @@ After producing artifacts, handoff to `deck-auditor` for "ready to share /
 revise / replan / rerender" judgment. If the deck passes, `deck-ingestor`
 handles knowledge / slide / asset ingestion.
 
+## Structured Contract Boundary
+
+In the Cyrus workflow, `deck-renderer` consumes the planner's canonical
+`input/outline.json`, validated against
+`skills/deck-planner/schema/deck-outline.schema.json`. Do not introduce a
+second planning entity that repeats sections, theme, or layout; user
+confirmation is a workflow gate around the same outline.
+
+Renderer output does not need a wrapper JSON. The canonical machine artifact is
+`deck.json`; the rendered delivery artifacts are `index.html`, `texts.md`,
+`FEEDBACK.md`, `DESIGN_PLAN.md`, and asset materialization reports. Downstream
+agents should consume `deck.json` plus the explicit artifact paths from the run
+workspace.
+
 ## MODE SELECTION (read this first — pick CHECK-ONLY vs GENERATION)
 
 Before reading anything else in this file, decide which mode the user is in:

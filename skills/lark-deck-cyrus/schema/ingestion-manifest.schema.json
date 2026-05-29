@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lark-deck-cyrus/ingestion-manifest.schema.json",
+  "title": "Ingestion Manifest",
+  "type": "object",
+  "required": ["task_id", "source", "local_candidates", "knowledge_records", "asset_records", "slide_records", "base_writes", "skipped", "dry_run", "local_write_enabled"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "local_candidates": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "knowledge_records": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "asset_records": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "slide_records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/slide_record" }
+    },
+    "base_writes": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "skipped": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/skipped" }
+    },
+    "dry_run": { "type": "boolean" },
+    "local_write_enabled": { "type": "boolean" },
+    "validation": { "$ref": "#/$defs/validation" }
+  },
+  "$defs": {
+    "slide_record": {
+      "type": "object",
+      "required": ["type", "mode", "ok", "slide_key", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["slide"] },
+        "mode": { "enum": ["local", "dry-run"] },
+        "ok": { "type": "boolean" },
+        "slide_key": { "type": "string" },
+        "path": { "type": "string" }
+      }
+    },
+    "skipped": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "slide_key": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "type": "string" },
+        "validated": { "type": "boolean" }
+      }
+    }
+  }
+}

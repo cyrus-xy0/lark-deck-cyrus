@@ -42,7 +42,16 @@ input/runtime-library/assets/               # 可选:抽取出的图片、缩略
 - `slide_library_upload`: 若来源是用户自选 PPT,记录原始 PPT 路径/链接、页码、候选 slide key、权限状态和是否已登记到 Slide 库。
 - `provenance`: 每条知识和素材来自哪个文件、页码、节点、截图或链接。
 - `confidence`: 抽取置信度和需要人工确认的点。
-- `handoff`: 给 `deck-planner`、`deck-renderer`、`deck-ingestor` 的建议输入。
+- `handoff`: 给 `deck-planner`、`deck-renderer`、`deck-ingestor` 的结构化交接对象,每个目标包含 `target_skill`、`payload_schema`、`consumes`、`ready`、`notes`。
+
+`source-dossier.json` 必须符合:
+
+```text
+skills/lark-deck-cyrus/schema/source-dossier.schema.json
+```
+
+不要把 `SOURCE_DOSSIER.md` 传给下游 agent;它只是人读摘要。下游只消费
+`source-dossier.json` 和其中的结构化 handoff。
 
 ## 可执行入口
 
@@ -62,6 +71,14 @@ python3 skills/upload-parser/parse.py \
 - PDF:统计页数,保留来源和页序。
 - HTML:抽取 `.slide` / `data-slide-key`、正文、图片、脚本和样式依赖。
 - 图片/视频/目录/URL:登记素材层和 provenance。
+
+生成后可用 contract validator 校验:
+
+```bash
+python3 skills/lark-deck-cyrus/schema/validate-contract.py \
+  --schema skills/lark-deck-cyrus/schema/source-dossier.schema.json \
+  --instance runs/<task-id>/input/runtime-library/source-dossier.json
+```
 
 用户要把 PPT/PPTX 先放入本地 Slide Library 自选库时:
 

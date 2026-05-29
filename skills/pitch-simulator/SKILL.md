@@ -60,6 +60,10 @@ brief
 如果只有 HTML 或只有 outline,仍然可以模拟,但要在输出的
 `source.assumptions` 里说明限制。
 
+在 Cyrus 标准链路中,不要新增 `rehearsal-request.json`。预演直接消费
+`outline.json`、`deck.json`、可选 `index.html`,并以 `audit-report.json`
+的 `verdict` 作为进入门禁。不要直接消费 auditor 的 markdown 摘要。
+
 ## 输出
 
 默认产出两份文件:

@@ -586,6 +586,7 @@ def main(argv: list[str] | None = None) -> int:
             "texts.md": output_dir / "texts.md",
             "FEEDBACK.md": feedback_path,
             "audit": audit_path,
+            "audit-json": output_dir / "audit-report.json",
             "pitch": rehearsal_md,
             "rehearsal_gate": output_dir / "REHEARSAL_GATE.md",
             "cloud_publish": output_dir / "CLOUD_PUBLISH.md",

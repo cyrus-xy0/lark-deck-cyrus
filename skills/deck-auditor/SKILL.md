@@ -27,6 +27,19 @@ description: |
 - 用户上传 HTML deck 且目标是入库:本 skill 先验收;通过后才把可入库对象交给 `deck-ingestor`,失败时只返回失败理由和修复路由。
 - 用户要求直接修改页面或重新生成:先验收并归因,再把修复路由到 `deck-renderer` 或 `deck-planner`;本 skill 不直接改 deck。
 
+## 结构化输入/输出契约
+
+标准机器输出为 `audit-report.json`,必须符合:
+
+```text
+skills/lark-deck-cyrus/schema/audit-report.schema.json
+```
+
+不新增 `audit-request.json`;auditor 直接消费 `index.html`、可选 `deck.json`
+和命令参数。`AUDIT_REPORT.md` 只是用户可读报告。总控、`pitch-simulator` 和
+`deck-ingestor` 只能消费 `audit-report.json` 中的 `verdict`、`routing`、
+`reuse_assessment` 和 `ingestion_handoff`。
+
 ## H5 CHECK-ONLY 标准
 
 当输入包含已有 `.html` deck,并且用户是在检查、审阅、验收或入库判断时,必须按 H5 CHECK-ONLY 处理:

@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-lianhua-position",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "从行业对标看联华 AI 数智化转型方向"
+  ],
+  "layout": "content",
+  "variant": "blocks",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "lianhua-position",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "lianhua-position",
+    "layout": "content",
+    "variant": "blocks",
+    "accent": "blue",
+    "screen_label": "03 联华位置",
+    "data": {
+      "title": "从行业对标看联华 AI 数智化转型方向",
+      "lede": "优势决定起点，差距决定 2026 年 AI 投入方向。",
+      "body_blocks": [
+        {
+          "type": "verdict-grid",
+          "cards": [
+            {
+              "verdict": "go",
+              "badge": "基础",
+              "title": "数字化底座已基本构建",
+              "body": "多项核心经营流程已线上化，具备进一步深化的系统与数据基础。"
+            },
+            {
+              "verdict": "go",
+              "badge": "优势",
+              "title": "生鲜闭环具备样板价值",
+              "body": "生鲜经营已形成流程、规则与数据闭环，门店统一入口正在加速建设。"
+            },
+            {
+              "verdict": "conditional",
+              "badge": "差距",
+              "title": "AI 经营优化仍需补强",
+              "body": "动态出清、智能补货、供应商精细化、会员精细化等方向仍有提升空间。"
+            }
+          ]
+        },
+        {
+          "type": "pullquote",
+          "tone": "blue",
+          "text": "2026 年应围绕核心经营场景，把 AI 能力融入流程、数据、规则、执行与复盘闭环。"
+        }
+      ]
+    }
+  }
+}

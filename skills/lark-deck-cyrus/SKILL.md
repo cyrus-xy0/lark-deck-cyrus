@@ -144,6 +144,7 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
    - 调用 `deck-planner`。
    - planner 基于知识库、用户 brief 和 upload-parser 的知识层生成 outline;不要在 planner 后先跑 simulator。
    - 输出必须说明整套 deck 的主线、每页职责、页级重点、关键 idea、建议讲法、证据缺口、素材需求和候选 DeckJSON layout。
+   - 大纲不能只到“页名 + layout”粒度;每页还必须带 `design_spec`、A/B/C/D 信息层级、`density_budget`、`content_completion` 和 `fact_boundary`,并在用户可见的 `DESIGN_PLAN.md` 中展开为逐页方案表、Q0-Q4、内容补全计划和事实边界。
    - 规划不是排版草稿,而是后续生产、验收、预演和迭代的事实源。
    - 输出后必须暂停,让用户确认目标受众、行业痛点、主张、证据缺口、素材计划和页序;用户确认前不得渲染 deckhtml。
 
@@ -191,7 +192,15 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
   - `pitch-simulator`
   - `deck-ingestor`
 - `lark-deck-cyrus` 是总控 skill,不直接承担具体生产、验收或预演实现。
-- 机器可读编排入口在 `assets/pipeline.yaml`;它只描述调度与交付契约,具体能力仍由各子 skill 和可执行脚本承担。
+- 机器可读编排入口在 `assets/pipeline.yaml`;它描述调度、schema contract 和交付契约,具体能力仍由各子 skill 和可执行脚本承担。
+- 所有子 skill / subagent 交接都必须用 `skills/lark-deck-cyrus/schema/` 下的 JSON Schema 约束。Markdown 只能作为用户解释或报告,不能作为下游 agent 的事实源。
+- 总控在每个阶段只传结构化 JSON artifact:
+  - `upload-parser -> deck-planner`: `source-dossier.json`, schema `source-dossier.schema.json`。
+  - `deck-planner -> deck-renderer`: `outline.json`, schema `deck-outline.schema.json`;不要另建中间 JSON 复制 sections/theme/layout。
+  - `deck-renderer -> deck-auditor`: `deck.json` + `index.html`;`deck.json` 走 DeckJSON schema,HTML 走 H5 validator。
+  - `deck-auditor -> pitch-simulator`: `audit-report.json` gate + `outline.json` + `deck.json`;不另建 rehearsal request。
+  - `pitch-simulator -> deck-ingestor`: `pitch-rehearsal.json` + `audit-report.json` + `deck.json` + 用户确认;不另建 ingestion request。
+- 结构化产物落文件后,需要用 `python3 skills/lark-deck-cyrus/schema/validate-contract.py --schema <schema> --instance <json>` 或对应子 skill validator 校验;不要把未校验的自由文本摘要传给下游。
 - 当前只有六个子 skill:`upload-parser`、`deck-planner`、`deck-renderer`、`deck-auditor`、`pitch-simulator`、`deck-ingestor`。
 - 云端发布不是上述子 skill 的生产责任;默认最终发布调用独立
   `publish-magic-page`,legacy 文档嵌入才调用 `generate-magic-doc`。

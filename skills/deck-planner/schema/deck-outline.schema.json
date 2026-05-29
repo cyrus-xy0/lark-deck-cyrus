@@ -240,6 +240,26 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         },
+        "hero": {
+          "type": "boolean",
+          "description": "Whether this slide should be treated as a visual anchor / hero moment in the user-facing DESIGN_PLAN."
+        },
+        "density_budget": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Concrete content capacity for the slide, e.g. number of cards, rows, beats, proof blocks, and image/demo anchors."
+        },
+        "design_spec": { "$ref": "#/$defs/slide_design_spec" },
+        "content_completion": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the renderer or next planning pass must fill from source material, assumptions, or safe synthesis."
+        },
+        "fact_boundary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Per-slide claim discipline: what can be stated, what is inferred, and what must not be invented."
+        },
         "content_beats": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
@@ -289,6 +309,51 @@
         "risk": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "slide_design_spec": {
+      "type": "object",
+      "required": ["q0_role", "q1_memory", "q2_hierarchy", "q3_mood", "q4_tradeoff", "six_dimensions"],
+      "additionalProperties": false,
+      "properties": {
+        "q0_role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Q0: what role this page plays in the deck."
+        },
+        "q1_memory": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Q1: the one sentence the audience should remember."
+        },
+        "q2_hierarchy": {
+          "type": "object",
+          "required": ["a", "b", "c"],
+          "additionalProperties": false,
+          "properties": {
+            "a": { "type": "string", "minLength": 1 },
+            "b": { "type": "string", "minLength": 1 },
+            "c": { "type": "string", "minLength": 1 },
+            "d": { "type": "string", "minLength": 1 }
+          },
+          "description": "Q2: A/B/C/D information hierarchy for visual design."
+        },
+        "q3_mood": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Q3: desired visual mood and business tone."
+        },
+        "q4_tradeoff": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Q4: the main design/content tradeoff or thing to avoid."
+        },
+        "six_dimensions": {
+          "type": "array",
+          "minItems": 6,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Six concrete design dimensions such as density, hierarchy, proof anchor, rhythm, language, and delivery context."
         }
       }
     },

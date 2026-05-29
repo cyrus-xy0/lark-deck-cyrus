@@ -215,9 +215,35 @@ class Validator:
                 elif any(not isinstance(item, str) or not item.strip() for item in value):
                     self.error(f"{where}.{list_key}", "must contain only non-empty strings")
 
+            if "hero" in slide and not isinstance(slide.get("hero"), bool):
+                self.error(f"{where}.hero", "must be a boolean when present")
+            for text_key in ["density_budget", "content_completion", "fact_boundary"]:
+                if text_key in slide and (not isinstance(slide.get(text_key), str) or not slide.get(text_key, "").strip()):
+                    self.error(f"{where}.{text_key}", "must be a non-empty string when present")
+            if "design_spec" in slide:
+                self.validate_design_spec(slide.get("design_spec"), f"{where}.design_spec")
+
             for asset_id in slide.get("assets", []) or []:
                 if asset_id not in asset_ids:
                     self.error(f"{where}.assets", f"references missing asset_plan id `{asset_id}`")
+
+    def validate_design_spec(self, spec: object, where: str) -> None:
+        if not self.require(spec, where, ["q0_role", "q1_memory", "q2_hierarchy", "q3_mood", "q4_tradeoff", "six_dimensions"]):
+            return
+        for key in ["q0_role", "q1_memory", "q3_mood", "q4_tradeoff"]:
+            if not isinstance(spec.get(key), str) or not spec.get(key, "").strip():
+                self.error(f"{where}.{key}", "must be a non-empty string")
+        hierarchy = spec.get("q2_hierarchy")
+        if not self.require(hierarchy, f"{where}.q2_hierarchy", ["a", "b", "c"]):
+            return
+        for key in ["a", "b", "c", "d"]:
+            if key in hierarchy and (not isinstance(hierarchy.get(key), str) or not hierarchy.get(key, "").strip()):
+                self.error(f"{where}.q2_hierarchy.{key}", "must be a non-empty string when present")
+        dimensions = spec.get("six_dimensions")
+        if not isinstance(dimensions, list) or len(dimensions) < 6:
+            self.error(f"{where}.six_dimensions", "must contain at least 6 items")
+        elif any(not isinstance(item, str) or not item.strip() for item in dimensions):
+            self.error(f"{where}.six_dimensions", "must contain only non-empty strings")
 
     def validate_handoff(self, handoff: object) -> None:
         if not self.require(handoff, "$.handoff", ["target_skill", "deckjson_strategy"]):

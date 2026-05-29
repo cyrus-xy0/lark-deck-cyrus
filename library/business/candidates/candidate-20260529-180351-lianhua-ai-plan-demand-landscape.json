@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "id": "candidate-20260529-180351-lianhua-ai-plan-demand-landscape",
+  "title": "联华超市 2026 年 AI 应用规划",
+  "status": "candidate",
+  "thumbnail": "library/business/thumbnails/pending.svg",
+  "tags": [
+    "联华",
+    "零售AI",
+    "门店运营",
+    "生鲜出清",
+    "供应商360"
+  ],
+  "industry": [
+    "消费零售",
+    "连锁商超"
+  ],
+  "product": [
+    "飞书",
+    "企业 AI"
+  ],
+  "customer_stage": [
+    "AI 应用规划"
+  ],
+  "deck_type": [
+    "客户方案",
+    "AI 应用规划"
+  ],
+  "value_prop": [
+    "5 个业务域",
+    "23 个需求"
+  ],
+  "layout": "image-text",
+  "variant": "",
+  "source": {
+    "level": "internal-draft",
+    "deck": "runs/20260529-180351-lianhua-ai-plan/output/deck.json",
+    "slide_key": "demand-landscape",
+    "owner": "gtm",
+    "reviewer": "",
+    "contributor": "gtm",
+    "contributed_at": "2026-05-29T18:28:45+08:00"
+  },
+  "slide": {
+    "key": "demand-landscape",
+    "layout": "image-text",
+    "accent": "blue",
+    "screen_label": "04 需求全景",
+    "data": {
+      "image": {
+        "src": "assets/source-media/img-23-demand-map-Idn3bLLiroZU.png",
+        "alt": "联华 5 个业务域 23 个 AI 需求全景图",
+        "fit": "contain",
+        "position": "center"
+      },
+      "title": "5 个业务域\n23 个需求",
+      "lede": "需求已经足够多，下一步关键是分层取舍与建设节奏。"
+    },
+    "notes": "图片来自源文档第 3 页。若用户需要可编辑需求明细，需补 OCR 或原始表格。"
+  }
+}
