@@ -220,6 +220,12 @@
     ['pointerdown', 'keydown', 'touchstart'].forEach((ev) =>
       document.addEventListener(ev, upgradeMediaSound, { signal }));
 
+    // ---- In-slide tab widgets -------------------------------------------------
+    // Slides often contain product/workbench mocks. If the UI looks like a tab
+    // control, authors can mark it up with data-tab-* and the deck runtime makes
+    // it genuinely switch panels instead of shipping a static fake control.
+    initDeckTabs(deck, signal);
+
     // ---- Auto-idle (chrome fades after 2.5s of no input) ----
     let idleTimer;
     function nudgeIdle() {
@@ -331,6 +337,71 @@
       if (frames[i].classList.contains('is-current')) return i;
     }
     return 0;
+  }
+
+  function initDeckTabs(deck, signal) {
+    const groups = Array.from(deck.querySelectorAll('[data-tab-group]'));
+    groups.forEach((group) => {
+      if (group.hasAttribute('data-static-tabs')) return;
+      const groupName = group.getAttribute('data-tab-group') || '';
+      const slide = group.closest('.slide') || deck;
+      const tabs = Array.from(group.querySelectorAll('[data-tab-target]'));
+      if (tabs.length < 2) return;
+      const panels = Array.from(slide.querySelectorAll('[data-tab-panel]'))
+        .filter((panel) => {
+          const panelGroup = panel.getAttribute('data-tab-group') || '';
+          return !panelGroup || panelGroup === groupName;
+        });
+      if (!panels.length) return;
+      group.setAttribute('role', group.getAttribute('role') || 'tablist');
+      const activate = (target) => {
+        tabs.forEach((tab) => {
+          const active = tab.getAttribute('data-tab-target') === target;
+          tab.classList.toggle('is-active', active);
+          tab.classList.toggle('active', active);
+          tab.setAttribute('role', tab.getAttribute('role') || 'tab');
+          tab.setAttribute('aria-selected', active ? 'true' : 'false');
+          tab.setAttribute('tabindex', active ? '0' : '-1');
+        });
+        panels.forEach((panel) => {
+          const active = panel.getAttribute('data-tab-panel') === target;
+          panel.classList.toggle('is-active', active);
+          panel.hidden = !active;
+        });
+        group.dispatchEvent(new CustomEvent('fs-tab-change', {
+          bubbles: true,
+          detail: { target, group: groupName },
+        }));
+      };
+      tabs.forEach((tab, idx) => {
+        const target = tab.getAttribute('data-tab-target');
+        if (!target) return;
+        tab.setAttribute('role', tab.getAttribute('role') || 'tab');
+        tab.addEventListener('click', () => activate(target), { signal });
+        tab.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault(); activate(target); return;
+          }
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+          e.preventDefault();
+          let next = idx;
+          if (e.key === 'ArrowLeft') next = (idx + tabs.length - 1) % tabs.length;
+          if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+          if (e.key === 'Home') next = 0;
+          if (e.key === 'End') next = tabs.length - 1;
+          const nextTarget = tabs[next].getAttribute('data-tab-target');
+          if (nextTarget) {
+            tabs[next].focus();
+            activate(nextTarget);
+          }
+        }, { signal });
+      });
+      const initial = (
+        tabs.find((tab) => tab.classList.contains('is-active') || tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true')
+        || tabs[0]
+      ).getAttribute('data-tab-target');
+      if (initial) activate(initial);
+    });
   }
 
   // Restart-on-enter for slide media. Present mode keeps every slide in the

@@ -13,15 +13,37 @@
 | Attribute      | Value |
 |----------------|---|
 | Mood           | Calm, declarative, evidence-led. Premium enterprise. |
-| Density        | Generous negative space. Type-led, not chrome-led. |
+| Density        | Dense but disciplined. Content pages can be information-rich; section / quote / hero pages create breath. |
 | Light          | Dark canvas always (`#000` default), cool radial blooms. |
 | Texture        | Flat. **No drop shadows on slides.** No backdrop-blur. |
-| Energy         | Comes from type size + weight, not punctuation or motion. |
+| Energy         | Comes from hierarchy, native UI/diagram form, and purposeful state motion; never from punctuation. |
 | Bilingual rule | **ZH always primary** (larger, on top); EN small + below in muted Latin. Never reverse. |
 | Voice          | Third person about the customer (组织 / 团队 / 我们). Numbers and named customers do the persuading. |
 | Forbidden      | Emoji on slides. `!` `…` `???`. Drop shadows. Isometric clip-art. Stock photo people. Gradient mesh outside listed gradients. |
 
 Two reference precedents: **Apple keynote** (architectural negative space) and **Tesla.com** (full-bleed cinematic single-subject). We are darker and more rigorous than either.
+
+### H5 deck rendering craft
+
+The best decks in this system look like a presentation tool with web-native
+surface area. They are not exported PPT screenshots and not generic web pages.
+
+1. **Native DOM first.** Use structured HTML/CSS for UI mocks, diagrams,
+   tables, chats, phone screens, pipelines, and data panels. Use raster images
+   for photos, product renders, artwork, or replica-mode preservation.
+2. **Dark stage, controlled glow.** A slide should get depth from the dark
+   canvas, low-opacity radial blooms, hairlines, and type weight. Avoid noisy
+   gradients, blur-heavy glass, and decorative blobs.
+3. **Semantic accent color.** Blue anchors system / mainline pages; teal
+   signals positive metric / growth; orange signals judgment / engine /
+   exception; violet / purple signals AI, intelligence, or transformation.
+   The mapping is not mandatory, but every accent choice should have intent.
+4. **One visual center.** Dense pages need a clear hub: a processor, hero KPI,
+   quote, diagram core, UI surface, or center node. If a viewer squints and
+   sees only evenly weighted cards, redesign the page.
+5. **Living artifacts.** Video, iframe prototypes, animated tabs, chat typing,
+   audio waves, and progress fills are allowed when they make a process feel
+   live. Motion must explain state or sequence.
 
 ---
 
@@ -256,6 +278,22 @@ accept all of them as equivalent. When writing a NEW layout, prefer `.stage`.
 - If a slide feels balanced, you have probably under-emphasized. Push the focal element bigger.
 - Empty space top-right / top-left around the headline is intentional, not lazy.
 
+### Complex-slide composition
+
+For information-rich slides, choose a composition before choosing decoration:
+
+| Pattern | Use when | Composition rule |
+|---------|----------|------------------|
+| **Input → processor → output** | Pipeline, AI engine, automation, decision workflow | Inputs on left, processor visually heavier in center, outputs on right. Connectors are information paths, not ornament. |
+| **Center hub → branches** | Org collaboration, capability maps, ecosystem views | Put the hub at the visual center; branch weight decreases outward. Keep labels short and aligned to the branch direction. |
+| **UI surface + explanation** | Product feature, workflow demo, dashboard proof | One side is a believable UI mock; the other side names why it matters. Do not make both sides equal lists. |
+| **Evidence wall** | Many examples, scripts, personas, customer situations | Make the repeated cards consistent, then give A-tier weight to the remembered phrase / number / avatar / scene marker. |
+| **Breath page** | Chapter transitions, thesis, close, quote | One large statement, one keyline or glow, no dense card grid. These pages reset audience attention. |
+
+Every dense slide must name its entry point in the design pass. Typical entry
+points: hero number, engine block, active tab, central node, strongest quote,
+or live prototype viewport.
+
 ---
 
 ## 6. Depth & Elevation
@@ -285,6 +323,9 @@ do the work.
 
 ### Do
 - Use exactly **one** brand accent per slide.
+- Choose a concrete render form for every content slide: UI mock, system
+  diagram, data panel, video/prototype, evidence wall, or sparse thesis page.
+- Give dense slides a visible entry point and a single hub.
 - Put **ZH on top, EN below** in muted Latin.
 - Keep body copy ≥ 24 px, page chrome ≥ 16 px, headers ≥ 64 px.
 - Use real inline SVG icons in Lucide style: 24 px viewBox, `stroke: currentColor`, stroke-width 2, round caps/joins.
@@ -294,6 +335,9 @@ do the work.
 - Add `data-screen-label="01 Cover"` / `02 Section` etc. on every slide for tooling.
 
 ### Don't
+- ❌ Turn complex content into only equal-weight cards and bullets.
+- ❌ Add motion just to make a page feel "premium"; motion must show state,
+  sequence, or media entering/leaving.
 - ❌ Use emoji as icons or inline. Ever.
 - ❌ Use `!`, `…`, `???` in slide copy.
 - ❌ Mix two brand accents on one slide except for sibling differentiation (chart series / comparison columns / feature pills).
@@ -350,6 +394,29 @@ The deck supports **two render modes** in a single HTML file. JS auto-detects an
 |---------------|------------------------------------------|---|
 | **`present`** | Default on viewport > 900 px wide        | One slide visible, fills viewport via scale-to-fit. ←/→/PgUp/PgDn/Space/Home/End to navigate. Wheel scroll ± 1. Touch swipe ± 1. URL hash `#3` syncs current slide. Indicator and mode toggle in corners. |
 | **`scroll`**  | Default on viewport ≤ 900 px wide. Also reachable by toggle button or `?mode=scroll`. | All `.slide-frame` elements stack vertically with 12 px gap, each at 16:9 aspect filling container width. Tap a frame to enter present mode for that slide. Smooth-scroll to selection. |
+
+### Motion rules
+
+Motion is part of rendering quality, but it is never decorative filler.
+
+- **Entrance reveal**: allowed globally; keep it subtle (opacity + small
+  translate). Do not stagger so slowly that the presenter waits for content.
+- **State loops**: use for active tabs, voice waves, typing dots, progress
+  fills, live dashboards, and process demos. The loop must point to the current
+  state or next action.
+- **Control honesty**: if a slide draws tabs or segmented controls, they must
+  switch visible state via the deck `data-tab-group` / `data-tab-target` /
+  `data-tab-panel` contract, or be marked `data-static-tabs` with an explicit
+  reason. Static tabs that look clickable are treated as unfinished prototypes.
+- **Sequence highlights**: use when a viewer should follow steps in order. One
+  active highlight at a time; inactive items should remain readable.
+- **Media lifecycle**: videos and audio-like visuals should restart on slide
+  enter and pause on leave. Decorative video stays muted; content video may
+  attempt sound only after a user gesture.
+- **Reduced motion**: custom raw slides with non-trivial loops must include a
+  `prefers-reduced-motion: reduce` path that disables or simplifies animation.
+- **Do not animate**: background glows, logos, ordinary cards, and decorative
+  icons unless the movement communicates state.
 
 ### Sizing & scale
 - Design canvas is fixed 1920 × 1080. Each slide is `position: absolute; width: 1920px; height: 1080px` and is transformed by `transform: scale(var(--fs-scale))`.

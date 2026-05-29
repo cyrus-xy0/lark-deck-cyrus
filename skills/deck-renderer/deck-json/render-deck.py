@@ -1343,8 +1343,8 @@ def _enrich_flow_swim(ctx, slide):
                     if sub else "")
         cells.append(
             f'          <div class="lane-name is-{accent}" '
-            f'data-text-id="slide-{snp}.lane-{ln}.name">'
-            f'{_esc_br(lane.get("name", ""))}{sub_html}'
+            f'>'
+            f'<span data-text-id="slide-{snp}.lane-{ln}.name">{_esc_br(lane.get("name", ""))}</span>{sub_html}'
             f'</div>'
         )
         # Build column cells, placing milestones by quarter index

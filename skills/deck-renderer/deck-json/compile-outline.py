@@ -128,6 +128,26 @@ def long_text(*parts: str) -> str:
     return f"{text}，用于支撑本页主张的上下文。" if text else "用于支撑本页主张的上下文。"
 
 
+METRIC_RE = re.compile(
+    r"^\s*([+-]?\d[\d,]*(?:\.\d+)?)\s*(%|％|亿元|万美元|万元|万|亿|人|家|个|天|小时|分钟|秒|年|倍|x|X)?\s*(.+?)\s*$"
+)
+
+
+def parse_metric_text(text: str) -> dict[str, str] | None:
+    match = METRIC_RE.match(text.strip())
+    if not match:
+        return None
+    number, unit, label = match.groups()
+    label = re.sub(r"^[,，:：/ -]+", "", label or "").strip()
+    if not label:
+        return None
+    return {
+        "num": number,
+        "unit": "倍" if unit in {"x", "X"} else (unit or ""),
+        "label": label,
+    }
+
+
 class OutlineCompiler:
     def __init__(self, outline: dict[str, Any], args: argparse.Namespace):
         self.outline = outline
@@ -417,6 +437,45 @@ class OutlineCompiler:
             ],
         )
 
+    def supporting_items(self, slide: dict[str, Any], *keys: str) -> list[str]:
+        items: list[str] = []
+        for key in keys:
+            value = slide.get(key)
+            if isinstance(value, str) and value.strip():
+                items.append(value.strip())
+            else:
+                items.extend(as_list(value))
+        return items
+
+    def supporting_body(self, slide: dict[str, Any], beat: str, index: int, fallback: str) -> str:
+        candidates = self.supporting_items(
+            slide,
+            "proof_needed",
+            "evidence",
+            "risk",
+            "asset_need",
+            "visual_intent",
+            "talk_track",
+        )
+        if candidates:
+            candidate = candidates[min(index, len(candidates) - 1)]
+            if candidate and candidate not in {beat, self.message(slide)}:
+                return long_text(candidate)
+        message = self.message(slide)
+        if message and message != beat:
+            return long_text(beat, message)
+        return long_text(beat, fallback)
+
+    def is_enterprise_ai_scene(self, slide: dict[str, Any]) -> bool:
+        haystack = " ".join([
+            self.title(slide),
+            self.message(slide),
+            str(self.scene.get("industry") or ""),
+            str(self.thesis.get("solution_angle") or ""),
+            " ".join(as_list(slide.get("content_beats"))),
+        ]).lower()
+        return any(token.lower() in haystack for token in ["ai", "agent", "智能体", "数字员工", "飞书"])
+
     def data_cover(self, slide: dict[str, Any]) -> dict[str, Any]:
         data = {
             "title": self.title(slide),
@@ -470,7 +529,7 @@ class OutlineCompiler:
                 "num": f"{i:02d}",
                 "icon": ICONS[(i - 1) % len(ICONS)],
                 "title_zh": beat,
-                "body": long_text(self.message(slide), f"{beat}需要被组织成可执行动作"),
+                "body": self.supporting_body(slide, beat, i - 1, "明确输入、责任人、输出物和复盘节奏。"),
             })
         return {"title": self.title(slide), "lede": self.message(slide), "cards": cards}
 
@@ -500,10 +559,14 @@ class OutlineCompiler:
 
     def content_matrix(self, slide: dict[str, Any]) -> dict[str, Any]:
         beats = self.beats(slide, 4, 4)
-        labels = ["立即验证", "重点建设", "暂缓观察", "控制风险"]
+        labels = ["先打穿高频痛点", "建设可复用能力", "保留观察入口", "控制落地风险"]
         quadrants = {}
         for key, label, beat, ord_ in zip(["tl", "tr", "bl", "br"], labels, beats, ["A", "B", "C", "D"]):
-            quadrants[key] = {"ord": ord_, "title": label, "items": [beat]}
+            quadrants[key] = {
+                "ord": ord_,
+                "title": label,
+                "items": [beat, self.supporting_body(slide, beat, ord(ord_) - ord("A"), "补齐业务证据后再进入执行。")],
+            }
         return {
             "title": self.title(slide),
             "axes": {
@@ -554,8 +617,20 @@ class OutlineCompiler:
         }
 
     def data_stats(self, variant: str, slide: dict[str, Any]) -> dict[str, Any]:
-        self.warn("stats layout compiled with ordinal placeholders; replace with verified metrics before delivery", slide.get("key"))
+        beats = self.beats(slide, 3, 4 if variant == "row" else 6)
+        metrics = [parse_metric_text(beat) for beat in beats]
+        verified_metrics = all(metric is not None for metric in metrics)
         if variant == "hero":
+            metric = parse_metric_text(beats[0]) if beats else None
+            if metric:
+                return {
+                    "title": self.title(slide),
+                    "eyebrow": "关键指标",
+                    "stat": {"number": metric["num"], "unit": metric["unit"]},
+                    "heading": metric["label"],
+                    "body": self.supporting_body(slide, beats[0], 0, "说明指标口径、来源和业务影响。"),
+                }
+            self.warn("stats hero needs a verified leading metric; using a clearly marked placeholder", slide.get("key"))
             return {
                 "title": self.title(slide),
                 "eyebrow": "关键判断",
@@ -564,20 +639,40 @@ class OutlineCompiler:
                 "body": long_text(self.message(slide), "请在获得真实数据后替换为可引用指标"),
             }
         if variant == "waterfall":
-            beats = self.beats(slide, 3, 6)
+            if not verified_metrics:
+                self.warn("stats waterfall needs verified numeric beats; using ordinal placeholders", slide.get("key"))
             bars = [{"kind": "base", "value": "1", "label": beats[0], "delta": "起点"}]
             for beat in beats[1:-1]:
                 bars.append({"kind": "pos", "value": "+1", "label": beat})
             bars.append({"kind": "end", "value": str(len(beats)), "label": beats[-1], "delta": "目标态"})
-            return {"title": self.title(slide), "bars": bars, "footnote": "指标需用客户确认数据替换。"}
-        beats = self.beats(slide, 3, 4)
+            return {
+                "title": self.title(slide),
+                "bars": bars,
+                "footnote": "仅在未提供可核验数值时使用序号占位;交付前需替换为真实指标。",
+            }
+        if verified_metrics:
+            return {
+                "title": self.title(slide),
+                "cols": [
+                    {
+                        "icon": ICONS[i % len(ICONS)],
+                        "num": metric["num"],
+                        "unit": metric["unit"],
+                        "label": metric["label"],
+                    }
+                    for i, metric in enumerate(metrics)
+                    if metric is not None
+                ],
+                "footnote": "指标来自 outline/source_refs;交付前保留口径和来源。",
+            }
+        self.warn("stats row has no parseable metrics; using ordinal placeholders that must be replaced", slide.get("key"))
         return {
             "title": self.title(slide),
             "cols": [
                 {"icon": ICONS[i % len(ICONS)], "num": f"{i + 1:02d}", "label": beat}
                 for i, beat in enumerate(beats)
             ],
-            "footnote": "序号用于占位,交付前替换为真实指标。",
+            "footnote": "序号用于占位,交付前替换为真实指标和来源。",
         }
 
     def data_quote(self, slide: dict[str, Any]) -> dict[str, Any]:
@@ -598,10 +693,17 @@ class OutlineCompiler:
         }
 
     def data_table(self, slide: dict[str, Any]) -> dict[str, Any]:
-        rows = [[beat, "当前做法待梳理", "建议动作进入闭环"] for beat in self.beats(slide, 1, 6)]
+        beats = self.beats(slide, 1, 6)
+        current_gaps = self.supporting_items(slide, "risk", "proof_needed")
+        actions = self.supporting_items(slide, "evidence", "asset_need", "talk_track")
+        rows = []
+        for i, beat in enumerate(beats):
+            gap = current_gaps[min(i, len(current_gaps) - 1)] if current_gaps else "依赖人工经验、线下沟通或临时表格,过程难追踪。"
+            action = actions[min(i, len(actions) - 1)] if actions else "把输入、判断、责任人和输出物沉淀到飞书任务/知识/数据闭环。"
+            rows.append([beat, gap, action])
         return {
             "title": self.title(slide),
-            "headers": ["维度", "当前方式", "建议动作"],
+            "headers": ["业务场景", "当前断点", "Agent / 飞书动作"],
             "rows": rows,
         }
 
@@ -612,7 +714,7 @@ class OutlineCompiler:
                 "title": self.title(slide),
                 "cols": len(beats),
                 "nodes": [
-                    {"when": f"阶段 {i}", "what": beat, "desc": self.message(slide)}
+                    {"when": f"阶段 {i}", "what": beat, "desc": self.supporting_body(slide, beat, i - 1, "说明这个阶段的输入、判断和输出。")}
                     for i, beat in enumerate(beats, start=1)
                 ],
             }
@@ -650,7 +752,7 @@ class OutlineCompiler:
             "title": self.title(slide),
             "cols": len(beats),
             "steps": [
-                {"num": f"{i:02d}", "title": beat, "body": self.message(slide)}
+                {"num": f"{i:02d}", "title": beat, "body": self.supporting_body(slide, beat, i - 1, "说明这一步如何进入可追踪闭环。")}
                 for i, beat in enumerate(beats, start=1)
             ],
         }
@@ -676,9 +778,20 @@ class OutlineCompiler:
         beats = self.beats(slide, 3, 6)
         layer_titles = ["用户入口", "Agent 能力", "业务协同", "知识数据"]
         layer_subtitles = ["入口层", "智能体层", "流程层", "数据层"]
+        domain_text = " ".join([self.title(slide), self.message(slide), str(self.scene.get("industry") or "")])
+        business_defaults = ["业务审批", "质量异常", "客户交付", "管理看板"]
+        if any(token in domain_text for token in ["NPI", "npi", "制造", "光模块", "良率", "供应链"]):
+            business_defaults = ["NPI 项目", "质量异常", "供应链预警", "客户交付"]
+        enterprise_defaults = [
+            ["飞书消息", "会议纪要", "项目文档", "多维表格"],
+            ["信息汇总", "异常识别", "任务催办", "知识问答"],
+            business_defaults,
+            ["SOP / 规范", "历史异常", "项目台账", "经营看板"],
+        ]
         layers = []
         for i, name in enumerate(layer_titles):
-            modules = clamp_items(beats[i:] + beats[:i], 3, 8, ["任务", "知识", "数据"])
+            seed = enterprise_defaults[i] if self.is_enterprise_ai_scene(slide) else ["任务", "知识", "数据"]
+            modules = clamp_items(beats[i:] + beats[:i] + seed, 3, 8, seed)
             layers.append({
                 "name": {"title": name, "sub": layer_subtitles[i]},
                 "modules": modules,

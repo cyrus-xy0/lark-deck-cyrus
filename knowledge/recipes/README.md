@@ -11,6 +11,11 @@ Current recipes:
 - `renewal-review.json`
 - `industry-case-pack.json`
 - `competitive-replacement.json`
+- `process-reinvention.json` — six-page thought-leadership pitch for AI
+  workflow/process reinvention: old-world dead end, physical-layer shift,
+  execution flywheel, four reversals, and self-evolving process.
+- `zhongji-innolight-ai-lecture.md` — reference recipe for enterprise AI /
+  digital employee / manufacturing knowledge-extraction decks.
 
 Validate:
 

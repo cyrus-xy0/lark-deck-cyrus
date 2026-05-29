@@ -79,21 +79,49 @@ python3 skills/deck-planner/validate-outline.py \
    - 根据行业、飞书产品、客户名分别搜索;客户故事只使用用户提供、公开来源、live Base 授权记录或本地明确标注的素材。
    - 如果存在 `upload-recognizer` 结果,把其中的知识层当作用户提供素材,优先级高于通用知识库,但仍要保留来源和置信度。
    - 没有知识就暴露缺口,不要编。
+   - 企业 AI / 数字员工 / 制造业知识萃取 / 高管讲座类 deck,必须读取
+     `knowledge/recipes/zhongji-innolight-ai-lecture.md`,并把其中的
+     "业务场景 -> 痛点 -> AI 机制 -> 人的角色变化 -> 价值证明"结构写入
+     outline,而不是只复述资料标题。
 
 4. **形成行业痛点判断**
    - 每个痛点必须包含:为什么现在重要、业务后果、建议证据、证据等级。
    - 不要把通用行业规律写成某客户已经发生的事实。
+   - 每个核心解法页必须绑定一个可讲的业务时刻:谁在现场、正在处理什么
+     输入、当前卡在哪里、Agent/数字员工下一步做什么、人的工作如何升级。
+   - 对制造业 / NPI / 质量 / 供应链场景,优先写出"工程师/督导/项目经理
+     的一天"或"一次异常闭环"这样的角色化故事,再落到功能模块。
 
 5. **设计 deck arc**
    - 第一段:为什么这个问题现在必须解决。
    - 第二段:飞书 / agent / bot 如何改变工作方式。
    - 第三段:落地路径、证据、下一步。
    - demo 只能作为论据或体验入口,不能成为整份 deck 的唯一主体。
+   - 当 brief 带有“流程重塑 / 流程被重新发明 / PPT 换成 HTML /
+     工件反转 / 飞轮 / 范式”等信号时,优先套用 `process-reinvention`
+     recipe,不要退回常规“痛点-方案-试点”模板。标准弧线是:
+     **旧世界断头路 -> 物理层跃迁 -> 执行飞轮 -> 四个反转 -> 自我进化**。
+     这类 deck 的每页必须有一条可复述的判断句;P2 的痛点要写成支撑
+     “断头路”的证据,P3 要先讲载体/工件的物理性质变化,P4 要画出
+     “每次输出也是下一次输入”的闭环,P5 抽象为工件/数据/颗粒度/角色
+     四个反转,P6 再收束到组织能力如何自我生长。
+   - 高质量企业 AI deck 的节奏应是:概念定调 -> 典型场景 -> 可视化机制
+     -> 客户/类比案例 -> 落地建议;连续同构卡片页超过 3 页时必须插入
+     quote / section / hero / demo 呼吸页。
+   - 对制造业 / NPI / 质量 / 供应链 / 高管 AI 讲座类 deck,outline 必须至少包含:
+     角色化业务场景页 1 页(如工程师的一天或一次异常闭环)、可视化机制/原型页
+     1 页(仪表盘、review panel、雷达、工作台、iframe/raw demo 均可)、案例/证据页
+     1 页、落地建议页 1 页。缺任何一类时,标记为 replan/open question,
+     不允许交给 renderer 只套 3up / matrix / process / table。
 
 6. **映射到 DeckJSON**
    - 优先选择 `deck-renderer/deck-json/deck-schema.json` 已有 layout。
    - 每页都给 `layout_candidate`,但只作为建议;`deck-renderer` 可在生产时调整。
    - 若需要真实交互或在线体验,标记 `iframe-embed` / `phone-iframe` 或 `demo` asset。
+   - 若页面规划为工作台、仪表盘、应用原型或多状态 UI,tab / segmented
+     control / slider / button 等控件必须在素材计划里标明交互状态。tab
+     类控件默认需要可切换;如果只是静态示意,必须写出静态理由,不能把
+     “看起来可点”的控件交给 renderer 自行脑补。
 
 7. **生成素材计划**
    - logo/icon/demo 先查统一入口: `python3 scripts/base_library.py search-assets "<关键词>" --limit 20`。
@@ -106,6 +134,12 @@ python3 skills/deck-planner/validate-outline.py \
 
 - 不编客户数据、STORY id、访谈来源、具名引语。
 - 不用“行业领先、全面赋能、智能升级”填满页面;每页要有可 defend 的判断。
+- 不允许把 planner 降级成资料目录;每个 section 都要讲清业务痛点和飞书 /
+  Agent 解法的因果链。
+- 不允许用泛化"效率提升、流程闭环、智能决策"替代具体场景。写不出角色、
+  业务时刻、输入输出和证据缺口时,必须标为 replan/open question。
+- 企业 AI / 制造业 deck 不能连续超过 3 页使用同构模板页;outline 必须显式安排
+  场景、原型、案例、Quote/Section 呼吸页,否则不进入渲染。
 - 信息不足时,提出少量高价值 open questions;已可合理规划时先给带假设的 outline。
 - 每页必须有稳定的 `key`,后续会成为 `data-slide-key`。
 - 输出要让 `deck-renderer` 能继续工作,而不是只给一段漂亮文字。

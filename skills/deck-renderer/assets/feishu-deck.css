@@ -634,8 +634,10 @@ body {
      name+date a half-step quieter than the 100px title without going gray.
      2026-05-06 · top: 803 → 720 — author block sits closer to a 2-line title.
      Master spec said 803 (bottom-left); user feedback elevated this since the
-     huge gap reads as "two unrelated stacks" rather than "title + signature". */
-  position: absolute; left: 124px; top: 720px;
+     huge gap reads as "two unrelated stacks" rather than "title + signature".
+     2026-05-28 · bottom anchored — long enterprise titles/subtitles can wrap
+     into the old fixed top position and collide with the author/date block. */
+  position: absolute; left: 124px; top: auto; bottom: 118px;
   font: 600 30px/1.45 var(--fs-font-cjk);
   color: rgba(255,255,255,0.85);
   letter-spacing: 0.02em;
@@ -2270,6 +2272,16 @@ body {
 .slide .ui-tab.is-active::after {
   content: ""; position: absolute; left: 16px; right: 16px; bottom: -13px;
   height: 2px; background: var(--fs-blue);
+}
+.slide [data-tab-target] {
+  cursor: pointer;
+}
+.slide [data-tab-target]:focus-visible {
+  outline: 2px solid var(--fs-blue);
+  outline-offset: 3px;
+}
+.slide [data-tab-panel][hidden] {
+  display: none !important;
 }
 
 /* ---- Lists (chat / contacts / files) ---- */

@@ -23,6 +23,7 @@ REPO = Path(__file__).resolve().parents[1]
 GENERATOR = REPO / "server/generator.py"
 REQUEST = REPO / "server/examples/brief-request.json"
 os.environ.setdefault("CYRUS_MAGIC_DRY_RUN", "1")
+os.environ.setdefault("CYRUS_PUBLISH_TARGET", "magic-page")
 os.environ.setdefault("GENERATOR_VISUAL_AUDIT", "0")
 REQUIRED = [
     "deck.json",
@@ -34,8 +35,10 @@ REQUIRED = [
     "assets-manifest.yaml",
     "pitch-rehearsal.json",
     "PITCH_REHEARSAL.md",
-    "magic-doc-publish.json",
-    "MAGIC_DOC_PUBLISH.md",
+    "cloud-publish.json",
+    "CLOUD_PUBLISH.md",
+    "magic-page-publish.json",
+    "MAGIC_PAGE_PUBLISH.md",
     "journey.json",
     "JOURNEY.md",
     "quality-insights.json",
@@ -263,8 +266,8 @@ def main() -> int:
     if edited_deck["deck"]["title"] != "连锁零售 AI 知识库 pitch v2":
         print("edited deck title did not update", file=sys.stderr)
         return 1
-    if not edited_task.get("artifacts", {}).get("magic_doc_url", "").startswith("https://bytedance.larkoffice.com/docx/"):
-        print("edited task magic_doc_url missing Feishu Magic Doc link", file=sys.stderr)
+    if not edited_task.get("artifacts", {}).get("magic_page_url", "").startswith("https://magic.solutionsuite.cn/dryrun/"):
+        print("edited task magic_page_url missing Magic Page dry-run link", file=sys.stderr)
         return 1
     edited_output_dir = Path(edited_task["output_dir"])
     journey = json.loads((edited_output_dir / "journey.json").read_text(encoding="utf-8"))
@@ -282,7 +285,7 @@ def main() -> int:
     status_page = generator.render_status_page(edited_task["id"]).decode("utf-8")
     edit_page = generator.render_edit_page(edited_task["id"]).decode("utf-8")
     journey_page = generator.render_journey_page(edited_task["id"]).decode("utf-8")
-    expected_status = ["飞书妙笔文档", "验收报告", "Pitch 预演", "等待确认预演", "版本", "用户旅程", "精调信号", edited_task["id"]]
+    expected_status = ["飞书妙笔页面", "验收报告", "Pitch 预演", "等待确认预演", "版本", "用户旅程", "精调信号", edited_task["id"]]
     expected_editor = ["轻量编辑", "全局信息", "素材库", "插入已有 slide", "保存并生成新版本", "slide-editor"]
     if (
         any(phrase not in status_page for phrase in expected_status)

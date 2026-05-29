@@ -180,6 +180,10 @@ deck 在 `<head>` 必须声明语言模式:
 | 字符 | 不允许 emoji / `!` / `…` / `???` | R05 |
 | 语言模式 | `<meta name="fs-language">` 强制 | R-LANG |
 | Slide 唯一编号 | `data-slide-key` 强制 | R-KEY |
+| **表现形式** | 每张内容页必须选择具体 render form:UI mock / system diagram / data panel / video / iframe / evidence wall / quote 等,不能只堆 bullets | 设计审稿 |
+| **视觉中心** | 高密度页必须有一个 A 档 hub(引擎 / KPI / UI surface / 中心节点 / 最强 quote),不能所有卡片等权 | 设计审稿 |
+| **动效原则** | 动效只解释状态 / 顺序 / 进行中 / 进入离开;禁止为装饰而动 | 设计审稿 |
+| **页面节奏** | 连续高密 proof 页之间应插入 section / quote / hero / demo 呼吸页,避免整套 deck 单一密度 | 设计审稿 |
 
 ---
 
@@ -210,6 +214,44 @@ deck 在 `<head>` 必须声明语言模式:
 A. 3+1 hero(三并列汇聚到一个 hero) · B. 判定卡(GO / 部分 GO / NO-GO) · C. 北极星 chip(每个 focus area 必带) · D. 不做 / 做 边界带 · E. 1→N 分叉 · F. 现阶段 → 未来 chip · G. 双轨结构(单角色双任务) · H. 铁四角(2×2 + 中心节点) · **H+ 两手架构(左手 X · 右手 Y · 共享底座,适合产品定位)** · I. 6 步流水线 timeline · J. 三色原则带 · K. 1+1 vs 1+1+N · **L. 北极星地图(N 个项目一页综述,每个带北极星指标 + 核心售卖 + 3 子能力)** · **M. 邻接场景(同一能力跨 N 行业,每个带量化经济杠杆)**
 
 外加 27 个 `.ui-*` UI 原语(Lark Base 表格 / 飞书消息 / 浏览器 dashboard / 手机壳 / 仪表盘 etc.),全部用 HTML/CSS 重建,不贴截图。
+
+### H5 渲染质感规则(新增设计审稿项)
+
+这些规则来自优秀成品 deck 的复盘,目前主要靠 design pass + 人眼审稿,
+不完全依赖 validator:
+
+- **不是截图堆叠**:能用 HTML/CSS 重建的 UI / dashboard / chat /
+  pipeline / data panel,优先原生重画;照片、产品渲染、艺术图和用户要求
+  保真的 replica 才用 raster。
+- **复杂页先定骨架**:优先用"输入 → 处理 → 输出"或"中心 hub → 分支"
+  组织信息,再加颜色 / glow / 卡片。线条和箭头必须表达信息路径。
+- **母版感优先**:深色舞台、右上 wordmark、单一 accent、统一字号梯子和
+  半透明 hairline 卡片共同建立高级感;不要靠花哨装饰补质感。
+- **live artifact 优先**:能展示运行状态的页面,用 iframe / video /
+  animated tabs / typing dots / voice waves 等轻动效表达"正在发生"。
+- **控件不要装死**:tab / segmented control / toolbar button / slider 等
+  明显可操作的控件,必须用 H5 runtime 的 `data-tab-*` / iframe / video /
+  真实 JS 变成可互动状态;若只是静态示意,必须显式标 `data-static-tabs`
+  并在 notes 里说明理由。不要交付“看起来能点但点了没反应”的原型页。
+- **呼吸页负责节奏**:章节页、quote 页、hero 结论页不是浪费页,它们负责
+  切换注意力,防止整套 deck 变成连续 dashboard。
+
+### 流程重塑类思想 pitch 的标准骨架
+
+用户给出的优秀 outline 样本沉淀为 `process-reinvention` recipe。它的价值不在
+具体措辞,而在叙事结构:
+
+- **封面先下判断**:不是“AI 赋能旧流程”,而是重新定义工件、数据流、
+  颗粒度和人的角色。
+- **旧世界要被证明为断头路**:痛点不能写成列表,要写成证据,证明材料是终点、
+  知识是孤岛、人是唯一连接器。
+- **奇点必须是物理层变化**:先解释载体为什么从黑盒变成可解析、可拆解、
+  可重组的结构化工件,再谈模型和 Agent。
+- **新流程必须是飞轮**:每一次执行既消耗知识也生产知识,输出必须回流为
+  下一次生成、质检、复盘或决策的输入。
+- **范式页用四个反转收束**:工件反转、数据反转、颗粒度反转、角色反转。
+  只上线几个 AI 功能不叫重塑;完成这些反转才叫流程重塑。
+- **结尾从系统回到人**:AI 没有替代人,但人的价值密度和组织进步方式被改变。
 
 ### 一页纸案例 / 客户案例集 已 Path-A 化(0 token)
 

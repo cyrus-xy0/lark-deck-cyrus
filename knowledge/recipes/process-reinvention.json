@@ -1,0 +1,102 @@
+{
+  "version": "1.0",
+  "id": "process-reinvention",
+  "name": "流程重塑思想 pitch",
+  "triggers": [
+    "流程重塑",
+    "流程被重新发明",
+    "旧流程",
+    "新流程",
+    "PPT 换成 HTML",
+    "PPT换HTML",
+    "HTML 载体",
+    "物理层",
+    "工件反转",
+    "数据反转",
+    "颗粒度反转",
+    "角色反转",
+    "飞轮",
+    "范式"
+  ],
+  "deck_type": [
+    "流程重塑",
+    "思想 pitch",
+    "AI 流程重塑"
+  ],
+  "required_questions": [
+    "这次要被重新定义的旧流程是什么?",
+    "旧流程里的死工件、孤岛数据和人工连接器分别是什么?",
+    "新载体或新工件是什么,为什么它让 AI 可以读、拆、重组?",
+    "每一次执行会回流哪些知识、数据或判断?",
+    "人的角色从内容生产转向哪类判断或决策?"
+  ],
+  "recommended_layouts": [
+    "cover",
+    "content/matrix",
+    "table",
+    "flow/process",
+    "content/matrix",
+    "quote"
+  ],
+  "narrative_arc": [
+    "旧世界断头路",
+    "物理层跃迁",
+    "执行飞轮",
+    "四个反转",
+    "自我进化"
+  ],
+  "library_queries": [
+    {
+      "query": "流程重塑",
+      "layout": "content",
+      "reason": "先找能支撑旧流程断点和新流程闭环的场景页。"
+    },
+    {
+      "query": "HTML 工件 AI",
+      "layout": "table",
+      "reason": "用两栏对照解释载体从黑盒到结构化文本的物理层变化。"
+    },
+    {
+      "query": "飞轮 闭环",
+      "layout": "flow",
+      "reason": "流程重塑类 pitch 必须把一次执行如何反哺下一次执行画出来。"
+    }
+  ],
+  "template_backlog_seed": [
+    "新增流程重塑 6 页思想 pitch 模板",
+    "新增旧世界断头路矩阵页",
+    "新增工件/数据/颗粒度/角色四反转页"
+  ],
+  "outline_blueprint": [
+    {
+      "page": "P1",
+      "role": "cover",
+      "job": "用一句强判断定调:不是把 AI 塞进旧流程,而是重新定义流程的工件、数据流、颗粒度和角色。"
+    },
+    {
+      "page": "P2",
+      "role": "pain",
+      "job": "证明旧流程是断头路。证据必须是症状化叙述,不是泛泛痛点列表。"
+    },
+    {
+      "page": "P3",
+      "role": "insight",
+      "job": "提出奇点。先解释载体改变带来的物理层跃迁,再谈 AI 能力。"
+    },
+    {
+      "page": "P4",
+      "role": "solution",
+      "job": "画出新流程飞轮。每一次输出都必须同时成为下一次输入。"
+    },
+    {
+      "page": "P5",
+      "role": "insight",
+      "job": "抽象为四个反转:工件、数据、颗粒度、角色。"
+    },
+    {
+      "page": "P6",
+      "role": "closing",
+      "job": "收束为新范式:流程不再只是被设计,而是能在执行中生长。"
+    }
+  ]
+}

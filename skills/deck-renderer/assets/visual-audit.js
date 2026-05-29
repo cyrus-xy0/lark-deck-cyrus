@@ -147,6 +147,36 @@
       });
     }
 
+    // ---- Cover collision ----
+    // The generic overlap rule skips absolute-positioned siblings to avoid
+    // flagging intentional chrome overlays. Cover .author is absolute, though,
+    // and can collide with a wrapped subtitle when the customer/project title
+    // becomes long. Keep this explicit pair check so master cover regressions
+    // are caught by visual audit instead of by user screenshots.
+    if (layout === 'cover') {
+      const coverPairs = [
+        [slide.querySelector('.stage .subtitle'), slide.querySelector('.author')],
+        [slide.querySelector('.stage h1.title'), slide.querySelector('.author')],
+      ];
+      coverPairs.forEach(([aEl, bEl]) => {
+        if (!aEl || !bEl) return;
+        const a = aEl.getBoundingClientRect();
+        const b = bEl.getBoundingClientRect();
+        const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (overlapX > 2 && overlapY > 2) {
+          out.overlap.push({
+            slide_idx,
+            container_sel: 'cover-master',
+            a_sel: shortSel(aEl),
+            b_sel: shortSel(bEl),
+            overlap_x: Math.round(overlapX),
+            overlap_y: Math.round(overlapY),
+          });
+        }
+      });
+    }
+
     // ---- Card-content overflow (added 2026-05-22) ----
     // Inner element has `overflow: hidden` + content taller than container =
     // content clipped invisibly. Slide-level R-OVERFLOW doesn't catch it

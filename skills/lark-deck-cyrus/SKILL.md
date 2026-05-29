@@ -160,21 +160,24 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 7. **质量验收**
    - 调用 `deck-auditor`。
    - 验收要判断 deck 是否完整、可读、可讲、可交付,并把问题归类为:必须重渲染、需要改规划、可以后续优化。
+   - 对企业 AI / 制造业 / 高管讲座类 deck,验收不能只看 H5 几何合规;还必须检查是否有场景页、原型/仪表盘/案例等可视锚点,以及是否连续多页落入 3up / matrix / process / table 等通用模板轮换。
    - 未通过验收时,总控根据问题类型回到 `deck-planner` 或 `deck-renderer`。
 
 8. **预演和改稿**
    - deck-auditor 通过后调用 `pitch-simulator`,生成最终对客讲法预演、异议地图和改稿队列。
+   - 预演必须发生在云端发布之前。若 high-stakes 制造业 / 企业 AI 场景出现 `request-more-material`、trust 低于门槛或 P0 证据/Deck 改稿项,先暂停发布并回到 planner / renderer;不能把“会被要求补材料”的版本先发出去。
    - 预演报告必须作为用户可见产物返回,不能只作为内部日志存在。
    - 预演结果是 scenario forecast,不是实际客户研究。
    - `pitch-simulator` 输出的 revision queue 只作为建议;必须等用户确认“修改”后,才能作为上下文重新输入 `deck-planner` 并生成新的 outline 给用户确认。用户确认“不用改”时,才进入是否入库确认。
 
 9. **成稿确认、入库和最终交付**
    - deckhtml 生成、验收和预演完成后,必须先让用户确认是否按预演反馈修改;不修改时再询问是否入库。用户确认入库前不得自动入库。
-   - deckhtml 通过验收后,先用 `generate-magic-doc` 把单文件 HTML 写入飞书妙笔文档的 HTML Box,并把 `magic_doc_url` / `doc_url` 作为最终交付入口;本地 `index.html` 和 zip 只作为审计、编辑和打包产物。用户确认入库后,随后调用 recognizer 解析最终 deckhtml,再调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
+   - deckhtml 通过验收且预演门禁通过后,默认用 `publish-magic-page` 发布为飞书妙笔 / Magic 云端 HTML 页面,并把 `app_url` / `cloud_publish.url` 作为最终交付入口;本地 `index.html` 和 zip 只作为审计、编辑和打包产物。只有用户明确要求“嵌入文档 / 生成飞书文档 / Docx HTML Box”时,才使用 legacy `generate-magic-doc` 路径,并把它标为文档嵌入而不是默认妙笔交付。
+   - 用户确认入库后,随后调用 recognizer 解析最终 deckhtml,再调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
    - 默认优先使用云端素材库和知识库,以当前沙箱 agent 的 user 身份访问;不要要求用户配置 token。只有云端不可访问或无权限时才回退本地缓存,并用明文告诉用户“已回退本地”及原因。
    - 如果 simulator 发现必须修改的问题,先等待用户确认是否迭代;不要把未确认的模拟建议直接入库为事实。
    - 最终状态应是一份用户可以直接拿去讲的 H5 pitch deck。
-   - 交付时说明当前版本、编辑入口、验收结果、预演摘要、入库结果和仍需用户确认的素材/事实缺口。
+   - 交付时说明当前版本、云端 HTML 页面入口、编辑入口、验收结果、预演摘要、入库结果和仍需用户确认的素材/事实缺口。
 
 ## 关键约束
 
@@ -189,6 +192,8 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 - `lark-deck-cyrus` 是总控 skill,不直接承担具体生产、验收或预演实现。
 - 机器可读编排入口在 `assets/pipeline.yaml`;它只描述调度与交付契约,具体能力仍由各子 skill 和可执行脚本承担。
 - 当前只有六个子 skill:`upload-recognizer`、`deck-planner`、`deck-renderer`、`deck-auditor`、`pitch-simulator`、`deck-ingestor`。
+- 云端发布不是上述子 skill 的生产责任;默认最终发布调用独立
+  `publish-magic-page`,legacy 文档嵌入才调用 `generate-magic-doc`。
 - `deck-planner` 可以提出业务主线和候选 layout,但不能绕开 H5 design-first 确认,也不能要求 renderer 牺牲 H5 风格。
 - `deck-renderer` 是 H5 风格和交付规则的执行者;不要把它降级为普通 HTML 生成器。
 - `deck-auditor` 内聚 H5 CHECK-ONLY 标准检查;总控和用户路径不要把底层 validator 写成单独路由。

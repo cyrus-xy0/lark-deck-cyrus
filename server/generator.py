@@ -4,7 +4,7 @@
 This is the productized P0 path around the existing local skills:
 
   Sources -> recognizer -> Outline -> user confirm -> renderer -> auditor
-  -> publish -> pitch rehearsal -> user revise/ingest decision -> ingestion
+  -> pitch rehearsal gate -> publish -> user revise/ingest decision -> ingestion
 
 It intentionally uses only the Python standard library so it can run anywhere
 the current repo already runs.
@@ -49,7 +49,9 @@ PITCH_REHEARSAL_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py
 DECK_INGESTOR = REPO / "skills/deck-ingestor/ingest.py"
 BASE_LIBRARY = REPO / "scripts/base_library.py"
 DEFAULT_TOS_UPLOADER = Path("/Users/bytedance/.codex/skills/upload-file-to-tos/upload.js")
+DEFAULT_MAGIC_PAGE_PUBLISHER = Path("/Users/bytedance/.codex/skills/publish-magic-page/publish.js")
 DEFAULT_MAGIC_DOC_CREATOR = Path("/Users/bytedance/.codex/skills/generate-magic-doc/scripts/create_magic_doc.mjs")
+DEFAULT_MAGIC_BASE_URL = "https://magic.solutionsuite.cn"
 
 REQUIRED_OUTPUTS = [
     "deck.json",
@@ -64,8 +66,8 @@ REQUIRED_OUTPUTS = [
     "journey.json",
     "JOURNEY.md",
     "quality-insights.json",
-    "magic-doc-publish.json",
-    "MAGIC_DOC_PUBLISH.md",
+    "cloud-publish.json",
+    "CLOUD_PUBLISH.md",
 ]
 
 TEXT_LEAF_SKIP_KEYS = {"title", "icon", "img", "image", "src", "url", "href", "company_logo"}
@@ -137,6 +139,22 @@ def normalize_list(value: Any) -> list[str]:
     return [str(value).strip()]
 
 
+def walk_text(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        parts: list[str] = []
+        for item in value.values():
+            parts.extend(walk_text(item))
+        return parts
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            parts.extend(walk_text(item))
+        return parts
+    return []
+
+
 def brief_value(brief: dict[str, Any], *keys: str, default: str = "") -> str:
     for key in keys:
         value = brief.get(key)
@@ -177,10 +195,18 @@ def publish_magic_enabled() -> bool:
     return raw.lower() not in {"0", "false", "no", "local", "file"}
 
 
+def default_publish_target() -> str:
+    if not publish_magic_enabled():
+        return "none"
+    raw = os.environ.get("CYRUS_PUBLISH_TARGET") or os.environ.get("CYRUS_CLOUD_TARGET") or "magic-page"
+    target = raw.strip().lower()
+    return target if target in {"magic-page", "magic-doc", "none"} else "magic-page"
+
+
 def publish_magic_doc_enabled() -> bool:
     raw = os.environ.get("CYRUS_PUBLISH_MAGIC_DOC")
     if raw is None:
-        return publish_magic_enabled()
+        return default_publish_target() == "magic-doc"
     return raw.lower() not in {"0", "false", "no", "local", "file"}
 
 
@@ -229,10 +255,12 @@ def health_payload() -> dict[str, Any]:
             "sync_assets": sync_base_assets(),
             "identity": base_identity(),
         },
-        "magic_doc_publish": {
-            "enabled": publish_magic_doc_enabled(),
+        "cloud_publish": {
+            "target": default_publish_target(),
+            "enabled": default_publish_target() != "none",
             "dry_run": magic_dry_run(),
-            "publisher": str(DEFAULT_MAGIC_DOC_CREATOR),
+            "magic_page_publisher": str(DEFAULT_MAGIC_PAGE_PUBLISHER),
+            "magic_doc_publisher": str(DEFAULT_MAGIC_DOC_CREATOR),
         },
         "output_contract": REQUIRED_OUTPUTS + ["editable zip", "AUDIT_REPORT.md", "task.json"],
         "library": {
@@ -450,6 +478,97 @@ def outline_slide_notes(slide: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def process_reinvention_slides(title: str, customer: str, business_moment: str) -> list[dict[str, Any]]:
+    """Canonical six-page outline for AI workflow/process reinvention decks."""
+    subject = customer if customer != "目标客户" else "组织"
+    return [
+        {
+            "key": "cover",
+            "title": title,
+            "role": "cover",
+            "message": "不是把 AI 塞进旧流程,而是让工件、数据流、颗粒度和角色全部被重新定义。",
+            "layout_candidate": {"layout": "cover"},
+            "assets": ["customer-logo"],
+            "talk_track": "开场直接把讨论从工具升级到流程物理层:我们不是优化一份材料,而是在重写材料背后的工作方式。",
+        },
+        {
+            "key": "old-world-dead-end",
+            "title": "看起来在运转,实际上是一条断头路",
+            "role": "pain",
+            "message": "旧流程每一环看起来都有人在管,但材料是终点、知识是孤岛、人是唯一连接器。",
+            "content_beats": [
+                "知识库是死库存:文件存在,但等于不可用。",
+                "复盘是幸存者偏差:样本靠记忆,问题反复出现。",
+                "质量是黑盒:少量抽查之外,客户真实反应沉底。",
+                "绩效是猜谜:评价依赖印象,缺少可追溯证据。",
+            ],
+            "layout_candidate": {"layout": "content", "variant": "matrix"},
+            "visual_intent": "四象限证据页,每个象限都是一个旧流程症状,共同支撑“断头路”判断。",
+            "evidence": ["共享盘文件命名、复盘记录、质检抽查样本、人员评价口径。"],
+            "risk_flags": ["不要把通用症状写成特定客户已发生事实,除非用户提供证据。"],
+        },
+        {
+            "key": "physical-layer-leap",
+            "title": "整个故事的奇点,只有一件事:把 PPT 换成 HTML",
+            "role": "insight",
+            "message": "AI 能不能介入业务流程,首先是物理问题:载体决定 AI 能不能读、拆、重组和回流。",
+            "content_beats": [
+                "本质:二进制黑盒 -> 结构化文本。",
+                "AI 视角:整体存取 -> 可解析、可拆解、可重组。",
+                "最小单位:文件 -> 一句话、一个观点、一张图。",
+                "检索方式:文件名 -> 语义。",
+                "流动方式:搬运 -> 引用、继承、改写。",
+            ],
+            "layout_candidate": {"layout": "table"},
+            "visual_intent": "PPT 与 HTML 两栏对照,强调这是载体物理性质变化,不是单纯换格式。",
+            "evidence": ["HTML deck 源码、DeckJSON、texts.md、可编辑文本颗粒度。"],
+            "risk_flags": ["不要把“HTML 一定优于 PPT”绝对化;结论限定在 AI 可解析和可回流的流程场景。"],
+        },
+        {
+            "key": "reporting-flywheel",
+            "title": "当汇报不再是终点,而是燃料",
+            "role": "solution",
+            "message": "每一场汇报既消耗知识,也生产知识;既是动作终点,也是下一次动作起点。",
+            "content_beats": ["生成", "汇报", "质检", "入库", "反哺"],
+            "layout_candidate": {"layout": "flow", "variant": "process"},
+            "visual_intent": "五步闭环飞轮:生成 -> 汇报 -> 质检 -> 入库 -> 反哺。",
+            "evidence": ["录音豆逐字稿、质量分、知识库片段、每次微调留痕。"],
+            "risk_flags": ["若没有真实录音/质检能力证据,写成目标流程和待验证机制。"],
+        },
+        {
+            "key": "four-reversals",
+            "title": "流程重塑,本质上是四个反转",
+            "role": "insight",
+            "message": "流程重塑不是给每个环节加 AI,而是让工件、数据、颗粒度和人的角色发生反转。",
+            "content_beats": [
+                "工件反转:死文件 -> 活资产。",
+                "数据反转:单向归档 -> 双向喂养。",
+                "颗粒度反转:文件级 -> 片段级。",
+                "角色反转:内容生产者 -> 判断提供者。",
+            ],
+            "layout_candidate": {"layout": "content", "variant": "matrix"},
+            "visual_intent": "四象限范式页,每格都是 from -> to + 一句解释。",
+            "evidence": ["工件可检索性、入库回流、片段级引用、人工微调留痕。"],
+            "risk_flags": ["只做一两个反转时,不能宣称完成流程重塑。"],
+        },
+        {
+            "key": "self-evolving-process",
+            "title": "当流程开始自己进化",
+            "role": "closing",
+            "message": f"{subject}的目标不是上线一套系统,而是让{business_moment}具备自我进化能力。",
+            "content_beats": [
+                "每一次执行都在喂养下一次执行。",
+                "每一次微调都在改写流程本身。",
+                "每一个个体的进步,都自动变成组织的进步。",
+            ],
+            "layout_candidate": {"layout": "quote"},
+            "visual_intent": "收束为一页大句子,从系统能力回到人的价值密度。",
+            "evidence": ["流程执行日志、知识回流记录、个人修改如何成为组织资产。"],
+            "risk_flags": ["结尾应是愿景判断,不要包装成已实现事实。"],
+        },
+    ]
+
+
 def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
     pitch_plan = pitch_recipes.plan_pitch(brief)
     recipe = pitch_plan["recipe"]
@@ -573,92 +692,113 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    slides = [
-        {
-            "key": "cover",
-            "title": title,
-            "role": "cover",
-            "message": f"面向{customer}的{industry}方案。",
-            "layout_candidate": {"layout": "cover"},
-            "assets": ["customer-logo"],
-        },
-        {
-            "key": "agenda",
-            "title": "讨论路径",
-            "role": "agenda",
-            "message": "先对齐业务断点,再看闭环方案、相邻证据、试点口径和下一步。",
-            "content_beats": ["业务断点", "工作流闭环", "角色关切", "相邻证据", "试点路径"],
-            "layout_candidate": {"layout": "agenda"},
-            "assets": [],
-        },
-        {
-            "key": "business-gap",
-            "title": "业务断点",
-            "role": "pain",
-            "message": core_tension,
-            "content_beats": [p["name"] for p in pain_points],
-            "layout_candidate": {"layout": "content", "variant": "before-after"},
-            "assets": [],
-            "risk_flags": ["缺少客户提供证据时,不得写成已验证事实。"],
-        },
-        {
-            "key": "solution-loop",
-            "title": "飞书工作流闭环",
-            "role": "solution",
-            "message": solution_angle,
-            "content_beats": product_scope,
-            "layout_candidate": {"layout": "arch-stack"},
-            "assets": ["product-icons"],
-        },
-        {
-            "key": "role-lens",
-            "title": "不同角色关心什么",
-            "role": "insight",
-            "message": "同一套试点要同时回答业务、使用、技术三类问题。",
-            "content_beats": ["业务负责人要看到推进价值", "一线负责人要确认操作负担", "技术负责人要判断边界和权限"],
-            "layout_candidate": {"layout": "content", "variant": "3up"},
-            "assets": [],
-            "risk_flags": ["若真实参会角色不同,这一页需要按用户补充调整。"],
-        },
-        {
-            "key": "adjacent-proof",
-            "title": "用户素材与相邻场景",
-            "role": "evidence",
-            "message": "优先使用用户素材作为证据,再用素材库中的相邻行业页做讲法参考。",
-            "content_beats": [str(item.get("title") or item.get("slide_key") or "用户素材")[:20] for item in source_slides][:3]
-            or ["连锁零售", "餐饮茶饮", "投资机构"],
-            "layout_candidate": {"layout": "logo-wall"},
-            "assets": [*source_material_asset_ids[:3], "adjacent-logo-wall"] if source_material_asset_ids else ["adjacent-logo-wall"],
-            "source_refs": source_dossier_refs[:8],
-            "knowledge_refs": [ref for ref in source_dossier_refs if ref.get("source_type") == "knowledge"][:5],
-            "material_refs": [ref for ref in source_dossier_refs if ref.get("source_type") == "material"][:5],
-            "risk_flags": ["用户素材中的推断必须保留来源;相邻素材只作启发,不能替代客户事实。"],
-        },
-        {
-            "key": "pilot-metrics",
-            "title": "试点指标",
-            "role": "evidence",
-            "message": "先定义验证口径,不提前承诺结果。",
-            "layout_candidate": {"layout": "stats", "variant": "row"},
-            "assets": ["pilot-data"],
-        },
-        {
-            "key": "pilot-path",
-            "title": "试点路径",
-            "role": "roadmap",
-            "message": "从一个具体场景开始,跑完闭环后再扩展。",
-            "layout_candidate": {"layout": "flow", "variant": "timeline"},
-            "assets": [],
-        },
-        {
-            "key": "next-step",
-            "title": "下一步",
-            "role": "closing",
-            "message": success_metric,
-            "layout_candidate": {"layout": "end"},
-            "assets": [],
-        },
-    ]
+    if recipe.get("id") == "process-reinvention":
+        slides = process_reinvention_slides(title, customer, business_moment)
+        solution_angle = "把静态材料升级为可解析、可拆解、可回流的活工件,让每一次执行反哺下一次执行。"
+        core_tension = "旧流程的材料、录音、复盘和评价都停在死工件里,无法自动回流为下一次行动。"
+        pain_points = [
+            {
+                "name": "死工件",
+                "why_now": "AI 要介入流程,必须先能读取和拆解流程产物。",
+                "impact": "材料归档后无法被语义检索、引用、继承和改写。",
+                "evidence_level": "public-pattern",
+                "evidence_needed": "需要用户补充旧材料、归档方式和复盘记录。",
+            },
+            {
+                "name": "断头路",
+                "why_now": "组织希望流程越跑越强,而不是每次从零开始。",
+                "impact": "汇报、录音和复盘没有回流,知识增长依赖个人记忆。",
+                "evidence_level": "hypothesis",
+                "evidence_needed": "需要用户确认每次执行后哪些数据会沉淀或丢失。",
+            },
+        ]
+    else:
+        slides = [
+            {
+                "key": "cover",
+                "title": title,
+                "role": "cover",
+                "message": f"面向{customer}的{industry}方案。",
+                "layout_candidate": {"layout": "cover"},
+                "assets": ["customer-logo"],
+            },
+            {
+                "key": "agenda",
+                "title": "讨论路径",
+                "role": "agenda",
+                "message": "先对齐业务断点,再看闭环方案、相邻证据、试点口径和下一步。",
+                "content_beats": ["业务断点", "工作流闭环", "角色关切", "相邻证据", "试点路径"],
+                "layout_candidate": {"layout": "agenda"},
+                "assets": [],
+            },
+            {
+                "key": "business-gap",
+                "title": "业务断点",
+                "role": "pain",
+                "message": core_tension,
+                "content_beats": [p["name"] for p in pain_points],
+                "layout_candidate": {"layout": "content", "variant": "before-after"},
+                "assets": [],
+                "risk_flags": ["缺少客户提供证据时,不得写成已验证事实。"],
+            },
+            {
+                "key": "solution-loop",
+                "title": "飞书工作流闭环",
+                "role": "solution",
+                "message": solution_angle,
+                "content_beats": product_scope,
+                "layout_candidate": {"layout": "arch-stack"},
+                "assets": ["product-icons"],
+            },
+            {
+                "key": "role-lens",
+                "title": "不同角色关心什么",
+                "role": "insight",
+                "message": "同一套试点要同时回答业务、使用、技术三类问题。",
+                "content_beats": ["业务负责人要看到推进价值", "一线负责人要确认操作负担", "技术负责人要判断边界和权限"],
+                "layout_candidate": {"layout": "content", "variant": "3up"},
+                "assets": [],
+                "risk_flags": ["若真实参会角色不同,这一页需要按用户补充调整。"],
+            },
+            {
+                "key": "adjacent-proof",
+                "title": "用户素材与相邻场景",
+                "role": "evidence",
+                "message": "优先使用用户素材作为证据,再用素材库中的相邻行业页做讲法参考。",
+                "content_beats": [str(item.get("title") or item.get("slide_key") or "用户素材")[:20] for item in source_slides][:3]
+                or ["连锁零售", "餐饮茶饮", "投资机构"],
+                "layout_candidate": {"layout": "logo-wall"},
+                "assets": [*source_material_asset_ids[:3], "adjacent-logo-wall"] if source_material_asset_ids else ["adjacent-logo-wall"],
+                "source_refs": source_dossier_refs[:8],
+                "knowledge_refs": [ref for ref in source_dossier_refs if ref.get("source_type") == "knowledge"][:5],
+                "material_refs": [ref for ref in source_dossier_refs if ref.get("source_type") == "material"][:5],
+                "risk_flags": ["用户素材中的推断必须保留来源;相邻素材只作启发,不能替代客户事实。"],
+            },
+            {
+                "key": "pilot-metrics",
+                "title": "试点指标",
+                "role": "evidence",
+                "message": "先定义验证口径,不提前承诺结果。",
+                "layout_candidate": {"layout": "stats", "variant": "row"},
+                "assets": ["pilot-data"],
+            },
+            {
+                "key": "pilot-path",
+                "title": "试点路径",
+                "role": "roadmap",
+                "message": "从一个具体场景开始,跑完闭环后再扩展。",
+                "layout_candidate": {"layout": "flow", "variant": "timeline"},
+                "assets": [],
+            },
+            {
+                "key": "next-step",
+                "title": "下一步",
+                "role": "closing",
+                "message": success_metric,
+                "layout_candidate": {"layout": "end"},
+                "assets": [],
+            },
+        ]
     slides = [enrich_slide_plan(slide) for slide in slides]
 
     return {
@@ -782,7 +922,142 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def outline_uses_recipe(outline: dict[str, Any], recipe_id: str) -> bool:
+    refs = outline.get("recipe_refs") if isinstance(outline.get("recipe_refs"), list) else []
+    return any(isinstance(ref, dict) and ref.get("id") == recipe_id for ref in refs)
+
+
+def process_reinvention_deck(outline: dict[str, Any]) -> dict[str, Any]:
+    brief = outline["brief"]
+    scene = outline["scene"]
+    title = brief["title"]
+    slug = slugify(title)
+    slides = (outline.get("outline") or {}).get("slides") or []
+    outline_by_key = {str(slide.get("key")): slide for slide in slides if isinstance(slide, dict)}
+    deck = {
+        "version": "1.0",
+        "deck": {
+            "title": title,
+            "author": "lark-deck-cyrus generator",
+            "date": compact_date(),
+            "presentation_date": today(),
+            "customer_slug": slug,
+            "language": "zh-only",
+            "mode": "rewrite",
+        },
+        "slides": [
+            {
+                "key": "cover",
+                "layout": "cover",
+                "data": {
+                    "title": title,
+                    "author": "飞书 · 流程重塑",
+                    "date": f"{scene['industry']} · {compact_date()}",
+                },
+            },
+            {
+                "key": "old-world-dead-end",
+                "layout": "content",
+                "variant": "matrix",
+                "accent": "orange",
+                "data": {
+                    "title": "看起来在运转,实际上是一条断头路",
+                    "axes": {
+                        "y": {"name": "回流能力", "high_label": "活", "low_label": "死"},
+                        "x": {"name": "人工依赖", "high_label": "高", "low_label": "低"},
+                    },
+                    "quadrants": {
+                        "tl": {"title": "知识库是死库存", "items": ["PPT 被放进共享盘", "文件存在但不可用"]},
+                        "tr": {"title": "复盘是幸存者偏差", "items": ["样本靠记忆", "同类错误继续发生"]},
+                        "bl": {"title": "质量是黑盒", "items": ["少量抽查", "客户真实反应沉底"]},
+                        "br": {"title": "绩效是猜谜", "items": ["评价依赖印象", "缺少可追溯证据"]},
+                    },
+                },
+            },
+            {
+                "key": "physical-layer-leap",
+                "layout": "table",
+                "accent": "blue",
+                "data": {
+                    "title": "AI 介入流程,首先是个物理问题",
+                    "headers": ["维度", "PPT 旧世界", "HTML 新世界"],
+                    "rows": [
+                        ["本质", "二进制黑盒", "结构化文本"],
+                        ["AI 视角", "只能整体存取", "可解析、可拆解、可重组"],
+                        ["最小单位", "一个文件", "一句话 / 一个观点 / 一张图"],
+                        ["检索方式", "靠文件名", "靠语义"],
+                        ["是否可流动", "否,只能被搬运", "是,可引用、继承、改写"],
+                    ],
+                    "footnote": "载体换了,AI 才有介入流程的物理可能。",
+                },
+            },
+            {
+                "key": "reporting-flywheel",
+                "layout": "flow",
+                "variant": "process",
+                "accent": "teal",
+                "data": {
+                    "title": "当汇报不再是终点,而是燃料",
+                    "cols": 5,
+                    "steps": [
+                        {"num": "01", "title": "生成", "body": "AI 基于库内素材组装初稿,售前在初稿上微调。"},
+                        {"num": "02", "title": "汇报", "body": "售前对客户讲,录音豆记录现场语境和客户反馈。"},
+                        {"num": "03", "title": "质检", "body": "自动评估表达质量、关键问题应答和可追溯质量分。"},
+                        {"num": "04", "title": "入库", "body": "逐字稿结构化沉淀为可检索的售前案例片段。"},
+                        {"num": "05", "title": "反哺", "body": "入库内容成为下一次生成素材,每次微调都留痕。"},
+                    ],
+                },
+            },
+            {
+                "key": "four-reversals",
+                "layout": "content",
+                "variant": "matrix",
+                "accent": "blue",
+                "data": {
+                    "title": "流程重塑,本质上是四个反转",
+                    "axes": {
+                        "y": {"name": "组织资产化", "high_label": "资产", "low_label": "文件"},
+                        "x": {"name": "流程可生长", "high_label": "生长", "low_label": "静态"},
+                    },
+                    "quadrants": {
+                        "tl": {"title": "工件反转", "items": ["死文件 -> 活资产", "能被检索、引用、重组"]},
+                        "tr": {"title": "数据反转", "items": ["单向归档 -> 双向喂养", "归档即燃料"]},
+                        "bl": {"title": "颗粒度反转", "items": ["文件级 -> 片段级", "一句话也能被复用"]},
+                        "br": {"title": "角色反转", "items": ["内容生产者 -> 判断提供者", "人的价值密度被重新定义"]},
+                    },
+                },
+            },
+            {
+                "key": "self-evolving-process",
+                "layout": "quote",
+                "accent": "blue",
+                "decor": ["blue-glow"],
+                "data": {
+                    "title": "当流程开始自己进化",
+                    "quote": {
+                        "lead": "AI 没有替代任何人。但每个人,",
+                        "accent": "都不一样了",
+                        "tail": "。",
+                    },
+                    "attribution": "飞书 · 让 AI 在组织里真正生长",
+                },
+            },
+        ],
+    }
+    for slide in deck["slides"]:
+        plan = outline_by_key.get(str(slide.get("key") or ""))
+        if not plan:
+            continue
+        notes = outline_slide_notes(plan)
+        if notes:
+            slide["notes"] = notes
+    return deck
+
+
 def outline_to_deck(outline: dict[str, Any]) -> dict[str, Any]:
+    if outline_uses_recipe(outline, "process-reinvention"):
+        return process_reinvention_deck(outline)
+
     brief = outline["brief"]
     scene = outline["scene"]
     thesis = outline["thesis"]
@@ -1416,36 +1691,52 @@ def output_artifacts(task_id: str, output_dir: Path, base_url: str | None = None
             if path.name == "index.html" or path.suffix == ".zip":
                 continue
             artifacts[path.name] = f"{root}/decks/{task_id}/files/{path.name}" if root else str(path)
-    magic_doc_url = ""
+    cloud_url = ""
+    app_url = ""
+    doc_url = ""
+    cloud_path = output_dir / "cloud-publish.json"
+    if cloud_path.exists():
+        try:
+            cloud = read_json(cloud_path)
+            if cloud.get("ok"):
+                app_url = str(cloud.get("app_url") or "")
+                doc_url = str(cloud.get("doc_url") or "")
+                cloud_url = app_url or doc_url
+        except Exception:
+            cloud_url = ""
     magic_doc_path = output_dir / "magic-doc-publish.json"
-    if magic_doc_path.exists():
+    if not cloud_url and magic_doc_path.exists():
         try:
             magic_doc = read_json(magic_doc_path)
             if magic_doc.get("ok") and magic_doc.get("doc_url"):
-                magic_doc_url = str(magic_doc["doc_url"])
+                doc_url = str(magic_doc["doc_url"])
+                cloud_url = doc_url
         except Exception:
-            magic_doc_url = ""
-    if not magic_doc_url:
+            cloud_url = ""
+    if not cloud_url:
         legacy_magic_path = output_dir / "magic-publish.json"
         if legacy_magic_path.exists():
             try:
                 legacy_magic = read_json(legacy_magic_path)
                 if legacy_magic.get("ok") and legacy_magic.get("url"):
-                    magic_doc_url = str(legacy_magic["url"])
+                    cloud_url = str(legacy_magic["url"])
             except Exception:
-                magic_doc_url = ""
+                cloud_url = ""
     if base_url:
         artifacts["status_url"] = f"{root}/decks/{task_id}/status"
         artifacts["editor_url"] = f"{root}/decks/{task_id}/edit"
     else:
         artifacts["status_url"] = ""
         artifacts["editor_url"] = ""
-    artifacts["magic_doc_url"] = magic_doc_url
-    artifacts["miaobi_doc_url"] = magic_doc_url
-    artifacts["doc_url"] = magic_doc_url
-    artifacts["magic_url"] = magic_doc_url
-    artifacts["miaobi_url"] = magic_doc_url
-    artifacts["preview_url"] = magic_doc_url
+    artifacts["cloud_url"] = cloud_url
+    artifacts["app_url"] = app_url
+    artifacts["magic_page_url"] = app_url
+    artifacts["magic_doc_url"] = doc_url
+    artifacts["miaobi_doc_url"] = doc_url
+    artifacts["doc_url"] = doc_url
+    artifacts["magic_url"] = cloud_url
+    artifacts["miaobi_url"] = cloud_url
+    artifacts["preview_url"] = cloud_url
     artifacts["edit_url"] = artifacts.get("editor_url", "")
     artifacts["download_url"] = ""
     return artifacts
@@ -1932,12 +2223,16 @@ def artifact_links(task: dict[str, Any]) -> str:
     artifacts = task.get("artifacts") or {}
     rows = []
     for label, key in [
-        ("飞书妙笔文档", "magic_doc_url"),
+        ("飞书妙笔页面", "magic_page_url"),
+        ("云端发布入口", "cloud_url"),
         ("需求澄清", "BRIEF_CLARIFICATION.md"),
         ("素材识别", "SOURCE_DOSSIER.md"),
         ("验收报告", "AUDIT_REPORT.md"),
         ("Pitch 预演", "PITCH_REHEARSAL.md"),
-        ("妙笔文档发布报告", "MAGIC_DOC_PUBLISH.md"),
+        ("预演门禁", "REHEARSAL_GATE.md"),
+        ("云端发布报告", "CLOUD_PUBLISH.md"),
+        ("妙笔页面发布报告", "MAGIC_PAGE_PUBLISH.md"),
+        ("legacy 妙笔文档发布报告", "MAGIC_DOC_PUBLISH.md"),
         ("最终解析", "FINAL_SOURCE_DOSSIER.md"),
         ("入库报告", "INGESTION_REPORT.md"),
         ("用户旅程", "JOURNEY.md"),
@@ -3024,6 +3319,163 @@ def build_ingest_metadata(task: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def normalize_magic_base_url(value: str | None) -> str:
+    raw = str(value or DEFAULT_MAGIC_BASE_URL).strip().rstrip("/")
+    if not raw:
+        raw = DEFAULT_MAGIC_BASE_URL
+    return raw if raw.startswith(("http://", "https://")) else f"https://{raw}"
+
+
+def request_publish_target(request: dict[str, Any]) -> str:
+    delivery = request.get("delivery") if isinstance(request.get("delivery"), dict) else {}
+    raw = (
+        request.get("publish_target")
+        or request.get("cloud_target")
+        or delivery.get("publish_target")
+        or delivery.get("cloud_target")
+        or delivery.get("target")
+        or default_publish_target()
+    )
+    target = str(raw).strip().lower()
+    return target if target in {"magic-page", "magic-doc", "none"} else "magic-page"
+
+
+def write_cloud_publish_report(output_dir: Path, payload: dict[str, Any]) -> None:
+    write_json(output_dir / "cloud-publish.json", payload)
+    url = payload.get("app_url") or payload.get("doc_url") or ""
+    lines = [
+        "# Cloud Publish",
+        "",
+        f"- target: {payload.get('target')}",
+        f"- enabled: {payload.get('enabled')}",
+        f"- ok: {payload.get('ok')}",
+        f"- dry_run: {payload.get('dry_run')}",
+        f"- url: {url}",
+        f"- app_url: {payload.get('app_url') or ''}",
+        f"- doc_url: {payload.get('doc_url') or ''}",
+        f"- app_id: {payload.get('app_id') or ''}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    (output_dir / "CLOUD_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def magic_page_publish_config(request: dict[str, Any]) -> dict[str, Any]:
+    magic = request.get("magic") if isinstance(request.get("magic"), dict) else {}
+    magic_page = request.get("magic_page") if isinstance(request.get("magic_page"), dict) else {}
+    delivery = request.get("delivery") if isinstance(request.get("delivery"), dict) else {}
+    delivery_magic = delivery.get("magic") if isinstance(delivery.get("magic"), dict) else {}
+    delivery_magic_page = delivery.get("magic_page") if isinstance(delivery.get("magic_page"), dict) else {}
+    config = {**magic, **delivery_magic, **magic_page, **delivery_magic_page}
+    return {
+        "enabled": request_publish_target(request) == "magic-page" and str(config.get("enabled", "true")).lower() not in {"0", "false", "no"},
+        "dry_run": magic_dry_run() or str(config.get("dry_run", "")).lower() in {"1", "true", "yes", "mock"},
+        "script": str(config.get("script") or os.environ.get("CYRUS_MAGIC_PAGE_PUBLISHER") or DEFAULT_MAGIC_PAGE_PUBLISHER),
+        "base_url": normalize_magic_base_url(str(config.get("base_url") or config.get("magic_base_url") or os.environ.get("MAGIC_BASE_URL") or "")),
+        "open_source": str(config.get("open_source", "")).lower() in {"1", "true", "yes"},
+    }
+
+
+def parse_magic_page_stdout(stdout: str) -> dict[str, Any]:
+    result: dict[str, Any] = {"app_url": "", "app_id": "", "urls": {}}
+    urls: dict[str, str] = {}
+    label_to_key = {
+        "Independent Page": "html_box",
+        "Dashboard Plugin": "dashboard",
+        "Feishu Sidebar": "panel",
+        "Feishu Tab": "tab",
+    }
+    for line in stdout.splitlines():
+        if ":" not in line:
+            continue
+        label, value = line.split(":", 1)
+        label = label.strip()
+        value = value.strip()
+        if not value:
+            continue
+        if label == "App ID":
+            result["app_id"] = value
+        elif label in label_to_key:
+            urls[label_to_key[label]] = value
+            if label == "Independent Page":
+                result["app_url"] = value
+    result["urls"] = urls
+    return result
+
+
+def write_magic_page_publish_report(output_dir: Path, payload: dict[str, Any]) -> None:
+    write_json(output_dir / "magic-page-publish.json", payload)
+    lines = [
+        "# Feishu/Miaobi Magic Page Publish",
+        "",
+        f"- enabled: {payload.get('enabled')}",
+        f"- ok: {payload.get('ok')}",
+        f"- dry_run: {payload.get('dry_run')}",
+        f"- app_url: {payload.get('app_url') or ''}",
+        f"- app_id: {payload.get('app_id') or ''}",
+        f"- base_url: {payload.get('base_url') or ''}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    (output_dir / "MAGIC_PAGE_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def publish_deck_to_magic_page(task: dict[str, Any], request: dict[str, Any], deck: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
+    output_dir = Path(task.get("output_dir", ""))
+    config = magic_page_publish_config(request)
+    title = ((deck.get("deck") or {}).get("title") or (request.get("brief") or {}).get("title") or str(task.get("id") or "deck")).strip()
+    if not config["enabled"]:
+        payload = {"target": "magic-page", "enabled": False, "ok": False, "dry_run": False, "app_url": "", "doc_url": "", "app_id": "", "reason": "disabled"}
+        write_magic_page_publish_report(output_dir, payload)
+        return payload
+
+    if config["dry_run"]:
+        token = "dryrun-" + hashlib.sha1(f"{task.get('id')}:{title}".encode("utf-8")).hexdigest()[:16]
+        payload = {
+            "target": "magic-page",
+            "enabled": True,
+            "ok": True,
+            "dry_run": True,
+            "app_url": f"{config['base_url']}/dryrun/{token}",
+            "doc_url": "",
+            "app_id": token,
+            "base_url": config["base_url"],
+            "reason": "dry-run",
+        }
+        write_magic_page_publish_report(output_dir, payload)
+        return payload
+
+    script = Path(config["script"])
+    html_path = output_dir / "index.html"
+    if not script.exists():
+        payload = {"target": "magic-page", "enabled": True, "ok": False, "dry_run": False, "app_url": "", "doc_url": "", "app_id": "", "base_url": config["base_url"], "reason": f"Magic Page publisher not found: {script}"}
+        write_magic_page_publish_report(output_dir, payload)
+        return payload
+
+    cmd = ["node", str(script), "publish", str(html_path), "--title", title, "--base-url", config["base_url"]]
+    if config["open_source"]:
+        cmd.append("--open-source")
+    log = log_dir / "magic-page-publish.txt"
+    proc = run_command(cmd, log)
+    task.setdefault("logs", {})["magic_page_publish"] = str(log)
+    parsed = parse_magic_page_stdout(proc.stdout)
+    ok = proc.returncode == 0 and bool(parsed["app_url"])
+    payload = {
+        "target": "magic-page",
+        "enabled": True,
+        "ok": ok,
+        "dry_run": False,
+        "app_url": parsed["app_url"],
+        "doc_url": "",
+        "app_id": parsed["app_id"],
+        "base_url": config["base_url"],
+        "urls": parsed["urls"],
+        "reason": "" if ok else (proc.stderr.strip() or proc.stdout.strip() or "publish failed"),
+    }
+    write_magic_page_publish_report(output_dir, payload)
+    return payload
+
+
 def magic_doc_publish_config(request: dict[str, Any]) -> dict[str, Any]:
     magic = request.get("magic") if isinstance(request.get("magic"), dict) else {}
     magic_doc = request.get("magic_doc") if isinstance(request.get("magic_doc"), dict) else {}
@@ -3032,7 +3484,7 @@ def magic_doc_publish_config(request: dict[str, Any]) -> dict[str, Any]:
     delivery_magic_doc = delivery.get("magic_doc") if isinstance(delivery.get("magic_doc"), dict) else {}
     config = {**magic, **delivery_magic, **magic_doc, **delivery_magic_doc}
     return {
-        "enabled": publish_magic_doc_enabled() and str(config.get("enabled", "true")).lower() not in {"0", "false", "no"},
+        "enabled": request_publish_target(request) == "magic-doc" and publish_magic_enabled() and str(config.get("enabled", "true")).lower() not in {"0", "false", "no"},
         "dry_run": magic_dry_run() or str(config.get("dry_run", "")).lower() in {"1", "true", "yes", "mock"},
         "script": str(config.get("script") or os.environ.get("CYRUS_MAGIC_DOC_CREATOR") or DEFAULT_MAGIC_DOC_CREATOR),
         "doc_token": str(config.get("doc_token") or config.get("docToken") or os.environ.get("CYRUS_MAGIC_DOC_TOKEN") or ""),
@@ -3128,6 +3580,26 @@ def publish_deck_to_magic_doc(task: dict[str, Any], request: dict[str, Any], dec
         "reason": "" if ok else (proc.stderr.strip() or proc.stdout.strip() or "publish failed"),
     }
     write_magic_doc_publish_report(output_dir, payload)
+    return payload
+
+
+def publish_deck_to_cloud(task: dict[str, Any], request: dict[str, Any], deck: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
+    output_dir = Path(task.get("output_dir", ""))
+    target = request_publish_target(request)
+    if target == "none":
+        payload = {"target": "none", "enabled": False, "ok": True, "dry_run": False, "app_url": "", "doc_url": "", "app_id": "", "reason": "disabled"}
+        write_cloud_publish_report(output_dir, payload)
+        return payload
+    if target == "magic-doc":
+        payload = publish_deck_to_magic_doc(task, request, deck, log_dir=log_dir)
+        payload.setdefault("target", "magic-doc")
+        payload.setdefault("app_url", "")
+        payload.setdefault("app_id", "")
+        write_cloud_publish_report(output_dir, payload)
+        return payload
+    payload = publish_deck_to_magic_page(task, request, deck, log_dir=log_dir)
+    payload.setdefault("target", "magic-page")
+    write_cloud_publish_report(output_dir, payload)
     return payload
 
 
@@ -3339,11 +3811,47 @@ def accept_rehearsal_task(task_id: str, *, base_url: str | None = None) -> dict[
     task_dir = RUNS_DIR / task_id
     output_dir = Path(task.get("output_dir", ""))
     journey = load_journey_for_task(task) or new_journey(task, {}, str(task.get("source") or "unknown"))
+    append_journey_event(journey, "rehearsal_accepted", "user", "用户确认本轮 pitch simulator 反馈暂不改稿,进入是否入库确认。")
+    if not (output_dir / "cloud-publish.json").exists():
+        request_path = task_dir / "input" / "request.json"
+        deck_path = output_dir / "deck.json"
+        request = read_json(request_path) if request_path.exists() else {}
+        deck = read_json(deck_path) if deck_path.exists() else {}
+        cloud_publish = publish_deck_to_cloud(task, request, deck, log_dir=task_dir / "logs")
+        task["cloud_publish"] = cloud_publish
+        if cloud_publish.get("target") == "magic-page":
+            task["magic_page_publish"] = cloud_publish
+        elif cloud_publish.get("target") == "magic-doc":
+            task["magic_doc_publish"] = cloud_publish
+        if cloud_publish.get("ok") and cloud_publish.get("enabled"):
+            cloud_url = cloud_publish.get("app_url") or cloud_publish.get("doc_url") or ""
+            task.setdefault("artifacts", {})["cloud_url"] = cloud_url
+            task.setdefault("artifacts", {})["magic_url"] = cloud_url
+            task.setdefault("artifacts", {})["miaobi_url"] = cloud_url
+            task.setdefault("artifacts", {})["preview_url"] = cloud_url
+            if cloud_publish.get("app_url"):
+                task.setdefault("artifacts", {})["magic_page_url"] = cloud_publish.get("app_url", "")
+                task.setdefault("artifacts", {})["app_url"] = cloud_publish.get("app_url", "")
+            if cloud_publish.get("doc_url"):
+                task.setdefault("artifacts", {})["magic_doc_url"] = cloud_publish.get("doc_url", "")
+                task.setdefault("artifacts", {})["miaobi_doc_url"] = cloud_publish.get("doc_url", "")
+                task.setdefault("artifacts", {})["doc_url"] = cloud_publish.get("doc_url", "")
+            append_journey_event(
+                journey,
+                "cloud_published_after_rehearsal_acceptance",
+                "system",
+                "用户接受预演风险后,已发布为云端妙笔 HTML 页面或所选 legacy 文档模式。",
+                {"url": cloud_url, "target": cloud_publish.get("target", ""), "dry_run": cloud_publish.get("dry_run", False)},
+            )
+        elif cloud_publish.get("ok") and not cloud_publish.get("enabled"):
+            append_journey_event(journey, "cloud_publish_disabled", "system", "本轮按配置跳过妙笔云端发布。", {"target": cloud_publish.get("target", "")})
+        elif cloud_publish.get("enabled"):
+            append_journey_event(journey, "cloud_publish_failed_after_rehearsal_acceptance", "system", "妙笔云端页面发布失败。", {"reason": cloud_publish.get("reason", "")})
+            raise RuntimeError("cloud publish failed: " + str(cloud_publish.get("reason") or "unknown"))
     task["status"] = "awaiting_deck_confirmation"
     task["confirmation_required"] = "ingestion"
     task["updated_at"] = now_iso()
     task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
-    append_journey_event(journey, "rehearsal_accepted", "user", "用户确认本轮 pitch simulator 反馈暂不改稿,进入是否入库确认。")
     append_journey_event(journey, "awaiting_deck_confirmation", "system", "等待用户确认是否把最终 deckhtml 入库。")
     write_journey_artifacts(output_dir, journey)
     save_task(task_dir, task)
@@ -3360,6 +3868,69 @@ def summarize_revision_queue(rehearsal: dict[str, Any]) -> list[str]:
         if change:
             items.append(f"{target}: {change}")
     return items[:8]
+
+
+def rehearsal_gate_context(outline: dict[str, Any], deck: dict[str, Any]) -> tuple[bool, list[str]]:
+    text = "\n".join(walk_text({"outline": outline, "deck": deck}))
+    lower = text.lower()
+    manufacturing_terms = ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "质量异常", "供应链"]
+    ai_terms = ["agent", "ai", "数字员工", "智能体"]
+    signals = [term for term in manufacturing_terms + ai_terms if term.lower() in lower]
+    applied = any(term.lower() in lower for term in manufacturing_terms) and any(term.lower() in lower for term in ai_terms)
+    return applied, signals
+
+
+def evaluate_rehearsal_gate(rehearsal: dict[str, Any], outline: dict[str, Any], deck: dict[str, Any]) -> dict[str, Any]:
+    applied, signals = rehearsal_gate_context(outline, deck)
+    scores = rehearsal.get("deck_arc", {}).get("scores", {}) if isinstance(rehearsal.get("deck_arc"), dict) else {}
+    outcome = rehearsal.get("outcome_forecast", {}) if isinstance(rehearsal.get("outcome_forecast"), dict) else {}
+    revision_queue = rehearsal.get("revision_queue") if isinstance(rehearsal.get("revision_queue"), list) else []
+    blockers: list[str] = []
+    trust = int(scores.get("trust") or 0)
+    primary = str(outcome.get("primary_outcome") or "")
+    confidence = str(outcome.get("confidence") or "")
+    if applied:
+        if primary in {"request-more-material", "defer", "reject"} and confidence in {"medium", "high"}:
+            blockers.append(f"pitch simulator forecast is {primary} ({confidence}); publish should wait for replan or evidence")
+        if trust < 58:
+            blockers.append(f"trust score is {trust}/100; high-stakes manufacturing AI decks need evidence before cloud publish")
+        p0_items = [item for item in revision_queue if isinstance(item, dict) and str(item.get("priority") or "").upper() == "P0"]
+        evidence_p0 = [item for item in p0_items if str(item.get("owner") or "").lower() in {"evidence", "deck"}]
+        if evidence_p0 and trust < 65:
+            blockers.append(f"{len(evidence_p0)} P0 rehearsal item(s) require evidence/deck changes before publishing")
+    return {
+        "ok": not blockers,
+        "applied": applied,
+        "signals": signals,
+        "primary_outcome": primary,
+        "confidence": confidence,
+        "trust": trust,
+        "blockers": blockers,
+        "reason": "ready" if not blockers else "rehearsal gate failed",
+    }
+
+
+def write_rehearsal_gate_report(output_dir: Path, payload: dict[str, Any]) -> None:
+    write_json(output_dir / "rehearsal-gate.json", payload)
+    lines = [
+        "# Rehearsal Gate",
+        "",
+        f"- applied: {payload.get('applied')}",
+        f"- ok: {payload.get('ok')}",
+        f"- primary_outcome: {payload.get('primary_outcome') or ''}",
+        f"- confidence: {payload.get('confidence') or ''}",
+        f"- trust: {payload.get('trust', '')}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    if blockers:
+        lines.append("## Blockers")
+        lines.append("")
+        for blocker in blockers:
+            lines.append(f"- {blocker}")
+        lines.append("")
+    (output_dir / "REHEARSAL_GATE.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def revise_from_rehearsal_task(task_id: str, *, base_url: str | None = None) -> dict[str, Any]:
@@ -3566,6 +4137,20 @@ def create_or_run_task(
         task["logs"]["auditor"] = str(check_log)
         task["artifacts"]["AUDIT_REPORT.md"] = str(validator_report)
         if proc.returncode != 0:
+            if visual_audit_unverified(output_dir):
+                task["status"] = "visual_unverified"
+                task["confirmation_required"] = "visual_audit"
+                task.setdefault("warnings", []).append("视觉审计未能在当前环境运行,已暂停发布/预演/入库;请在可运行浏览器的环境重跑 auditor --visual。")
+                task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+                append_journey_event(
+                    journey,
+                    "visual_audit_unverified",
+                    "system",
+                    "deck-auditor 的视觉审计未能运行,不进入发布、预演或入库 handoff。",
+                    {"h5_report": str(output_dir / "H5_CHECKONLY_REPORT.md")},
+                )
+                write_journey_artifacts(output_dir, journey)
+                raise FlowPaused()
             append_journey_event(journey, "audit_failed", "system", "deck-auditor 验收未通过。", {"exit": proc.returncode})
             rerender_log = log_dir / "render-retry.txt"
             append_journey_event(journey, "rerender_requested", "system", "质量验收发现问题,自动回到 renderer 重渲染一次。")
@@ -3634,6 +4219,20 @@ def create_or_run_task(
             )
             task["logs"]["auditor_inline"] = str(inline_check_log)
             if proc.returncode != 0:
+                if visual_audit_unverified(output_dir):
+                    task["status"] = "visual_unverified"
+                    task["confirmation_required"] = "visual_audit"
+                    task.setdefault("warnings", []).append("视觉审计未能在当前环境运行,已暂停发布/预演/入库;请在可运行浏览器的环境重跑 auditor --visual。")
+                    task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+                    append_journey_event(
+                        journey,
+                        "visual_audit_unverified",
+                        "system",
+                        "inline 后 deck-auditor 的视觉审计未能运行,不进入发布、预演或入库 handoff。",
+                        {"h5_report": str(output_dir / "H5_CHECKONLY_REPORT.md")},
+                    )
+                    write_journey_artifacts(output_dir, journey)
+                    raise FlowPaused()
                 append_journey_event(journey, "inline_audit_failed", "system", "inline 后 deck-auditor 未通过。", {"exit": proc.returncode})
                 raise RuntimeError("inline deck-auditor failed under strict gate")
             append_journey_event(journey, "inline_audited", "system", "inline 后 deck-auditor 通过。")
@@ -3651,22 +4250,6 @@ def create_or_run_task(
             )
             write_journey_artifacts(output_dir, journey)
             raise FlowPaused()
-        magic_doc_publish = publish_deck_to_magic_doc(task, request, deck, log_dir=log_dir)
-        task["magic_doc_publish"] = magic_doc_publish
-        if magic_doc_publish.get("ok"):
-            task.setdefault("artifacts", {})["magic_doc_url"] = magic_doc_publish.get("doc_url", "")
-            task.setdefault("artifacts", {})["miaobi_doc_url"] = magic_doc_publish.get("doc_url", "")
-            task.setdefault("artifacts", {})["doc_url"] = magic_doc_publish.get("doc_url", "")
-            append_journey_event(
-                journey,
-                "magic_doc_published",
-                "system",
-                "已将生成的 htmldeck 写入飞书妙笔文档 HTML Box,用户交付入口为飞书文档链接。",
-                {"doc_url": magic_doc_publish.get("doc_url", ""), "dry_run": magic_doc_publish.get("dry_run", False)},
-            )
-        elif magic_doc_publish.get("enabled"):
-            append_journey_event(journey, "magic_doc_publish_failed", "system", "飞书妙笔文档发布失败,本轮不返回文档链接。", {"reason": magic_doc_publish.get("reason", "")})
-            raise RuntimeError("magic doc publish failed: " + str(magic_doc_publish.get("reason") or "unknown"))
 
         rehearsal_log = log_dir / "pitch-rehearsal.txt"
         proc = run_command(
@@ -3696,7 +4279,52 @@ def create_or_run_task(
         if proc.returncode != 0:
             append_journey_event(journey, "pitch_rehearsal_validation_failed", "system", "pitch rehearsal validator 未通过。", {"exit": proc.returncode})
             raise RuntimeError("pitch rehearsal validation failed")
-        append_journey_event(journey, "pitch_rehearsed", "system", "已在发布后生成 pitch rehearsal 和异议/改稿队列,等待用户确认是否采纳。")
+        rehearsal_payload = read_json(output_dir / "pitch-rehearsal.json")
+        gate_payload = evaluate_rehearsal_gate(rehearsal_payload, outline, deck)
+        write_rehearsal_gate_report(output_dir, gate_payload)
+        task["rehearsal_gate"] = gate_payload
+        append_journey_event(journey, "pitch_rehearsed", "system", "已在发布前生成 pitch rehearsal 和异议/改稿队列。", {"gate": gate_payload})
+        if not gate_payload.get("ok"):
+            task["status"] = "awaiting_rehearsal_decision"
+            task["confirmation_required"] = "rehearsal"
+            task.setdefault("warnings", []).append("预演门禁未通过,已暂停云端发布;建议先按 P0 反馈补证据或回到 planner/renderer。")
+            task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
+            append_journey_event(journey, "rehearsal_gate_blocked_publish", "system", "预演门禁未通过,本轮不自动发布云端页面。", gate_payload)
+            upsert_journey_version(journey, task, deck)
+            write_journey_artifacts(output_dir, journey)
+            raise FlowPaused()
+
+        cloud_publish = publish_deck_to_cloud(task, request, deck, log_dir=log_dir)
+        task["cloud_publish"] = cloud_publish
+        if cloud_publish.get("target") == "magic-page":
+            task["magic_page_publish"] = cloud_publish
+        elif cloud_publish.get("target") == "magic-doc":
+            task["magic_doc_publish"] = cloud_publish
+        if cloud_publish.get("ok") and cloud_publish.get("enabled"):
+            cloud_url = cloud_publish.get("app_url") or cloud_publish.get("doc_url") or ""
+            task.setdefault("artifacts", {})["cloud_url"] = cloud_url
+            task.setdefault("artifacts", {})["magic_url"] = cloud_url
+            task.setdefault("artifacts", {})["miaobi_url"] = cloud_url
+            task.setdefault("artifacts", {})["preview_url"] = cloud_url
+            if cloud_publish.get("app_url"):
+                task.setdefault("artifacts", {})["magic_page_url"] = cloud_publish.get("app_url", "")
+                task.setdefault("artifacts", {})["app_url"] = cloud_publish.get("app_url", "")
+            if cloud_publish.get("doc_url"):
+                task.setdefault("artifacts", {})["magic_doc_url"] = cloud_publish.get("doc_url", "")
+                task.setdefault("artifacts", {})["miaobi_doc_url"] = cloud_publish.get("doc_url", "")
+                task.setdefault("artifacts", {})["doc_url"] = cloud_publish.get("doc_url", "")
+            append_journey_event(
+                journey,
+                "cloud_published",
+                "system",
+                "预演门禁通过后,已将生成的 htmldeck 发布为云端妙笔 HTML 页面;若用户显式选择 legacy 文档模式,则返回文档嵌入链接。",
+                {"url": cloud_url, "target": cloud_publish.get("target", ""), "dry_run": cloud_publish.get("dry_run", False)},
+            )
+        elif cloud_publish.get("ok") and not cloud_publish.get("enabled"):
+            append_journey_event(journey, "cloud_publish_disabled", "system", "本轮按配置跳过妙笔云端发布。", {"target": cloud_publish.get("target", "")})
+        elif cloud_publish.get("enabled"):
+            append_journey_event(journey, "cloud_publish_failed", "system", "妙笔云端页面发布失败,本轮不返回云端链接。", {"reason": cloud_publish.get("reason", "")})
+            raise RuntimeError("cloud publish failed: " + str(cloud_publish.get("reason") or "unknown"))
         upsert_journey_version(journey, task, deck)
         write_journey_artifacts(output_dir, journey)
 
@@ -3721,7 +4349,7 @@ def create_or_run_task(
         else:
             task["status"] = "succeeded"
         task["artifacts"].update(output_artifacts(task_id, output_dir, base_url=base_url))
-        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、飞书妙笔文档和预演报告拿到结果。")
+        append_journey_event(journey, "result_ready", "system", "用户可通过状态页、妙笔云端 HTML 页面和预演报告拿到结果。")
     except FlowPaused:
         pass
     except Exception as exc:  # noqa: BLE001 - task wrapper should persist any failure.

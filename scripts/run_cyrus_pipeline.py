@@ -3,8 +3,9 @@
 
 This is the deterministic "after user confirms outline" path:
 
-  preflight -> compile outline -> render HTML -> strict audit
-  -> pitch rehearsal -> package editable zip -> Feishu Magic Doc publish
+  preflight -> compile outline -> render HTML -> strict audit -> pitch rehearsal
+  -> publish standalone Feishu/Miaobi Magic Page
+  -> package editable zip
   -> PIPELINE_REPORT.md
 
 The default is linked-mode HTML with local assets and local package-cache
@@ -33,7 +34,9 @@ AUDITOR = REPO / "skills/deck-auditor/audit.py"
 PITCH_SIMULATOR = REPO / "skills/pitch-simulator/simulate-pitch.py"
 PITCH_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py"
 PACKAGE = REPO / "skills/deck-renderer/assets/package-deliverable.sh"
+DEFAULT_MAGIC_PAGE_PUBLISHER = Path("/Users/bytedance/.codex/skills/publish-magic-page/publish.js")
 DEFAULT_MAGIC_DOC_CREATOR = Path("/Users/bytedance/.codex/skills/generate-magic-doc/scripts/create_magic_doc.mjs")
+DEFAULT_MAGIC_BASE_URL = "https://magic.solutionsuite.cn"
 
 MEETING_TYPES = {
     "first-meeting",
@@ -94,9 +97,267 @@ def write_report(path: Path, rows: list[dict[str, object]], artifacts: dict[str,
     if audit and audit.exists() and "visual checks could not run" in audit.read_text(encoding="utf-8"):
         lines.append("## Environment Warning")
         lines.append("")
-        lines.append("- Visual audit could not launch Chromium in this environment. The deck was not marked as a content failure, but a full projector check still needs a browser-capable environment.")
+        lines.append("- Visual audit could not launch Chromium in this environment. Visual delivery is blocked when `--visual` is requested; rerun in a browser-capable environment or explicitly use `--no-visual` for a non-delivery dry run.")
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def normalize_magic_base_url(value: str | None) -> str:
+    raw = str(value or DEFAULT_MAGIC_BASE_URL).strip().rstrip("/")
+    if not raw:
+        raw = DEFAULT_MAGIC_BASE_URL
+    return raw if raw.startswith(("http://", "https://")) else f"https://{raw}"
+
+
+def write_cloud_publish_report(output_dir: Path, payload: dict[str, object]) -> None:
+    (output_dir / "cloud-publish.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    url = payload.get("app_url") or payload.get("doc_url") or ""
+    lines = [
+        "# Cloud Publish",
+        "",
+        f"- target: {payload.get('target')}",
+        f"- enabled: {payload.get('enabled')}",
+        f"- ok: {payload.get('ok')}",
+        f"- dry_run: {payload.get('dry_run')}",
+        f"- url: {url}",
+        f"- app_url: {payload.get('app_url') or ''}",
+        f"- doc_url: {payload.get('doc_url') or ''}",
+        f"- app_id: {payload.get('app_id') or ''}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    (output_dir / "CLOUD_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def _walk_text(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        parts: list[str] = []
+        for item in value.values():
+            parts.extend(_walk_text(item))
+        return parts
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            parts.extend(_walk_text(item))
+        return parts
+    return []
+
+
+def rehearsal_gate_context(outline_path: Path, deck_path: Path) -> tuple[bool, list[str]]:
+    text = ""
+    for path in [outline_path, deck_path]:
+        if path.exists():
+            text += "\n" + "\n".join(_walk_text(read_json(path)))
+    lower = text.lower()
+    manufacturing_terms = ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "质量异常", "供应链"]
+    ai_terms = ["agent", "ai", "数字员工", "智能体"]
+    signals = [term for term in manufacturing_terms + ai_terms if term.lower() in lower]
+    return any(term.lower() in lower for term in manufacturing_terms) and any(term.lower() in lower for term in ai_terms), signals
+
+
+def evaluate_rehearsal_gate(rehearsal_path: Path, outline_path: Path, deck_path: Path) -> dict[str, object]:
+    applied, signals = rehearsal_gate_context(outline_path, deck_path)
+    if not rehearsal_path.exists():
+        return {"ok": False, "applied": applied, "signals": signals, "reason": "pitch-rehearsal.json missing", "blockers": ["pitch rehearsal did not run"]}
+    rehearsal = read_json(rehearsal_path)
+    scores = rehearsal.get("deck_arc", {}).get("scores", {}) if isinstance(rehearsal.get("deck_arc"), dict) else {}
+    outcome = rehearsal.get("outcome_forecast", {}) if isinstance(rehearsal.get("outcome_forecast"), dict) else {}
+    revision_queue = rehearsal.get("revision_queue") if isinstance(rehearsal.get("revision_queue"), list) else []
+    blockers: list[str] = []
+    trust = int(scores.get("trust") or 0)
+    primary = str(outcome.get("primary_outcome") or "")
+    confidence = str(outcome.get("confidence") or "")
+    if applied:
+        if primary in {"request-more-material", "defer", "reject"} and confidence in {"medium", "high"}:
+            blockers.append(f"pitch simulator forecast is {primary} ({confidence}); publish should wait for replan or evidence")
+        if trust < 58:
+            blockers.append(f"trust score is {trust}/100; high-stakes manufacturing AI decks need evidence before cloud publish")
+        p0_items = [item for item in revision_queue if isinstance(item, dict) and str(item.get("priority") or "").upper() == "P0"]
+        evidence_p0 = [item for item in p0_items if str(item.get("owner") or "").lower() in {"evidence", "deck"}]
+        if evidence_p0 and trust < 65:
+            blockers.append(f"{len(evidence_p0)} P0 rehearsal item(s) require evidence/deck changes before publishing")
+    return {
+        "ok": not blockers,
+        "applied": applied,
+        "signals": signals,
+        "primary_outcome": primary,
+        "confidence": confidence,
+        "trust": trust,
+        "blockers": blockers,
+        "reason": "ready" if not blockers else "rehearsal gate failed",
+    }
+
+
+def write_rehearsal_gate_report(output_dir: Path, payload: dict[str, object]) -> None:
+    (output_dir / "rehearsal-gate.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        "# Rehearsal Gate",
+        "",
+        f"- applied: {payload.get('applied')}",
+        f"- ok: {payload.get('ok')}",
+        f"- primary_outcome: {payload.get('primary_outcome') or ''}",
+        f"- confidence: {payload.get('confidence') or ''}",
+        f"- trust: {payload.get('trust', '')}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    if blockers:
+        lines.append("## Blockers")
+        lines.append("")
+        for blocker in blockers:
+            lines.append(f"- {blocker}")
+        lines.append("")
+    (output_dir / "REHEARSAL_GATE.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def cloud_publish_disabled(output_dir: Path, log_path: Path, reason: str) -> subprocess.CompletedProcess[str]:
+    payload = {
+        "target": "none",
+        "enabled": False,
+        "ok": True,
+        "dry_run": False,
+        "app_url": "",
+        "doc_url": "",
+        "app_id": "",
+        "reason": reason,
+    }
+    write_cloud_publish_report(output_dir, payload)
+    log_path.write_text(f"cloud publish disabled: {reason}\n", encoding="utf-8")
+    return subprocess.CompletedProcess(["cloud-publish"], 0, "", "")
+
+
+def magic_page_dry_run(args: argparse.Namespace) -> bool:
+    raw = (
+        os.environ.get("CYRUS_MAGIC_PAGE_DRY_RUN")
+        or os.environ.get("CYRUS_MAGIC_DRY_RUN")
+        or os.environ.get("MAGIC_DRY_RUN")
+    )
+    return args.magic_page_dry_run or args.magic_dry_run or str(raw).lower() in {"1", "true", "yes", "mock"}
+
+
+def parse_magic_page_stdout(stdout: str) -> dict[str, object]:
+    result: dict[str, object] = {"app_url": "", "app_id": "", "urls": {}}
+    urls: dict[str, str] = {}
+    label_to_key = {
+        "Independent Page": "html_box",
+        "Dashboard Plugin": "dashboard",
+        "Feishu Sidebar": "panel",
+        "Feishu Tab": "tab",
+    }
+    for line in stdout.splitlines():
+        if ":" not in line:
+            continue
+        label, value = line.split(":", 1)
+        label = label.strip()
+        value = value.strip()
+        if not value:
+            continue
+        if label == "App ID":
+            result["app_id"] = value
+        elif label in label_to_key:
+            urls[label_to_key[label]] = value
+            if label == "Independent Page":
+                result["app_url"] = value
+    result["urls"] = urls
+    return result
+
+
+def write_magic_page_publish_report(output_dir: Path, payload: dict[str, object]) -> None:
+    (output_dir / "magic-page-publish.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        "# Feishu/Miaobi Magic Page Publish",
+        "",
+        f"- enabled: {payload.get('enabled')}",
+        f"- ok: {payload.get('ok')}",
+        f"- dry_run: {payload.get('dry_run')}",
+        f"- app_url: {payload.get('app_url') or ''}",
+        f"- app_id: {payload.get('app_id') or ''}",
+        f"- base_url: {payload.get('base_url') or ''}",
+        f"- reason: {payload.get('reason') or ''}",
+        "",
+    ]
+    (output_dir / "MAGIC_PAGE_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def run_magic_page_publish(
+    args: argparse.Namespace,
+    output_dir: Path,
+    title: str,
+    task_id: str,
+    log_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    base_url = normalize_magic_base_url(args.magic_base_url or os.environ.get("MAGIC_BASE_URL"))
+    if magic_page_dry_run(args):
+        token = "dryrun-" + hashlib.sha1(f"{task_id}:{title}".encode("utf-8")).hexdigest()[:16]
+        url = f"{base_url}/dryrun/{token}"
+        payload = {
+            "target": "magic-page",
+            "enabled": True,
+            "ok": True,
+            "dry_run": True,
+            "app_url": url,
+            "doc_url": "",
+            "app_id": token,
+            "base_url": base_url,
+            "reason": "dry-run",
+        }
+        write_magic_page_publish_report(output_dir, payload)
+        write_cloud_publish_report(output_dir, payload)
+        log_path.write_text(f"dry-run magic page url: {url}\n", encoding="utf-8")
+        return subprocess.CompletedProcess(["magic-page-publish"], 0, url + "\n", "")
+
+    script = Path(args.magic_page_script or os.environ.get("CYRUS_MAGIC_PAGE_PUBLISHER") or DEFAULT_MAGIC_PAGE_PUBLISHER)
+    if not script.exists():
+        reason = f"Magic Page publisher not found: {script}"
+        payload = {
+            "target": "magic-page",
+            "enabled": True,
+            "ok": False,
+            "dry_run": False,
+            "app_url": "",
+            "doc_url": "",
+            "app_id": "",
+            "base_url": base_url,
+            "reason": reason,
+        }
+        write_magic_page_publish_report(output_dir, payload)
+        write_cloud_publish_report(output_dir, payload)
+        log_path.write_text(reason + "\n", encoding="utf-8")
+        return subprocess.CompletedProcess(["magic-page-publish"], 1, "", reason)
+
+    cmd = ["node", str(script), "publish", str(output_dir / "index.html"), "--title", title, "--base-url", base_url]
+    if args.magic_page_open_source:
+        cmd.append("--open-source")
+    proc = run(cmd, log_path)
+    parsed = parse_magic_page_stdout(proc.stdout)
+    ok = proc.returncode == 0 and bool(parsed["app_url"])
+    payload = {
+        "target": "magic-page",
+        "enabled": True,
+        "ok": ok,
+        "dry_run": False,
+        "app_url": parsed["app_url"],
+        "doc_url": "",
+        "app_id": parsed["app_id"],
+        "base_url": base_url,
+        "urls": parsed["urls"],
+        "reason": "" if ok else (proc.stderr.strip() or proc.stdout.strip() or "publish failed"),
+    }
+    write_magic_page_publish_report(output_dir, payload)
+    write_cloud_publish_report(output_dir, payload)
+    return proc if ok else subprocess.CompletedProcess(cmd, proc.returncode or 1, proc.stdout, proc.stderr)
 
 
 def magic_doc_dry_run(args: argparse.Namespace) -> bool:
@@ -141,6 +402,14 @@ def write_magic_doc_publish_report(output_dir: Path, payload: dict[str, object])
     (output_dir / "MAGIC_DOC_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+def finalize_magic_doc_publish(output_dir: Path, payload: dict[str, object]) -> None:
+    payload.setdefault("target", "magic-doc")
+    payload.setdefault("app_url", "")
+    payload.setdefault("app_id", "")
+    write_magic_doc_publish_report(output_dir, payload)
+    write_cloud_publish_report(output_dir, payload)
+
+
 def run_magic_doc_publish(
     args: argparse.Namespace,
     output_dir: Path,
@@ -150,7 +419,7 @@ def run_magic_doc_publish(
 ) -> subprocess.CompletedProcess[str]:
     if args.no_magic or args.no_magic_doc:
         payload = {"enabled": False, "ok": False, "dry_run": False, "doc_url": "", "doc_token": "", "html_box_block_id": "", "identity": "", "reason": "disabled"}
-        write_magic_doc_publish_report(output_dir, payload)
+        finalize_magic_doc_publish(output_dir, payload)
         log_path.write_text("magic doc publish disabled\n", encoding="utf-8")
         return subprocess.CompletedProcess(["magic-doc-publish"], 0, "", "")
     identity = args.magic_doc_as or os.environ.get("CYRUS_MAGIC_DOC_AS") or "user"
@@ -167,7 +436,7 @@ def run_magic_doc_publish(
             "identity": identity,
             "reason": "dry-run",
         }
-        write_magic_doc_publish_report(output_dir, payload)
+        finalize_magic_doc_publish(output_dir, payload)
         log_path.write_text(f"dry-run magic doc url: {url}\n", encoding="utf-8")
         return subprocess.CompletedProcess(["magic-doc-publish"], 0, url + "\n", "")
 
@@ -175,7 +444,7 @@ def run_magic_doc_publish(
     if not script.exists():
         reason = f"Magic doc creator not found: {script}"
         payload = {"enabled": True, "ok": False, "dry_run": False, "doc_url": "", "doc_token": "", "html_box_block_id": "", "identity": identity, "reason": reason}
-        write_magic_doc_publish_report(output_dir, payload)
+        finalize_magic_doc_publish(output_dir, payload)
         log_path.write_text(reason + "\n", encoding="utf-8")
         return subprocess.CompletedProcess(["magic-doc-publish"], 1, "", reason)
 
@@ -200,10 +469,28 @@ def run_magic_doc_publish(
         "identity": parsed["identity"] or identity,
         "reason": "" if ok else (proc.stderr.strip() or proc.stdout.strip() or "publish failed"),
     }
-    write_magic_doc_publish_report(output_dir, payload)
+    finalize_magic_doc_publish(output_dir, payload)
     return proc if ok else subprocess.CompletedProcess(cmd, proc.returncode or 1, proc.stdout, proc.stderr)
 
+
+def run_cloud_publish(
+    args: argparse.Namespace,
+    output_dir: Path,
+    title: str,
+    task_id: str,
+    log_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    if args.no_magic or args.no_magic_doc or args.publish_target == "none":
+        return cloud_publish_disabled(output_dir, log_path, "disabled")
+    if args.publish_target == "magic-doc":
+        return run_magic_doc_publish(args, output_dir, title, task_id, log_path)
+    return run_magic_page_publish(args, output_dir, title, task_id, log_path)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    publish_default = os.environ.get("CYRUS_PUBLISH_TARGET") or os.environ.get("CYRUS_CLOUD_TARGET") or "magic-page"
+    if publish_default not in {"magic-page", "magic-doc", "none"}:
+        publish_default = "magic-page"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run_dir", type=Path, help="Run directory containing input/outline.json and output/")
     parser.add_argument("--author", default="飞书企业 AI")
@@ -213,16 +500,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-visual", action="store_true", help="Skip Playwright visual audit")
     parser.add_argument("--inline", action="store_true", help="Render final HTML in single-file inline mode")
     parser.add_argument("--offline-cache", action="store_true", help="Skip live Base asset sync and use local package cache")
-    parser.add_argument("--no-magic", action="store_true", help="Legacy alias for --no-magic-doc")
-    parser.add_argument("--magic-dry-run", action="store_true", help="Legacy alias for --magic-doc-dry-run")
-    parser.add_argument("--no-magic-doc", action="store_true", help="Do not publish the final HTML deck into a Feishu Magic Doc")
+    parser.add_argument("--publish-target", default=publish_default, choices=["magic-page", "magic-doc", "none"], help="Cloud delivery target; default is standalone Magic Page")
+    parser.add_argument("--no-magic", action="store_true", help="Legacy alias for --publish-target none")
+    parser.add_argument("--magic-dry-run", action="store_true", help="Legacy alias for the selected Magic publish dry-run")
+    parser.add_argument("--no-magic-doc", action="store_true", help="Legacy alias for --publish-target none")
+    parser.add_argument("--magic-page-dry-run", action="store_true", help="Write a deterministic Magic Page dry-run URL without publishing")
+    parser.add_argument("--magic-page-script", default="", help="Path to publish-magic-page publish.js")
+    parser.add_argument("--magic-page-open-source", action="store_true", help="Mark the published Magic Page as open-source")
+    parser.add_argument("--magic-base-url", default="", help="Magic service base URL; defaults to MAGIC_BASE_URL or built-in service URL")
     parser.add_argument("--magic-doc-dry-run", action="store_true", help="Write a deterministic Feishu Magic Doc dry-run URL without publishing")
     parser.add_argument("--magic-doc-script", default="", help="Path to generate-magic-doc create_magic_doc.mjs")
     parser.add_argument("--magic-doc-token", default="", help="Existing Feishu Docx token to append the HTML Box into")
     parser.add_argument("--magic-doc-as", default="", help="lark-cli identity for document creation/insertion: user or bot")
     parser.add_argument("--magic-doc-summary", default="", help="One-line introduction inserted above the HTML Box")
+    parser.add_argument("--allow-rehearsal-risk", action="store_true", help="Record rehearsal gate failures but do not block cloud publish")
     parser.add_argument("--skip-package", action="store_true")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.no_magic or args.no_magic_doc:
+        args.publish_target = "none"
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -263,7 +559,10 @@ def main(argv: list[str] | None = None) -> int:
             "FEEDBACK.md": feedback_path,
             "audit": audit_path,
             "pitch": rehearsal_md,
-            "magic_doc": output_dir / "MAGIC_DOC_PUBLISH.md",
+            "rehearsal_gate": output_dir / "REHEARSAL_GATE.md",
+            "cloud_publish": output_dir / "CLOUD_PUBLISH.md",
+            "magic_page": output_dir / "MAGIC_PAGE_PUBLISH.md",
+            "magic_doc_legacy": output_dir / "MAGIC_DOC_PUBLISH.md",
             "pipeline": pipeline_report,
         }
 
@@ -318,7 +617,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
         ),
     ]
-    post_publish_commands = [
+    pre_publish_commands = [
         (
             "pitch-rehearsal",
             [
@@ -348,6 +647,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
         ("validate-rehearsal", [sys.executable, str(PITCH_VALIDATOR), str(rehearsal_json)]),
     ]
+    post_publish_commands = []
     if not args.skip_package:
         post_publish_commands.append(
             (
@@ -370,12 +670,32 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{name} failed; see {log_dir / f'{name}.log'}", file=sys.stderr)
             return proc.returncode
 
-    magic_proc = run_magic_doc_publish(args, output_dir, title, run_dir.name, log_dir / "magic-doc-publish.log")
-    steps.append({"name": "magic-doc-publish", "returncode": magic_proc.returncode, "log": log_dir / "magic-doc-publish.log"})
+    for name, cmd in pre_publish_commands:
+        proc = run(cmd, log_dir / f"{name}.log")
+        steps.append({"name": name, "returncode": proc.returncode, "log": log_dir / f"{name}.log"})
+        write_report(pipeline_report, steps, artifacts())
+        if proc.returncode != 0:
+            print(f"{name} failed; see {log_dir / f'{name}.log'}", file=sys.stderr)
+            return proc.returncode
+
+    gate_payload = evaluate_rehearsal_gate(rehearsal_json, outline_path, deck_path)
+    if args.allow_rehearsal_risk:
+        gate_payload["bypassed"] = True
+    write_rehearsal_gate_report(output_dir, gate_payload)
+    gate_rc = 0 if gate_payload.get("ok") or args.allow_rehearsal_risk else 1
+    steps.append({"name": "rehearsal-gate", "returncode": gate_rc, "log": output_dir / "REHEARSAL_GATE.md"})
     write_report(pipeline_report, steps, artifacts())
-    if magic_proc.returncode != 0:
-        print(f"magic-doc-publish failed; see {log_dir / 'magic-doc-publish.log'}", file=sys.stderr)
-        return magic_proc.returncode
+    if gate_rc != 0:
+        print(f"rehearsal-gate failed; see {output_dir / 'REHEARSAL_GATE.md'}", file=sys.stderr)
+        return gate_rc
+
+    publish_log = log_dir / "cloud-publish.log"
+    publish_proc = run_cloud_publish(args, output_dir, title, run_dir.name, publish_log)
+    steps.append({"name": "cloud-publish", "returncode": publish_proc.returncode, "log": publish_log})
+    write_report(pipeline_report, steps, artifacts())
+    if publish_proc.returncode != 0:
+        print(f"cloud-publish failed; see {publish_log}", file=sys.stderr)
+        return publish_proc.returncode
 
     for name, cmd in post_publish_commands:
         proc = run(cmd, log_dir / f"{name}.log")

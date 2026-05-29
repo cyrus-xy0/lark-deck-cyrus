@@ -49,6 +49,11 @@ The design pass must state:
 - page role: cover / agenda / setup / proof / architecture / plan / close.
 - one remembered idea per page.
 - A/B/C/D hierarchy: hero message, supporting proof, chrome/meta, footnote.
+- render form: native framework layout, UI mock, system diagram, iframe/prototype,
+  video/media, or sparse quote/section breath page.
+- motion intent: none, entrance reveal only, state loop, sequence highlight, media
+  restart, or iframe-native interaction. Motion must explain process/state, not
+  decorate the slide.
 - path: DeckJSON schema layout, `layout: raw`, `replica`, or `iframe-embed`.
 - material plan: Base asset query, user-provided source, generated placeholder,
   or explicit missing fact.
@@ -59,6 +64,33 @@ moments, not a wholesale escape hatch. Use it for the individual slide that
 cannot be expressed with DeckJSON layouts; keep the rest of the deck on schema.
 Every raw slide still needs stable `data-slide-key`, source traceability, and
 validator-safe typography.
+
+Render-quality bar: every content slide should feel like a live H5 stage that
+could be presented full-screen, not like a screenshot dump or bullet page. Before
+writing files, confirm these five craft decisions:
+
+1. **Mother-system fit**: dark cinematic canvas, stable wordmark position, one
+   semantic accent, and token-based type/color stay intact.
+2. **Single visual center**: dense slides need one obvious hub (engine, KPI,
+   quote, diagram core, UI surface). If everything is equal, the slide fails.
+3. **Concrete visual container**: prefer product UI, process pipeline, org graph,
+   phone/chat mock, table, chart, video, or iframe prototype over generic cards.
+4. **Rhythm across the deck**: alternate dense proof pages with section / quote /
+   hero pages so the audience gets breathing room.
+5. **Runtime polish**: videos should restart on slide enter, iframe/prototype
+   pages should be full-bleed or intentionally framed, and present/scroll modes
+   must still preserve the 16:9 stage without clipping.
+
+Delivery builds must run visual audit. A cover / hero page with possible text
+overlap is not shippable until a screenshot-backed visual pass confirms it.
+
+For enterprise AI / digital employee / manufacturing decks, check
+`knowledge/recipes/zhongji-innolight-ai-lecture.md` before production. The
+reference quality bar is not "more cards"; it is concrete web-native artifacts:
+dashboard mocks, role workday timelines, AI review panels, anomaly radars, case
+pages with pain/conflict/solution/value, and quote/section breath pages. If the
+outline cannot name at least one of these visual containers for the core story,
+route back to `deck-planner`.
 
 Persist the final design pass into the run as `DESIGN-PLAN.md` once the run is
 created so auditor, simulator, and ingestor can see why each layout path was
@@ -850,14 +882,41 @@ D 档 = 内容载体
 
 **写不出这句话 = Q0-Q4 没答清 = 不要动手。**
 
+#### 渲染质感检查:表现形式 / 动效 / 布局必须各有答案
+
+Q0-Q4 决定"这页想说什么";下面这 4 项决定"它是不是像一张高级 H5
+演示页"。每张新 slide / per-page polish 都要在 design pass 里给出
+一句话答案:
+
+| 检查项 | 必须回答 | 反模式 |
+|---|---|---|
+| **表现形式** | 这页主体是 UI mock / 流程图 / 关系图 / 数据面板 / 视频 / iframe / quote / section 中哪一种? | 只有 3-5 个 bullet + 几张普通卡片 |
+| **视觉中心** | 观众眯眼看时第一个看到什么?复杂页的 hub 是哪个元素? | pipeline / 矩阵 / 卡片全都等权,没有入口 |
+| **动态效果** | 是否需要 reveal / 状态循环 / 顺序高亮 / 媒体重启?它解释了什么状态或过程? | 为了"有高级感"加无意义动画 |
+| **页面节奏** | 前后页是密集证明、章节呼吸、金句收束还是 live demo? | 连续 8 页同一种 2col 卡片密度 |
+
+**强制原则**:
+- 动效只表达**状态、顺序、进行中、进入/离开**四类信息。不要给静态
+  装饰物加漂浮 / 旋转 / 闪烁。
+- 复杂页优先画出**输入 → 处理 → 输出**或**中心 hub → 分支**的骨架;
+  线条 / arrows / tabs 是信息路径,不是装饰。
+- UI / dashboard / chat / phone / table / prototype 应用 HTML/CSS 重建,
+  除非它是照片 / 艺术图 / 已设计完成且用户要求保真的 replica。
+- tab / segmented control / slider / button 等控件如果长得可操作,必须真的
+  可操作。tab 使用 deck runtime 协议:
+  `data-tab-group` 包住 tabs,每个 tab 加 `data-tab-target`,内容面板加
+  `data-tab-panel`;只有纯装饰时才允许 `data-static-tabs` 并写明理由。
+- 高密内容页必须有一个 A 档 visual center;章节页 / quote 页负责留白和
+  节奏,不要把每页都做成同等密度的信息板。
+
 #### 实操:把 5 问写进 design pass table
 
 老版 design pass table 只列 layout 选型,加 1 列 "design intent" 写出 Q0-Q4
 关键判断:
 
-| # | 页 | 角色(Q0) | 唯一重点(Q1) | A 档元素(Q2) | 气质冲突?(Q4) | Layout |
-|---|---|---|---|---|---|---|
-| P0 | 冰红茶 5 剧本墙 | 现象页 | 5 句 slogan | slogan 44 + 引号 80 | ✗ 冲突 → 接受 R-VIS-TIER 作 documented intent | raw + content-3up base |
+| # | 页 | 角色(Q0) | 唯一重点(Q1) | A 档元素(Q2) | 表现 / 动效 / 节奏 | 气质冲突?(Q4) | Layout |
+|---|---|---|---|---|---|---|---|
+| P0 | 冰红茶 5 剧本墙 | 现象页 | 5 句 slogan | slogan 44 + 引号 80 | 剧本墙 / 无循环动效 / 高密 proof | ✗ 冲突 → 接受 R-VIS-TIER 作 documented intent | raw + content-3up base |
 
 用户看到 "现象页 + 5 句 slogan 是 A 档"就立刻明白方案对不对,比看 layout
 名更准。

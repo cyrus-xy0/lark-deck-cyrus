@@ -124,12 +124,13 @@ Endpoints:
 - `GET /recipes/validate`
 - `POST /recipes/plan`
 
-Generated deckhtml is written into a Feishu Magic Doc HTML Box before the user
-sees the preview. `magic_doc_url` / `doc_url` are the user-facing delivery
-links; local HTML and zip files remain internal run artifacts for validation,
-editing, and audit. Ingestion confirmation (`confirm-deck`) runs the final deck
-parser and then the Base/local ingestor using that published document as the
-delivery source.
+Generated deckhtml is published as a standalone Feishu/Miaobi Magic Page before
+the user sees the preview. `magic_page_url` / `cloud_url` / `magic_url` are the
+user-facing delivery links; local HTML and zip files remain internal run
+artifacts for validation, editing, and audit. The legacy Magic Doc HTML Box path
+is used only when `publish_target` is explicitly `magic-doc`. Ingestion
+confirmation (`confirm-deck`) runs the final deck parser and then the Base/local
+ingestor using the published cloud page as the delivery source.
 
 `GET /decks/{id}/edit` is the P1 lightweight web editor. It supports:
 

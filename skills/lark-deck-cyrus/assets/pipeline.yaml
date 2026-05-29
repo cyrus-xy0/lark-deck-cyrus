@@ -172,32 +172,10 @@ stages:
             type: file
 
   - id: S5
-    name: deck 发布
+    name: 预演发布门禁
     human_confirm: false
     tasks:
       - id: T5.1
-        name: 生成 inline 单文件
-        type: script
-        invoke: skills/deck-renderer/deck-json/render-deck.py
-        args: ["{{ deck_json }}", "{{ output_dir }}", "--inline"]
-        condition: "delivery-shape == inline and deck_json != ''"
-      - id: T5.2
-        name: 生成可编辑 zip
-        type: script
-        invoke: skills/deck-renderer/assets/package-deliverable.sh
-        args: ["{{ output_dir }}"]
-        condition: "delivery-shape == editable-zip"
-      - id: T5.3
-        name: 发布到飞书妙笔文档
-        type: skill
-        invoke: generate-magic-doc
-        condition: "auditor_verdict == passed"
-
-  - id: S6
-    name: 预演与迭代
-    human_confirm: true
-    tasks:
-      - id: T6.1
         name: 生成 pitch rehearsal
         type: skill
         invoke: pitch-simulator
@@ -205,7 +183,48 @@ stages:
         produces:
           - path: "runs/{{ timestamp }}/output/pitch-rehearsal.json"
             type: file
+      - id: T5.2
+        name: 执行 rehearsal gate
+        type: script
+        invoke: scripts/run_cyrus_pipeline.py::evaluate_rehearsal_gate
+        condition: "auditor_verdict == passed"
+        exit_on_fail: true
+        produces:
+          - path: "runs/{{ timestamp }}/output/REHEARSAL_GATE.md"
+            type: file
+
+  - id: S6
+    name: deck 发布与迭代
+    human_confirm: true
+    tasks:
+      - id: T6.1
+        name: 生成 inline 单文件
+        type: script
+        invoke: skills/deck-renderer/deck-json/render-deck.py
+        args: ["{{ deck_json }}", "{{ output_dir }}", "--inline"]
+        condition: "delivery-shape == inline and rehearsal_gate == passed and deck_json != ''"
       - id: T6.2
+        name: 发布到飞书妙笔云端 HTML 页面
+        type: skill
+        invoke: publish-magic-page
+        condition: "rehearsal_gate == passed and publish_target in ['', 'magic-page']"
+        produces:
+          - path: "runs/{{ timestamp }}/output/CLOUD_PUBLISH.md"
+            type: file
+          - path: "runs/{{ timestamp }}/output/MAGIC_PAGE_PUBLISH.md"
+            type: file
+      - id: T6.3
+        name: legacy 发布到飞书妙笔文档 HTML Box
+        type: skill
+        invoke: generate-magic-doc
+        condition: "rehearsal_gate == passed and publish_target == 'magic-doc'"
+      - id: T6.4
+        name: 生成可编辑 zip
+        type: script
+        invoke: skills/deck-renderer/assets/package-deliverable.sh
+        args: ["{{ output_dir }}"]
+        condition: "delivery-shape == editable-zip"
+      - id: T6.5
         name: 用户确认是否采用预演改稿
         type: human-confirm
         prompt: "预演建议是否进入下一轮 deck-planner / deck-renderer 迭代?"

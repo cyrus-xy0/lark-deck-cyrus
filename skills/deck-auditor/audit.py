@@ -98,6 +98,202 @@ def talk_readiness(deck_json: Path | None) -> dict[str, Any]:
     }
 
 
+def _walk_text(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        parts: list[str] = []
+        for item in value.values():
+            parts.extend(_walk_text(item))
+        return parts
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            parts.extend(_walk_text(item))
+        return parts
+    return []
+
+
+def _slide_signature(slide: dict[str, Any]) -> str:
+    layout = str(slide.get("layout") or "")
+    variant = str(slide.get("variant") or slide.get("style") or "")
+    data = slide.get("data") if isinstance(slide.get("data"), dict) else {}
+    data_variant = str(data.get("variant") or data.get("type") or "")
+    return f"{layout}/{variant or data_variant}".strip("/")
+
+
+def design_readiness(deck_json: Path | None) -> dict[str, Any]:
+    """Cyrus semantic/visual-readiness gate for high-stakes enterprise AI decks.
+
+    H5 validation catches broken DOM, typography, overflow, and screenshots.
+    It cannot tell whether a manufacturing AI deck is just a rotation of safe
+    card/table/process templates. This gate keeps the Zhongji-style lesson as
+    executable policy: similar decks need concrete scenes and web-native visual
+    anchors before they are considered ready to publish or ingest.
+    """
+    if not deck_json or not deck_json.exists():
+        return {"ok": True, "applied": False, "reason": "deck.json missing; design-readiness gate skipped"}
+
+    deck = read_json(deck_json)
+    slides = [slide for slide in deck.get("slides", []) if isinstance(slide, dict) and not slide.get("_disabled")]
+    text_blob = "\n".join(_walk_text(deck))
+    enterprise_terms = [
+        "中际旭创",
+        "innolight",
+        "npi",
+        "光模块",
+        "高端制造",
+        "制造业",
+        "质量异常",
+        "供应链",
+        "工程师",
+        "数字员工",
+        "agent",
+        "ai",
+    ]
+    signals = [term for term in enterprise_terms if term.lower() in text_blob.lower()]
+    manufacturing_signal = any(term in text_blob.lower() for term in ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "质量异常", "供应链"])
+    ai_signal = any(term in text_blob.lower() for term in ["agent", "ai", "数字员工", "智能体"])
+    applied = manufacturing_signal and ai_signal and len(slides) >= 8
+    if not applied:
+        return {
+            "ok": True,
+            "applied": False,
+            "reason": "enterprise-manufacturing AI signals not strong enough for this specialized gate",
+            "signals": signals,
+        }
+
+    body_slides = [
+        slide
+        for slide in slides
+        if str(slide.get("layout") or "") not in {"cover", "agenda", "end"}
+    ]
+    generic_signatures = {
+        "content/3up",
+        "content/matrix",
+        "content/blocks",
+        "flow/process",
+        "flow/timeline",
+        "stats/row",
+        "table",
+        "arch-stack",
+        "logo-wall",
+    }
+    rich_layouts = {"image-text", "raw", "replica", "iframe-embed"}
+    rich_signatures = {
+        "content/story-case",
+        "content/before-after",
+        "content/2col",
+        "stats/hero",
+        "stats/waterfall",
+        "flow/swim",
+        "flow/tree",
+    }
+    scene_keywords = [
+        "的一天",
+        "案例",
+        "陪练",
+        "仪表盘",
+        "dashboard",
+        "console",
+        "雷达",
+        "demo",
+        "原型",
+        "工作台",
+        "战情室",
+        "复盘助手",
+        "异常闭环",
+        "review panel",
+        "scorecard",
+    ]
+
+    rich_visual_slides: list[str] = []
+    scene_anchor_slides: list[str] = []
+    generic_run = 0
+    max_generic_run = 0
+    signatures: list[str] = []
+    for slide in body_slides:
+        key = str(slide.get("key") or slide.get("slide_key") or "")
+        layout = str(slide.get("layout") or "")
+        signature = _slide_signature(slide)
+        signatures.append(signature)
+        if layout in rich_layouts or signature in rich_signatures:
+            rich_visual_slides.append(key or signature)
+        slide_text = "\n".join(_walk_text(slide)).lower()
+        if any(keyword.lower() in slide_text for keyword in scene_keywords):
+            scene_anchor_slides.append(key or signature)
+        if signature in generic_signatures or layout in generic_signatures:
+            generic_run += 1
+            max_generic_run = max(max_generic_run, generic_run)
+        elif layout in {"section", "quote"}:
+            generic_run = 0
+        else:
+            generic_run = 0
+
+    blockers: list[str] = []
+    if len(rich_visual_slides) < 2:
+        blockers.append("enterprise AI deck needs at least 2 concrete visual-anchor slides: story-case, 2col mock, image-text, iframe/raw prototype, hero stats, swim/tree, or dashboard-like page")
+    if max_generic_run > 3:
+        blockers.append(f"too many consecutive generic schema pages ({max_generic_run}); insert a scene/prototype/case/quote/section breath page")
+    if not scene_anchor_slides:
+        blockers.append("missing a named business scene or artifact: protagonist workday, case, dashboard, radar, prototype, review panel, or anomaly-closure page")
+
+    return {
+        "ok": not blockers,
+        "applied": True,
+        "reason": "ready" if not blockers else "enterprise AI design gate failed",
+        "signals": signals,
+        "slide_count": len(slides),
+        "body_slide_count": len(body_slides),
+        "rich_visual_slides": rich_visual_slides,
+        "scene_anchor_slides": scene_anchor_slides,
+        "max_generic_run": max_generic_run,
+        "signatures": signatures,
+        "blockers": blockers,
+    }
+
+
+def interaction_readiness(deck_json: Path | None) -> dict[str, Any]:
+    """Catch fake controls in generated deck artifacts.
+
+    Visual validation proves a slide is readable, but not that an affordance is
+    honest. If a page draws tabs/segmented controls in a product mock, the H5
+    artifact should either wire them with the runtime data-tab-* contract or
+    explicitly declare them static.
+    """
+    if not deck_json or not deck_json.exists():
+        return {"ok": True, "applied": False, "reason": "deck.json missing; interaction-readiness gate skipped"}
+
+    deck = read_json(deck_json)
+    slides = [slide for slide in deck.get("slides", []) if isinstance(slide, dict) and not slide.get("_disabled")]
+    blockers: list[str] = []
+    inspected: list[str] = []
+    tab_class_re = re.compile(r'class=["\'][^"\']*\b[a-z0-9_-]*tabs?[a-z0-9_-]*\b[^"\']*["\']', re.I)
+    tab_role_re = re.compile(r'role=["\']tab(?:list)?["\']', re.I)
+
+    for slide in slides:
+        key = str(slide.get("key") or slide.get("slide_key") or f"slide-{len(inspected) + 1}")
+        blob = "\n".join(_walk_text(slide))
+        has_tab_shape = len(tab_class_re.findall(blob)) >= 2 or bool(tab_role_re.search(blob))
+        if not has_tab_shape:
+            continue
+        inspected.append(key)
+        lowered = blob.lower()
+        if "data-tab-target" in lowered or "data-static-tabs" in lowered:
+            continue
+        blockers.append(
+            f"{key}: tab-like UI is static; add data-tab-group/data-tab-target/data-tab-panel, or mark data-static-tabs with a reason"
+        )
+
+    return {
+        "ok": not blockers,
+        "applied": bool(inspected),
+        "reason": "ready" if not blockers else "interaction affordance gate failed",
+        "inspected_slides": inspected,
+        "blockers": blockers,
+    }
+
+
 def build_markdown(payload: dict[str, Any]) -> str:
     h5 = payload["h5_checkonly_summary"]
     lines = [
@@ -110,6 +306,8 @@ def build_markdown(payload: dict[str, Any]) -> str:
         f"- flags: {', '.join(h5['flags']) or 'default'}",
         f"- report: `{h5['report_path']}`",
         f"- exit_code: {h5['exit_code']}",
+        f"- visual_requested: {h5.get('visual_requested')}",
+        f"- visual_unavailable: {h5.get('visual_unavailable')}",
         "",
         "## Structure and delivery",
     ]
@@ -123,6 +321,34 @@ def build_markdown(payload: dict[str, Any]) -> str:
         f"- ok: {talk.get('ok')}",
         f"- slide_count: {talk.get('slide_count', 0)}",
         f"- reason: {talk.get('reason') or 'ready'}",
+        "",
+        "## Design readiness",
+        "",
+    ])
+    design = payload.get("design_readiness", {})
+    lines.extend([
+        f"- applied: {design.get('applied')}",
+        f"- ok: {design.get('ok')}",
+        f"- reason: {design.get('reason') or 'ready'}",
+        f"- rich_visual_slides: {len(design.get('rich_visual_slides') or [])}",
+        f"- scene_anchor_slides: {len(design.get('scene_anchor_slides') or [])}",
+        f"- max_generic_run: {design.get('max_generic_run', 0)}",
+    ])
+    for blocker in design.get("blockers") or []:
+        lines.append(f"- design_blocker: {blocker}")
+    interaction = payload.get("interaction_readiness", {})
+    lines.extend([
+        "",
+        "## Interaction readiness",
+        "",
+        f"- applied: {interaction.get('applied')}",
+        f"- ok: {interaction.get('ok')}",
+        f"- reason: {interaction.get('reason') or 'ready'}",
+        f"- inspected_slides: {len(interaction.get('inspected_slides') or [])}",
+    ])
+    for blocker in interaction.get("blockers") or []:
+        lines.append(f"- interaction_blocker: {blocker}")
+    lines.extend([
         "",
         "## Routing",
     ])
@@ -189,6 +415,8 @@ def main(argv: list[str] | None = None) -> int:
     h5_proc = run(cmd, args.log)
     h5_text = h5_report.read_text(encoding="utf-8") if h5_report.exists() else (h5_proc.stdout + h5_proc.stderr)
     errors, warns = parse_h5_counts(h5_text)
+    visual_requested = bool(args.visual and not args.no_visual)
+    visual_unavailable = visual_requested and "visual checks could not run" in h5_text
 
     deck_validation = {"ok": True, "exit_code": 0, "message": ""}
     if deck_json and deck_json.exists():
@@ -203,17 +431,25 @@ def main(argv: list[str] | None = None) -> int:
 
     sidecars = sidecar_status(html, deck_json)
     talk = talk_readiness(deck_json)
+    design = design_readiness(deck_json)
+    interaction = interaction_readiness(deck_json)
     blockers: list[str] = []
     if h5_proc.returncode != 0:
         blockers.append("H5 check-only failed")
+    if visual_unavailable:
+        blockers.append("Visual audit requested but did not run")
     if not deck_validation["ok"]:
         blockers.append("DeckJSON validation failed")
     if deck_json and not talk["ok"]:
         blockers.append("Talk-readiness inspection failed")
+    if deck_json and not design["ok"]:
+        blockers.append("Enterprise AI design-readiness inspection failed")
+    if deck_json and not interaction["ok"]:
+        blockers.append("Interaction affordance inspection failed")
 
-    if h5_proc.returncode == 0 and deck_validation["ok"] and (not deck_json or talk["ok"]):
+    if h5_proc.returncode == 0 and not visual_unavailable and deck_validation["ok"] and (not deck_json or (talk["ok"] and design["ok"] and interaction["ok"])):
         verdict = "pass"
-    elif h5_proc.returncode != 0:
+    elif h5_proc.returncode != 0 or visual_unavailable:
         routing = classify_routing(h5_text)
         verdict = "replan-required" if routing.get("deck-planner") and not routing.get("deck-renderer") else "rerender-required"
     elif not deck_validation["ok"]:
@@ -221,22 +457,37 @@ def main(argv: list[str] | None = None) -> int:
     else:
         verdict = "replan-required"
     routing = classify_routing(h5_text)
+    if not design["ok"]:
+        routing.setdefault("deck-planner", []).append("C-DESIGN-SCENE")
+        routing.setdefault("deck-renderer", []).append("C-DESIGN-VISUAL")
+        routing = {key: sorted(set(value)) for key, value in routing.items() if value}
+    if not interaction["ok"]:
+        routing.setdefault("deck-planner", []).append("C-INTERACTION-AFFORDANCE")
+        routing.setdefault("deck-renderer", []).append("C-INTERACTION-WIRE")
+        routing = {key: sorted(set(value)) for key, value in routing.items() if value}
 
     payload = {
         "h5_checkonly_summary": {
-            "status": "PASS" if h5_proc.returncode == 0 else "FAIL",
+            "status": "PASS" if h5_proc.returncode == 0 and not visual_unavailable else "FAIL",
             "errors": errors,
             "warnings": warns,
             "flags": flags,
             "exit_code": h5_proc.returncode,
             "report_path": str(h5_report),
+            "visual_requested": visual_requested,
+            "visual_unavailable": visual_unavailable,
         },
         "deck_validation": deck_validation,
         "sidecars": sidecars,
         "talk_readiness": talk,
+        "design_readiness": design,
+        "interaction_readiness": interaction,
         "verdict": verdict,
         "blockers": blockers,
-        "warnings": [] if warns == 0 else [f"H5 check-only reported {warns} warning(s)"],
+        "warnings": (
+            ([] if warns == 0 else [f"H5 check-only reported {warns} warning(s)"])
+            + (["Visual audit could not run in this environment"] if visual_unavailable else [])
+        ),
         "routing": routing,
         "reuse_assessment": {
             "knowledge_candidate": verdict == "pass",

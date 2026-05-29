@@ -36,11 +36,12 @@ GENERATOR_PUBLIC_BASE_URL={base_url}
 LARK_LIBRARY_MODE=auto
 LARK_LIBRARY_AS=user
 
-# Feishu Magic Doc delivery. Generated deckhtml is written into a doc HTML Box,
-# and user-facing replies should return the doc link rather than local files.
+# Feishu/Miaobi Magic Page delivery. Generated deckhtml is published as a
+# standalone cloud HTML page; user-facing replies should return the page link.
 MAGIC_BASE_URL=https://magic.solutionsuite.cn
 MAGIC_TOKEN=
 CYRUS_PUBLISH_MAGIC=1
+CYRUS_PUBLISH_TARGET=magic-page
 CYRUS_MAGIC_DRY_RUN=0
 
 # Feishu bot mode.
@@ -109,7 +110,7 @@ cp deploy/cloud-agent/env.example deploy/cloud-agent/.env
 bash deploy/cloud-agent/start-generator.sh
 ```
 
-启动后运行 `bash deploy/cloud-agent/healthcheck.sh` 验证。部署完成后，用户可以直接说“给某客户/主题做一份飞书风格 H5 deck”，agent 调用 `POST /decks`，先停在大纲确认；用户确认后再生成并发布到飞书妙笔文档，把返回的 `magic_doc_url` / `doc_url` 发给用户，不返回本地文件包。
+启动后运行 `bash deploy/cloud-agent/healthcheck.sh` 验证。部署完成后，用户可以直接说“给某客户/主题做一份飞书风格 H5 deck”，agent 调用 `POST /decks`，先停在大纲确认；用户确认后再生成并发布到飞书妙笔云端 HTML 页面，把返回的 `magic_page_url` / `cloud_url` 发给用户，不返回本地文件包。
 
 注意：Slide Library 保持本地；飞书 Base 只写 `知识库` 和 `素材库`。默认优先使用云端 Base,不要求用户配置 token；如果云端 agent 的 `lark-cli` user 身份没有权限,系统会明文提示并回退本地候选库。
 """
@@ -148,7 +149,7 @@ Generated bundle for exposing Cyrus from a user's cloud agent.
 
 - `env.example`: copy to `.env` and fill secrets. Set `LARK_DECK_CYRUS_ROOT`
   if this bundle is copied outside the repository. Set `MAGIC_TOKEN` so
-  generated deckhtml can be published to a Feishu Magic Doc HTML Box.
+  generated deckhtml can be published to a standalone Feishu/Miaobi Magic Page.
 - `start-generator.sh`: starts `server/generator.py serve`.
 - `start-feishu-bot.sh`: starts the Feishu bot listener.
 - `healthcheck.sh`: checks `{base_url}/health`.
@@ -168,9 +169,9 @@ In a second process, after Feishu event auth is configured:
 bash deploy/cloud-agent/start-feishu-bot.sh
 ```
 
-User-facing delivery is the Feishu Magic Doc link (`magic_doc_url` / `doc_url`),
-not local HTML or zip files. Slide Library stays local. `--write-base` writes only
-`知识库` and `素材库`.
+User-facing delivery is the Feishu/Miaobi Magic Page link (`magic_page_url` /
+`cloud_url`), not local HTML or zip files. Slide Library stays local.
+`--write-base` writes only `知识库` and `素材库`.
 """
     write(output / "README.md", readme)
     return {key: str(output / value) for key, value in {
