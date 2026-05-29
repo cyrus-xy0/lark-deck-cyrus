@@ -115,7 +115,7 @@ python3 skills/deck-renderer/deck-json/validate-deck.py path/to/deck.json
 
 当用户问“能不能入库 / 入素材库 / slide-library / ingest / 复用”时,必须使用 `--gate ingest`。
 
-Gate ingest 只看 21 条必修规则,按业务关切分组:
+Gate ingest 只看 22 条必修规则,按业务关切分组:
 
 **A · 客户看不见** —— 投影硬伤
 

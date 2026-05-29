@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create a Cyrus source dossier from uploaded materials.
 
-The recognizer is intentionally conservative: it inventories files, extracts
+The parser is intentionally conservative: it inventories files, extracts
 plain text and provenance where the standard library can do so safely, and
 hands structured knowledge/material/slide layers to planner, renderer, and
 ingestor. It does not decide the final deck outline and does not write Base.
@@ -281,6 +281,7 @@ class SlideHTMLParser(HTMLParser):
         super().__init__()
         self.current_slide: dict[str, Any] | None = None
         self.current_depth = 0
+        self.skip_text_stack: list[str] = []
         self.slides: list[dict[str, Any]] = []
         self.images: list[str] = []
         self.scripts: list[str] = []
@@ -314,6 +315,8 @@ class SlideHTMLParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr = {k: v or "" for k, v in attrs}
         self.collect_asset(tag, attr)
+        if tag in {"style", "script", "svg"}:
+            self.skip_text_stack.append(tag)
         self.handle_slide_start(tag, attr)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -321,6 +324,8 @@ class SlideHTMLParser(HTMLParser):
         self.collect_asset(tag, attr)
 
     def handle_endtag(self, tag: str) -> None:
+        if self.skip_text_stack and tag == self.skip_text_stack[-1]:
+            self.skip_text_stack.pop()
         if self.current_slide is None or tag in VOID_HTML_TAGS:
             return
         self.current_depth -= 1
@@ -341,7 +346,7 @@ class SlideHTMLParser(HTMLParser):
         self.current_depth = 0
 
     def handle_data(self, data: str) -> None:
-        if self.current_slide is None:
+        if self.current_slide is None or self.skip_text_stack:
             return
         text = html.unescape(re.sub(r"\s+", " ", data)).strip()
         if text:
@@ -371,10 +376,19 @@ def inspect_html(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     }
 
 
-def inspect_text(path: Path) -> list[dict[str, Any]]:
+def markdown_image_refs(text: str) -> list[str]:
+    refs = []
+    for match in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", text):
+        ref = match.group(1).strip()
+        if ref:
+            refs.append(ref)
+    return list(dict.fromkeys(refs))
+
+
+def inspect_text(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     text = path.read_text(encoding="utf-8", errors="ignore")
     title = next((line.lstrip("#").strip() for line in text.splitlines() if line.strip()), path.stem)
-    return [{"page": 1, "title": title[:120], "text": text[:5000], "text_items": [text[:5000]]}]
+    return [{"page": 1, "title": title[:120], "text": text[:5000], "text_items": [text[:5000]]}], markdown_image_refs(text)
 
 
 TEXT_SKIP_KEYS = {
@@ -488,7 +502,7 @@ def inventory_path(path: Path) -> dict[str, Any]:
             **base,
             "processing_status": "needs_conversion",
             "slides": [],
-            "warnings": ["Legacy .ppt text extraction is not available in the stdlib recognizer; convert to .pptx or PDF."],
+            "warnings": ["Legacy .ppt text extraction is not available in the stdlib parser; convert to .pptx or PDF."],
         }
     if suffix == ".pdf":
         pages = pdf_page_count(path)
@@ -512,7 +526,8 @@ def inventory_path(path: Path) -> dict[str, Any]:
         slides, media = inspect_json(path)
         return {**base, "slide_count": len(slides), "slides": slides, "media": media}
     if suffix in {".md", ".txt"}:
-        return {**base, "slides": inspect_text(path)}
+        slides, media = inspect_text(path)
+        return {**base, "slides": slides, "media": media}
     if suffix in IMAGE_EXTS:
         return {**base, "material_kind": "image"}
     if suffix in VIDEO_EXTS:
@@ -529,7 +544,7 @@ def inventory_source(source: str) -> dict[str, Any]:
             "type": source_type,
             "exists": True,
             "processing_status": "metadata-only",
-            "warnings": ["URL content was not fetched by the stdlib recognizer; provide an exported file or run the Lark document reader before planning."],
+            "warnings": ["URL content was not fetched by the stdlib parser; provide an exported file or run the Lark document reader before planning."],
         }
     return inventory_path(Path(source))
 
@@ -644,7 +659,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--allow-missing", action="store_true", help="write dossier but exit 0 even when local source files are missing")
     args = ap.parse_args(argv)
 
-    task_id = args.task_id or f"recognizer-{now_slug()}"
+    task_id = args.task_id or f"parser-{now_slug()}"
     out_dir = args.output_dir or (REPO / "runs" / task_id / "output")
     if not out_dir.is_absolute():
         out_dir = REPO / out_dir

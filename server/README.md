@@ -100,7 +100,7 @@ scripts/run-p1-smoke.sh
 Endpoints:
 
 - `GET /health`
-- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ... }`, or `{ "brief": ..., "sources": [...] }` creates an outline-confirmation task by default. When sources/attachments are present, the server runs `upload-recognizer` first and writes a temporary `input/runtime-library/` for this run. Call `POST /decks/{id}/confirm-outline` after user confirmation; non-interactive tests must pass both `{ "auto_confirm_outline": true, "allow_skip_outline_confirmation": true }` if they intentionally skip the gate.
+- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ... }`, or `{ "brief": ..., "sources": [...] }` creates an outline-confirmation task by default. When sources/attachments are present, the server runs `upload-parser` first and writes a temporary `input/runtime-library/` for this run. Call `POST /decks/{id}/confirm-outline` after user confirmation; non-interactive tests must pass both `{ "auto_confirm_outline": true, "allow_skip_outline_confirmation": true }` if they intentionally skip the gate.
 - `GET /decks/{id}`
 - `GET /decks/{id}/status`
 - `GET /decks/{id}/edit`
@@ -209,7 +209,7 @@ python3 server/slide_library.py register-ppt path/to/team-slides.pptx \
 ```
 
 Without `--page`, all PPTX pages are registered. These records are placeholders
-for search/selection; selected pages still need recognizer/renderer work before
+for search/selection; selected pages still need parser/renderer work before
 they become polished H5 slides. PPTX text is used to generate local SVG
 thumbnails under `library/business/thumbnails/uploads/`; legacy `.ppt` files get
 a review placeholder thumbnail with source metadata.

@@ -3,8 +3,8 @@
 
 This is the deterministic "after user confirms outline" path:
 
-  preflight -> compile outline -> render HTML -> strict audit -> pitch rehearsal
-  -> publish standalone Feishu/Miaobi Magic Page
+  preflight -> compile outline -> materialize Feishu assets -> render HTML
+  -> strict audit -> pitch rehearsal -> publish standalone Feishu/Miaobi Magic Page
   -> package editable zip
   -> PIPELINE_REPORT.md
 
@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -29,6 +30,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PREFLIGHT = REPO / "skills/deck-renderer/assets/preflight.sh"
 COMPILE_OUTLINE = REPO / "skills/deck-renderer/deck-json/compile-outline.py"
+MATERIALIZE_ASSETS = REPO / "skills/deck-renderer/deck-json/materialize-feishu-assets.py"
 RENDER_DECK = REPO / "skills/deck-renderer/deck-json/render-deck.py"
 AUDITOR = REPO / "skills/deck-auditor/audit.py"
 PITCH_SIMULATOR = REPO / "skills/pitch-simulator/simulate-pitch.py"
@@ -148,16 +150,30 @@ def _walk_text(value: object) -> list[str]:
     return []
 
 
+def _matches_signal(text_lower: str, term: str) -> bool:
+    needle = term.lower()
+    if re.fullmatch(r"[a-z0-9][a-z0-9+-]*", needle):
+        return re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", text_lower) is not None
+    return needle in text_lower
+
+
+def _signal_hits(text_lower: str, terms: list[str]) -> list[str]:
+    return [term for term in terms if _matches_signal(text_lower, term)]
+
+
 def rehearsal_gate_context(outline_path: Path, deck_path: Path) -> tuple[bool, list[str]]:
     text = ""
     for path in [outline_path, deck_path]:
         if path.exists():
             text += "\n" + "\n".join(_walk_text(read_json(path)))
     lower = text.lower()
-    manufacturing_terms = ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "质量异常", "供应链"]
-    ai_terms = ["agent", "ai", "数字员工", "智能体"]
-    signals = [term for term in manufacturing_terms + ai_terms if term.lower() in lower]
-    return any(term.lower() in lower for term in manufacturing_terms) and any(term.lower() in lower for term in ai_terms), signals
+    manufacturing_core_terms = ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "工厂", "产线", "车间", "良率", "mes", "plm"]
+    manufacturing_context_terms = ["质量异常", "供应链", "工程师"]
+    ai_terms = ["agent", "agents", "ai", "aigc", "genai", "llm", "数字员工", "智能体", "大模型", "人工智能"]
+    manufacturing_hits = _signal_hits(lower, manufacturing_core_terms)
+    manufacturing_context_hits = _signal_hits(lower, manufacturing_context_terms)
+    ai_hits = _signal_hits(lower, ai_terms)
+    return bool(manufacturing_hits and ai_hits), manufacturing_hits + manufacturing_context_hits + ai_hits
 
 
 def evaluate_rehearsal_gate(rehearsal_path: Path, outline_path: Path, deck_path: Path) -> dict[str, object]:
@@ -536,6 +552,18 @@ def main(argv: list[str] | None = None) -> int:
     rehearsal_json = output_dir / "pitch-rehearsal.json"
     rehearsal_md = output_dir / "PITCH_REHEARSAL.md"
     pipeline_report = output_dir / "PIPELINE_REPORT.md"
+    source_dossier = next(
+        (
+            path
+            for path in [
+                input_dir / "runtime-library" / "source-dossier.json",
+                input_dir / "source-dossier.json",
+                output_dir / "source-dossier.json",
+            ]
+            if path.exists()
+        ),
+        None,
+    )
 
     if not outline_path.exists():
         print(f"outline not found: {outline_path}", file=sys.stderr)
@@ -564,7 +592,22 @@ def main(argv: list[str] | None = None) -> int:
             "magic_page": output_dir / "MAGIC_PAGE_PUBLISH.md",
             "magic_doc_legacy": output_dir / "MAGIC_DOC_PUBLISH.md",
             "pipeline": pipeline_report,
+            "asset_materialization": output_dir / "ASSET_MATERIALIZATION.md",
         }
+
+    materialize_cmd = [
+        sys.executable,
+        str(MATERIALIZE_ASSETS),
+        str(deck_path),
+        str(output_dir),
+        "--report",
+        str(log_dir / "asset-materialization.json"),
+        "--markdown",
+        str(output_dir / "ASSET_MATERIALIZATION.md"),
+        "--fail-on-unresolved",
+    ]
+    if source_dossier:
+        materialize_cmd.extend(["--source-dossier", str(source_dossier)])
 
     commands = [
         ("preflight", ["bash", str(PREFLIGHT)]),
@@ -587,6 +630,7 @@ def main(argv: list[str] | None = None) -> int:
                 customer_slug,
             ],
         ),
+        ("materialize-assets", materialize_cmd),
         (
             "render",
             [

@@ -5,7 +5,7 @@ description: |
   an approved outline, deck.json, source material, or existing deck needs to be
   compiled into DeckJSON, rendered to HTML, edited, converted, packaged, or
   delivered with index.html/texts.md/FEEDBACK.md assets. It consumes approved
-  outlines plus source/material layers from upload-recognizer. It owns production
+  outlines plus source/material layers from upload-parser. It owns production
   mechanics and validation tooling, but user-facing quality acceptance belongs
   to deck-auditor, customer-reaction rehearsal belongs to pitch-simulator, and
   cloud ingestion belongs to deck-ingestor.
@@ -92,7 +92,7 @@ pages with pain/conflict/solution/value, and quote/section breath pages. If the
 outline cannot name at least one of these visual containers for the core story,
 route back to `deck-planner`.
 
-Persist the final design pass into the run as `DESIGN-PLAN.md` once the run is
+Persist the final design pass into the run as `DESIGN_PLAN.md` once the run is
 created so auditor, simulator, and ingestor can see why each layout path was
 chosen.
 
@@ -163,7 +163,7 @@ Differences from default mode:
 
 | Aspect | Default | `--gate ingest` |
 |---|---|---|
-| Rules checked | 全部 (~40 条) | 21 条必修 (业务关切 A/B/C) |
+| Rules checked | 全部 (~40 条) | 22 条必修 (业务关切 A/B/C) |
 | Warns | 不阻塞 | 全部升级为 error |
 | Visual audits | `--visual` 开启才跑 | **自动开启** |
 | Report 分组 | 按 family (技术视角) | 按业务关切 A/B/C (业务视角) |
@@ -172,12 +172,13 @@ Differences from default mode:
 | 出口码 | exit 1 if any error | exit 1 if any 必修违规 |
 | 用途 | review-style 看 deck 卫生 | **deck-ingestor 自动调** |
 
-#### 21 条必修规则 (按业务关切分组)
+#### 22 条必修规则 (按业务关切分组)
 
 > 全部规则的业务文案 (症状 / 不修后果 / 修改步骤) 在
 > `assets/business-rules.yaml`. 非工程师可直接 PR 改文案.
 
-**A · 客户看不见 (5 条)** —— 投影上的硬伤
+**A · 客户看不见 (6 条)** —— 投影上的硬伤
+- `R-VISUAL` 视觉审计没有真正跑起来
 - `R-OVERFLOW` 内容超出 1920×1080 画框
 - `R06` 正文字号 < 24px
 - `R-WHITE-TEXT` 文字色融背景
@@ -459,6 +460,23 @@ The compiler preserves slide keys, maps `layout_candidate` to the closest valid
 DeckJSON layout / variant, keeps evidence and risk flags in non-rendered notes,
 and surfaces asset / claim gaps in the report. It is a first-pass compiler, not
 a substitute for confirming real customer assets through the asset workflow.
+
+Before rendering, materialize Feishu / Lark file URLs into local deck assets.
+Authenticated file links are not portable delivery URLs; if DeckJSON contains
+`https://feishu.cn/file/...`, `https://*.larkoffice.com/file/...`, or
+`https://*.larksuite.com/file/...`, run:
+
+```bash
+python3 skills/deck-renderer/deck-json/materialize-feishu-assets.py \
+  runs/<ts>/output/deck.json \
+  runs/<ts>/output \
+  --source-dossier runs/<ts>/input/runtime-library/source-dossier.json \
+  --fail-on-unresolved
+```
+
+This rewrites DeckJSON references to `assets/source-media/*` before
+`render-deck.py`; unresolved Feishu file URLs should block final render instead
+of silently producing missing素材.
 
 If no outline exists yet, produce a design plan per DESIGN-FIRST POLICY before
 touching files. If the user explicitly asks for "not just a demo", the deck arc

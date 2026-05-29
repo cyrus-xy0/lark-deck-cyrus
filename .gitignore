@@ -25,6 +25,7 @@ uploads/
 thumbs/
 thmx_unpacked/
 screenshots/
+tmp/
 *.thmx
 
 # Per-invocation outputs from new-run.sh / render.py — regenerable, and

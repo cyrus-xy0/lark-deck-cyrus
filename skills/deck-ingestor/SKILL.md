@@ -19,12 +19,12 @@ description: |
 
 分三类沉淀,不要混成一个大记录:
 
-- **知识库 records**:场景、客户/行业、主张、证据、案例、talk track、异议、风险、来源;显式 `--write-base` 时可写入飞书 Base。
-- **素材库 records**:图片、logo、icon、截图、demo、附件、页面渲染图、可复用 HTML 片段;显式 `--write-base` 时可写入飞书 Base。
+- **知识库 records**:场景、客户/行业、主张、证据、案例、talk track、异议、风险、来源;显式 `--write-base` 时可写入飞书 Base,供 planner 复用。
+- **素材库 records**:图片、logo、icon、截图、demo、附件、页面渲染图、可复用 HTML 片段、DeckJSON 片段和组件类条目;显式 `--write-base` 时可写入飞书 Base,供 renderer 复用。
 - **Slide 库 records**:slide key、layout、DeckJSON fragment、HTML fragment、thumbnail、文本摘要、标签、来源 deck;当前只写本地候选库。
 
-Slide Library 的含义不是把所有东西塞进第三张表。`知识库` 表达这页“怎么讲”,
-`素材库` 表达这页“怎么呈现”;当前先不建云端 Slide 表,本地 Slide 候选库只保存
+Slide Library 的含义不是把所有东西塞进云端整页表。`知识库` 表达这页“怎么讲”,
+`素材库` 表达这页“怎么呈现”;组件类能力通过 `素材类别`、`组件Key`、`DeckJSON引用Key` 和 `调用示例` 写在素材库里。当前先不建云端 Slide 表,本地 Slide 候选库只保存
 整页可选复用单元,并通过 slide key / source deck / source ppt 追溯到后续可拆出的
 知识与素材。
 
@@ -32,7 +32,7 @@ Slide Library 的含义不是把所有东西塞进第三张表。`知识库` 表
 
 - 上传 HTML deck 入库:必须先走 `deck-auditor`;通过才入 slide / 素材库,失败只返回失败理由。
 - 新生成 deck 入库:标准链路是 `deck-renderer -> deck-auditor -> 妙笔发布 -> pitch-simulator -> 用户确认不改稿 -> 用户确认入库 -> 最终 deckhtml 解析 -> deck-ingestor`。
-- brief + 素材场景:优先读取 `upload-recognizer` 的 source dossier,再结合 `deck.json`、`FEEDBACK.md`、audit report 和 rehearsal report。
+- brief + 素材场景:优先读取 `upload-parser` 的 source dossier,再结合 `deck.json`、`FEEDBACK.md`、audit report 和 rehearsal report。
 - 涉及客户真实数据、商标、截图、内部文档时,必须保留来源和权限状态;不确定就标为 `needs_review`。
 
 ## 输出
@@ -68,7 +68,7 @@ python3 skills/deck-ingestor/ingest.py \
 
 默认会读取 `runs/<task-id>/output/deck.json`,把可复用的非封面/封底页写入本地候选库,并在同一 run 输出 `ingestion-manifest.json` 和 `INGESTION_REPORT.md`。只入指定页时重复传 `--slide-key <key>`。
 
-用户确认入库后,总控使用已发布的妙笔 deckhtml 作为最终交付入口,再调用 recognizer 解析最终 deckhtml,随后默认带 `--write-base` 同步飞书 Base;这会调用 `scripts/base_library.py create-knowledge` 写入知识库,调用 `create-asset-record` 把每页 DeckJSON fragment 作为素材元数据写入素材库。Slide Library 暂时只保存在本地候选库,不会写云端 Slide 表。默认使用当前沙箱 agent 的 user 身份和仓库配置的 Base,不要要求用户配置 token。没有 live Base 权限时必须明文失败并由总控回退本地候选库,不能伪造云端记录:
+用户确认入库后,总控使用已发布的妙笔 deckhtml 作为最终交付入口,再调用 parser 解析最终 deckhtml,随后默认带 `--write-base` 同步飞书 Base;这会调用 `scripts/base_library.py create-knowledge` 写入知识库,调用 `create-asset-record` 把每页 DeckJSON fragment 作为素材元数据写入素材库。Slide Library 暂时只保存在本地候选库,不会写云端 Slide 表。默认使用当前沙箱 agent 的 user 身份和仓库配置的 Base,不要要求用户配置 token。没有 live Base 权限时必须明文失败并由总控回退本地候选库,不能伪造云端记录:
 
 ```bash
 python3 skills/deck-ingestor/ingest.py \
@@ -78,10 +78,10 @@ python3 skills/deck-ingestor/ingest.py \
 ```
 
 调试 Base 字段映射时可用 `--dry-run-base`,只打印将写入的 JSON,不访问 live Base。
-Base 字段映射必须保留知识/素材关系:目标表有 `关联SlideKey`、`关联素材ID`、
-`关联知识ID`、`来源Deck`、`来源PPT`、`来源页码` 和 `权限状态` 时优先写这些
-显式字段;若当前 Base 表暂缺字段,则把同一关系降级写入 `适用页面`、`来源` 和
-`标签`。这样 Slide Library 虽然不建云端 Slide 表,仍能由“讲什么”的知识记录和
+Base 字段映射必须保留 planner / renderer 关系:知识记录优先写 `适用场景ID`、
+`Brief关键词`、`关联素材ID`、`证据/来源` 和 `标签`;素材记录优先写
+`DeckJSON引用Key`、`组件Key`、`Renderer加载方式`、`HTML渲染方式`、`适用场景ID`
+和 `标签`。这样 Slide Library 虽然不建云端 Slide 表,仍能由“讲什么”的知识记录和
 “怎么呈现”的素材记录联合表达。
 
 用户直接上传一份想作为 Slide Library 自选来源的 PPT/PPTX 时,可以先登记为
@@ -99,7 +99,7 @@ python3 skills/deck-ingestor/ingest.py \
 
 不传 `--ppt-page` 时默认登记全部页。该模式会在本地 Slide 候选库生成
 `replica` 占位记录和本地 SVG 缩略图,标记 `needs_review`;即使加 `--write-base`,PPT 自选登记也不写 Base,
-要等 `upload-recognizer` / `deck-renderer` 把选中页拆出知识与素材后,再同步这两类记录。
+要等 `upload-parser` / `deck-renderer` 把选中页拆出知识与素材后,再同步这两类记录。
 
 ## 工作流
 

@@ -474,6 +474,8 @@ def main():
             for name in filenames:
                 f = Path(dirpath) / name
                 rel = str(f.relative_to(out_dir))
+                if rel.startswith("assets/source-media/"):
+                    continue
                 if rel not in referenced:
                     pruned += 1
                     pruned_bytes += f.stat().st_size

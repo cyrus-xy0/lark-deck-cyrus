@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import sys
 import os
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "server"))
 os.environ.setdefault("CYRUS_MAGIC_DRY_RUN", "1")
+os.environ.setdefault("GENERATOR_VISUAL_AUDIT", "0")
 
 import generator  # noqa: E402
 import slide_library  # noqa: E402
@@ -21,11 +23,42 @@ def has_error(issues: list[dict[str, str]]) -> bool:
     return any(issue.get("severity") == "error" for issue in issues)
 
 
+def assert_candidate_duplicate_rule() -> bool:
+    seed = slide_library.load_business_entries(include_candidates=False)[0]
+    seen_ids: set[str] = set()
+    seen_approved_slide_keys: set[str] = set()
+    seen_candidate_slide_refs: set[str] = set()
+    seen_candidate_slide_keys: set[str] = set()
+    entries = []
+    for idx, deck_ref in enumerate(["runs/a/output/deck.json", "runs/b/output/deck.json"], start=1):
+        row = copy.deepcopy(seed)
+        row["id"] = f"candidate-duplicate-rule-{idx}"
+        row["status"] = "candidate"
+        row["source"]["level"] = "internal-draft"
+        row["source"]["deck"] = deck_ref
+        row["source"]["slide_key"] = "shared-semantic-key"
+        row["slide"]["key"] = "shared-semantic-key"
+        entries.append(row)
+    issues = []
+    for row in entries:
+        issues.extend(slide_library.validate_entry(
+            row,
+            seen_ids=seen_ids,
+            seen_slide_keys=seen_approved_slide_keys,
+            seen_candidate_slide_refs=seen_candidate_slide_refs,
+            seen_candidate_slide_keys=seen_candidate_slide_keys,
+        ))
+    return not any(issue.get("severity") == "error" for issue in issues)
+
+
 def main() -> int:
     gate = slide_library.validate_library(include_candidates=False)
     if not gate["ok"] or gate["entries"] < 15:
         print("slide library gate failed or seed library is too small", file=sys.stderr)
         print(gate, file=sys.stderr)
+        return 1
+    if not assert_candidate_duplicate_rule():
+        print("candidate duplicate slide-key rule rejected cross-source candidates", file=sys.stderr)
         return 1
 
     rows = slide_library.search_slides(query="飞书", industry="消费零售", limit=5)

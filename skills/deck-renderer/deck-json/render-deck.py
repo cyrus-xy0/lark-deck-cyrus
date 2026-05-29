@@ -333,6 +333,8 @@ def _build_data_attrs(slide: dict) -> str:
         parts.append(f'data-title-style="{_esc_br(slide["title_style"])}"')
     if slide.get("logo_position"):
         parts.append(f'data-logo-position="{_esc_br(slide["logo_position"])}"')
+    if slide.get("motion_policy"):
+        parts.append(f'data-motion-policy="{_esc_br(slide["motion_policy"])}"')
     if slide.get("layout") == "cover":
         cover_style = slide.get("variant") if slide.get("variant") in {"plain", "master"} else "master"
         parts.append(f'data-cover-style="{_esc_br(cover_style)}"')
@@ -1381,6 +1383,15 @@ def _enrich_iframe_embed(ctx, slide):
     # iframe_title defaults to data.title for a11y
     if not ctx.get("iframe_title"):
         ctx["iframe_title"] = ctx.get("title", "")
+    prototype_attrs = []
+    for key, attr in [
+        ("prototype_kind", "data-prototype-kind"),
+        ("interaction", "data-prototype-interaction"),
+    ]:
+        value = (ctx.get(key) or "").strip() if isinstance(ctx.get(key), str) else ctx.get(key)
+        if value:
+            prototype_attrs.append(f'{attr}="{_esc_br(str(value))}"')
+    ctx["prototype_attrs"] = (" " + " ".join(prototype_attrs)) if prototype_attrs else ""
     # hint pill is optional — omit / empty → no pill
     hint = (ctx.get("hint") or "").strip()
     if hint:

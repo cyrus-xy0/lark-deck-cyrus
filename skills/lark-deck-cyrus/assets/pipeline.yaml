@@ -7,7 +7,7 @@ version: "1.0.0"
 description: 飞书 / Lark HTML Deck 全流程治理 - 从 brief / 上传物到 H5 交付与复用入库
 
 depends:
-  - skill: upload-recognizer
+  - skill: upload-parser
     required: false
   - skill: deck-planner
     required: true
@@ -80,22 +80,22 @@ stages:
         decision: entry-scenario
         options: [audit-existing-html, brief-only-new-deck, brief-plus-materials]
       - id: T0.2
-        name: 判断是否需要上传识别
+        name: 判断是否需要上传解析
         type: agent-decision
-        decision: recognizer-needed
+        decision: parser-needed
         options: [yes, no]
 
   - id: S1
-    name: 上传识别
+    name: 上传解析
     human_confirm: false
     condition: "entry-scenario == brief-plus-materials"
     tasks:
       - id: T1.1
         name: 生成 source dossier
         type: skill
-        invoke: upload-recognizer
+        invoke: upload-parser
         produces:
-          - path: "runs/{{ timestamp }}/input/source-dossier.json"
+          - path: "runs/{{ timestamp }}/input/runtime-library/source-dossier.json"
             type: file
 
   - id: S2
@@ -145,6 +145,15 @@ stages:
           - path: "runs/{{ timestamp }}/output/deck.json"
             type: file
       - id: T3.4
+        name: 落地飞书文件素材
+        type: script
+        invoke: skills/deck-renderer/deck-json/materialize-feishu-assets.py
+        args: ["{{ deck_json }}", "{{ output_dir }}", "--source-dossier", "{{ source_dossier }}", "--fail-on-unresolved"]
+        produces:
+          - path: "runs/{{ timestamp }}/output/assets/source-media/"
+            type: directory
+        condition: "deck_json != ''"
+      - id: T3.5
         name: 渲染 H5 deck
         type: script
         invoke: skills/deck-renderer/deck-json/render-deck.py
@@ -254,8 +263,8 @@ stages:
 extension_points:
   - id: EP-PDF
     stage: S1
-    description: "PDF / PPT 解析可由 upload-recognizer 的专用实现接管"
-    candidate_skills: [upload-recognizer]
+    description: "PDF / PPT 解析可由 upload-parser 的专用实现接管"
+    candidate_skills: [upload-parser]
   - id: EP-EXPORT
     stage: S5
     description: "需要 PDF / PPTX / URL 时在交付层扩展,不绕过 H5 validator"

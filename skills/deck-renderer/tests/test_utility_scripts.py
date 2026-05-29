@@ -28,7 +28,7 @@ class UtilityScriptTests(unittest.TestCase):
             src.write_text(
                 """<!doctype html>
 <html><head><link rel="stylesheet" href="assets/deck.css"></head>
-<body><img src="assets/logo.png"><script src="assets/deck.js"></script></body></html>
+<body><img src="assets/logo.png"><div style="background-image:url('assets/logo.png')"></div><script src="assets/deck.js"></script></body></html>
 """,
                 encoding="utf-8",
             )
@@ -46,7 +46,9 @@ class UtilityScriptTests(unittest.TestCase):
             self.assertIn('<script data-source="framework"', html)
             self.assertNotIn('href="assets/deck.css"', html)
             self.assertNotIn('src="assets/deck.js"', html)
-            self.assertGreaterEqual(html.count("data:image/png;base64,"), 2)
+            self.assertNotIn('style="background-image:url("data:image/png;base64,', html)
+            self.assertIn('style="background-image:url(\'data:image/png;base64,', html)
+            self.assertGreaterEqual(html.count("data:image/png;base64,"), 3)
 
     def test_deck_edit_sets_text_leaf(self) -> None:
         with tempfile.TemporaryDirectory(prefix="deck-edit-test-") as td:

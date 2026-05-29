@@ -35,7 +35,7 @@
     "defaultPrompt": [
       "Use lark-deck-cyrus to create a customer pitch deck.",
       "Use deck-auditor to check whether this H5 deck is ready.",
-      "Use upload-recognizer to decompose this PDF/PPT/HTML source material.",
+      "Use upload-parser to decompose this PDF/PPT/HTML source material.",
       "Use pitch-simulator to rehearse this deck with the audience.",
       "Use deck-ingestor to save approved slides, assets, and knowledge to the cloud library."
     ]

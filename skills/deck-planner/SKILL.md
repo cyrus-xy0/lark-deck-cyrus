@@ -3,7 +3,7 @@ name: deck-planner
 description: |
   Use this skill when the user asks for a deck plan, outline, proposal structure,
   sales narrative, 客户提案大纲, 汇报材料规划, 每页重点, 讲法设计, or gives a
-  raw business brief that should become a pitch deck, or when upload-recognizer
+  raw business brief that should become a pitch deck, or when upload-parser
   has produced a source dossier from PDF/PPT/HTML/Feishu docs. The skill decides
   what the deck should say, what each page should emphasize, what the key ideas
   are, how the presenter should tell the story, and what evidence or assets are
@@ -31,13 +31,13 @@ description: |
 - 一段业务 brief / 客户需求 / 销售场景
 - 目标受众、行业、客户名、产品范围
 - 用户提供的素材、文档、飞书链接、图片、视频或 demo 链接
-- `upload-recognizer` 输出的 source dossier:知识层、素材层、slide inventory、来源和置信度
+- `upload-parser` 输出的 source dossier:知识层、素材层、slide inventory、来源和置信度
 - 已有 outline,需要升级为更专业的 deck 规划
 
 ## 输入模式
 
-- **Brief-only:**用户只有纯文字 brief。直接读取知识库和本地 recipe 生成 outline,不要先调用 `pitch-simulator`。
-- **Brief + materials:**用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo。必须先消费 `upload-recognizer` 的结构化结果,再生成 outline。
+- **Brief-only:**用户只有纯文字 brief。先读取场景索引和 Outline 模板,再结合知识库和本地 recipe 生成 outline,不要先调用 `pitch-simulator`。
+- **Brief + materials:**用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo。必须先消费 `upload-parser` 的结构化结果,再生成 outline。
 - **HTML deck 检查 / 入库:**不要调用本 skill;直接走 `deck-auditor`,通过后走 `deck-ingestor`。
 
 ## 输出
@@ -58,7 +58,7 @@ python3 skills/deck-planner/validate-outline.py \
 - `thesis`:一句话主张、痛点、解法角度、差异化。
 - `outline.slides[]`:每页 key、角色、核心信息、关键 idea、建议讲法、候选 DeckJSON layout、素材需求。
 - `asset_plan`:图片、视频、icon、logo、demo 等素材请求和兜底。
-- `source_dossier_refs`:使用了哪些上传识别结果,包括文件名、页码、slide key、素材 id 或引用路径。
+- `source_dossier_refs`:使用了哪些上传解析结果,包括文件名、页码、slide key、素材 id 或引用路径。
 - `claim_discipline`:哪些判断是用户给的,哪些只是推断,哪些必须确认。
 
 ## 工作流
@@ -73,11 +73,12 @@ python3 skills/deck-planner/validate-outline.py \
    - 这份 deck 要让对方做什么决定?
    - 成功指标是什么:约会、立项、预算、内部 alignment、产品试用、复盘通过?
 
-3. **读取知识库**
-   - 默认通过仓库根目录的 `python3 scripts/base_library.py search-knowledge "<关键词>" --limit 10` 检索。
-   - 默认优先查 live Feishu Base 的 `知识库`;使用当前沙箱 agent 的 user 身份,不要要求用户配置 token。若 lark-cli 身份无权限、网络不可达或云端未命中,再回退随包 `knowledge/` 本地知识,并在输出中明文说明。
+3. **读取 planner 检索链**
+   - Brief 很短时,先通过仓库根目录的 `python3 scripts/base_library.py search-scenarios "<关键词>" --limit 10` 找相似场景,再用 `python3 scripts/base_library.py search-outline-templates "<关键词>" --limit 10` 找可复用页序。
+   - 再通过 `python3 scripts/base_library.py search-knowledge "<关键词>" --limit 10` 检索原子知识,把场景、模板和知识合并成 outline;不要把历史 pitch 原文当成素材保存或复述。
+   - 默认优先查 live Feishu Base 的 `场景索引`、`Outline模板库`、`知识库`;使用当前沙箱 agent 的 user 身份,不要要求用户配置 token。若 lark-cli 身份无权限、网络不可达或云端未命中,再回退随包 `knowledge/` 本地知识,并在输出中明文说明。
    - 根据行业、飞书产品、客户名分别搜索;客户故事只使用用户提供、公开来源、live Base 授权记录或本地明确标注的素材。
-   - 如果存在 `upload-recognizer` 结果,把其中的知识层当作用户提供素材,优先级高于通用知识库,但仍要保留来源和置信度。
+   - 如果存在 `upload-parser` 结果,把其中的知识层当作用户提供素材,优先级高于通用知识库,但仍要保留来源和置信度。
    - 没有知识就暴露缺口,不要编。
    - 企业 AI / 数字员工 / 制造业知识萃取 / 高管讲座类 deck,必须读取
      `knowledge/recipes/zhongji-innolight-ai-lecture.md`,并把其中的
@@ -127,7 +128,7 @@ python3 skills/deck-planner/validate-outline.py \
    - logo/icon/demo 先查统一入口: `python3 scripts/base_library.py search-assets "<关键词>" --limit 20`。
    - 默认优先查云端 `素材库`;云端不可用或无权限时才读取 `assets/shared/asset-index.generated.json`,并明文提示已回退本地缓存。
    - 现场图片、客户截图、真实 demo 优先用户提供。
-   - `upload-recognizer` 的素材层可直接进入 `asset_plan`,但 planner 只引用素材,不移动文件、不上传云端库。
+   - `upload-parser` 的素材层可直接进入 `asset_plan`,但 planner 只引用素材,不移动文件、不上传云端库。
    - 找不到素材时明确 fallback,不要让模型临时画商标或伪造客户现场。
 
 ## 硬规则
@@ -146,9 +147,9 @@ python3 skills/deck-planner/validate-outline.py \
 
 ## Renderer handoff
 
-用户确认 outline 后才允许 handoff;确认前只交付 outline / OUTLINE_REVIEW,不生成 deckhtml:
+用户确认 outline 后才允许 handoff;确认前只交付单一用户可见确认稿 `DESIGN_PLAN.md`,不生成 deckhtml。`input/outline.json` 是给 renderer / simulator 消费的机器契约,不要作为重复用户产物暴露:
 
-1. 把 outline JSON 放进本次 run 的 `input/` 或 `output/`。
+1. 把 outline JSON 放进本次 run 的 `input/outline.json`。
 2. 调用 `deck-renderer` 的 DeckJSON-first 流程。
 3. 根据 `outline.slides[].layout_candidate` 写 `deck.json`。
 4. 根据 `asset_plan` 和 `source_dossier_refs` 解析素材;缺素材时用 open question 或安全兜底。

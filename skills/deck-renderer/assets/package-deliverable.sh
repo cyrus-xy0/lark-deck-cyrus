@@ -101,7 +101,7 @@ fi
 # Include source and handoff metadata when present. These files make the zip
 # useful as an editable source package, not just a text patch kit.
 OPTIONAL_FILES=()
-for f in deck.json FEEDBACK.md AUDIT_REPORT.md audit-report.json H5_CHECKONLY_REPORT.md assets-manifest.yaml journey.json JOURNEY.md quality-insights.json pitch-rehearsal.json PITCH_REHEARSAL.md; do
+for f in deck.json FEEDBACK.md ASSET_MATERIALIZATION.md AUDIT_REPORT.md audit-report.json H5_CHECKONLY_REPORT.md assets-manifest.yaml journey.json JOURNEY.md quality-insights.json pitch-rehearsal.json PITCH_REHEARSAL.md; do
   if [ -f "$OUT_DIR/$f" ]; then
     cp "$OUT_DIR/$f" "$STAGE/$f"
     OPTIONAL_FILES+=("$f")

@@ -105,11 +105,11 @@ def main() -> int:
             source_input / "runtime-library" / "slides.json",
         ]:
             if not path.exists():
-                print(f"source recognizer artifact missing: {path}", file=sys.stderr)
+                print(f"source parser artifact missing: {path}", file=sys.stderr)
                 return 1
         source_outline = json.loads((source_output / "outline.json").read_text(encoding="utf-8"))
-        if not any(ref.get("provider") == "upload-recognizer" for ref in source_outline.get("knowledge_refs", [])):
-            print("outline did not include upload-recognizer knowledge refs", file=sys.stderr)
+        if not any(ref.get("provider") == "upload-parser" for ref in source_outline.get("knowledge_refs", [])):
+            print("outline did not include upload-parser knowledge refs", file=sys.stderr)
             return 1
 
         missing_request_path = Path(td) / "request-with-missing-source.json"

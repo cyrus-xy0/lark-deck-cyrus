@@ -55,6 +55,30 @@ DEFAULT_VARIANT = {
 }
 COVER_VARIANTS = {"plain", "master"}
 DEFAULT_COVER_VARIANT = "master"
+MOTION_POLICIES = {
+    "none",
+    "reveal",
+    "state-loop",
+    "sequence-highlight",
+    "demo-loop",
+    "live-dashboard",
+    "media-restart",
+    "iframe-native",
+}
+MOTION_ALIASES = {
+    "entrance-reveal": "reveal",
+    "entrance": "reveal",
+    "state": "state-loop",
+    "loop": "state-loop",
+    "sequence": "sequence-highlight",
+    "process": "sequence-highlight",
+    "demo": "demo-loop",
+    "dashboard": "live-dashboard",
+    "media": "media-restart",
+    "video": "media-restart",
+    "iframe": "iframe-native",
+    "prototype": "iframe-native",
+}
 ICONS = ["message-circle", "check-circle", "users", "sparkles", "database", "flag"]
 
 
@@ -81,6 +105,35 @@ def first_text(*values: Any, fallback: str) -> str:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return fallback
+
+
+def normalized_prefix(value: str, width: int = 4) -> str:
+    compact = re.sub(r"[\s,，、。:：|｜/\\-]+", "", value).lower()
+    return compact[:width]
+
+
+def text_echoes_items(text: str, items: list[str], threshold: int = 3) -> bool:
+    if not text or not items:
+        return False
+    compact_text = re.sub(r"[\s,，、。:：|｜/\\-]+", "", text).lower()
+    for width in (4, 3, 2):
+        hits = {
+            prefix
+            for item in items
+            if (prefix := normalized_prefix(str(item), width=width)) and len(prefix) >= 2 and prefix in compact_text
+        }
+        if len(hits) >= threshold:
+            return True
+    return False
+
+
+def normalize_motion_policy(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    token = re.sub(r"[\s_]+", "-", value.strip().lower())
+    if token in MOTION_POLICIES:
+        return token
+    return MOTION_ALIASES.get(token)
 
 
 def normalize_key(value: Any, fallback: str) -> str:
@@ -277,6 +330,9 @@ class OutlineCompiler:
             out["variant"] = variant
         if layout not in {"cover", "end", "replica", "raw"}:
             out["accent"] = "blue"
+        motion_policy = self.resolve_motion_policy(slide, layout, mapping)
+        if motion_policy:
+            out["motion_policy"] = motion_policy
 
         notes = self.slide_notes(slide)
         if notes:
@@ -333,6 +389,25 @@ class OutlineCompiler:
         mapping["layout_candidate"] = candidate
         return layout, variant
 
+    def resolve_motion_policy(self, slide: dict[str, Any], layout: str, mapping: dict[str, Any]) -> str | None:
+        requested = normalize_motion_policy(
+            slide.get("motion_policy") or slide.get("motion_intent")
+        )
+        if requested:
+            return requested
+        role = slide.get("role")
+        if layout == "iframe-embed":
+            return "iframe-native"
+        if layout == "replica":
+            return "none"
+        if layout == "image-text":
+            return "media-restart"
+        if role == "demo":
+            return "demo-loop"
+        if layout in {"flow", "stats"}:
+            return "sequence-highlight"
+        return None
+
     def slide_notes(self, slide: dict[str, Any]) -> str:
         lines = []
         for label, key in [
@@ -342,10 +417,16 @@ class OutlineCompiler:
             ("emphasis", "emphasis"),
             ("talk_track", "talk_track"),
             ("visual_intent", "visual_intent"),
+            ("motion_policy", "motion_policy"),
+            ("motion_intent", "motion_intent"),
+            ("prototype_kind", "prototype_kind"),
+            ("interaction", "interaction"),
         ]:
             value = slide.get(key)
             if isinstance(value, str) and value.strip():
                 lines.append(f"{label}: {value.strip()}")
+        if slide.get("allow_remote") is True:
+            lines.append("allow_remote: true")
         for label, key in [
             ("proof_needed", "proof_needed"),
             ("asset_need", "asset_need"),
@@ -523,6 +604,7 @@ class OutlineCompiler:
 
     def content_3up(self, slide: dict[str, Any]) -> dict[str, Any]:
         beats = self.beats(slide, 3, 3)
+        message = self.message(slide)
         cards = []
         for i, beat in enumerate(beats, start=1):
             cards.append({
@@ -531,16 +613,31 @@ class OutlineCompiler:
                 "title_zh": beat,
                 "body": self.supporting_body(slide, beat, i - 1, "明确输入、责任人、输出物和复盘节奏。"),
             })
-        return {"title": self.title(slide), "lede": self.message(slide), "cards": cards}
+        data = {"title": self.title(slide), "cards": cards}
+        if message and not text_echoes_items(message, beats):
+            data["lede"] = message
+        return data
 
     def content_2col(self, slide: dict[str, Any]) -> dict[str, Any]:
+        beats = self.beats(slide, 3, 6)
+        message = self.message(slide)
+        text: dict[str, Any] = {"feature_list": beats}
+        if message and not text_echoes_items(message, beats):
+            text["lede"] = message
+        asset = self.first_asset(slide)
+        visual: dict[str, Any]
+        if asset and not asset.startswith("asset:"):
+            visual = {
+                "type": "image",
+                "image": {"src": asset, "alt": self.title(slide)},
+                "min_height": 420,
+            }
+        else:
+            visual = {"type": "placeholder", "label": first_text(slide.get("visual_intent"), fallback="示意视觉")}
         return {
             "title": self.title(slide),
-            "text": {
-                "lede": self.message(slide),
-                "feature_list": self.beats(slide, 3, 6),
-            },
-            "visual": {"type": "placeholder", "label": first_text(slide.get("visual_intent"), fallback="示意视觉")},
+            "text": text,
+            "visual": visual,
         }
 
     def content_blocks(self, slide: dict[str, Any]) -> dict[str, Any]:
@@ -802,12 +899,40 @@ class OutlineCompiler:
         src = self.first_asset(slide) or "about:blank"
         if src == "about:blank":
             self.warn("iframe-embed has no HTML/demo asset; using about:blank", slide.get("key"))
-        return {
+        visual = " ".join([
+            str(slide.get("visual_intent") or ""),
+            str(slide.get("message") or ""),
+            " ".join(as_list(slide.get("asset_need"))),
+        ])
+        prototype_kind = slide.get("prototype_kind")
+        if prototype_kind not in {"report", "dashboard", "workflow-map", "mini-app", "phone-demo", "video-demo", "other"}:
+            if re.search(r"仪表盘|dashboard|radar|雷达|图表|chart", visual, re.IGNORECASE):
+                prototype_kind = "dashboard"
+            elif re.search(r"流程|地图|process|workflow|map", visual, re.IGNORECASE):
+                prototype_kind = "workflow-map"
+            elif re.search(r"报告|report|文档", visual, re.IGNORECASE):
+                prototype_kind = "report"
+            else:
+                prototype_kind = "other"
+        interaction = slide.get("interaction")
+        if interaction not in {"static-scroll", "clickable", "guided-loop", "native-app", "video-only"}:
+            if re.search(r"点击|可点|交互|click|tab|filter|筛选", visual, re.IGNORECASE):
+                interaction = "clickable"
+            elif prototype_kind == "report":
+                interaction = "static-scroll"
+            else:
+                interaction = "native-app"
+        data = {
             "title": self.title(slide),
             "src": src,
             "iframe_title": self.title(slide),
             "hint": self.message(slide),
+            "prototype_kind": prototype_kind,
+            "interaction": interaction,
         }
+        if slide.get("allow_remote") is True:
+            data["allow_remote"] = True
+        return data
 
     def data_replica(self, slide: dict[str, Any]) -> dict[str, Any]:
         src = self.first_asset(slide) or "replica-placeholder.svg"

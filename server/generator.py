@@ -3,7 +3,7 @@
 
 This is the productized P0 path around the existing local skills:
 
-  Sources -> recognizer -> Outline -> user confirm -> renderer -> auditor
+  Sources -> parser -> Outline -> user confirm -> renderer -> auditor
   -> pitch rehearsal gate -> publish -> user revise/ingest decision -> ingestion
 
 It intentionally uses only the Python standard library so it can run anywhere
@@ -38,12 +38,13 @@ import pitch_recipes
 REPO = Path(__file__).resolve().parents[1]
 RUNS_DIR = REPO / "runs"
 OUTLINE_VALIDATOR = REPO / "skills/deck-planner/validate-outline.py"
+MATERIALIZE_ASSETS = REPO / "skills/deck-renderer/deck-json/materialize-feishu-assets.py"
 RENDERER = REPO / "skills/deck-renderer/deck-json/render-deck.py"
 CHECK_ONLY = REPO / "skills/deck-renderer/assets/check-only.sh"
 AUDITOR = REPO / "skills/deck-auditor/audit.py"
 PACKAGE = REPO / "skills/deck-renderer/assets/package-deliverable.sh"
 INLINE_ASSETS = REPO / "skills/deck-renderer/assets/inline-assets.py"
-UPLOAD_RECOGNIZER = REPO / "skills/upload-recognizer/recognize.py"
+UPLOAD_PARSER = REPO / "skills/upload-parser/parse.py"
 PITCH_SIMULATOR = REPO / "skills/pitch-simulator/simulate-pitch.py"
 PITCH_REHEARSAL_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py"
 DECK_INGESTOR = REPO / "skills/deck-ingestor/ingest.py"
@@ -69,6 +70,25 @@ REQUIRED_OUTPUTS = [
     "cloud-publish.json",
     "CLOUD_PUBLISH.md",
 ]
+
+HIDDEN_OUTPUT_ARTIFACTS = {
+    "outline.json",
+    "source-dossier.json",
+    "SOURCE_DOSSIER.md",
+    "compile-report.json",
+    "asset-materialization.json",
+    "audit-report.json",
+    "audit-report.md",
+    "cloud-publish.json",
+    "magic-doc-publish.json",
+    "magic-page-publish.json",
+    "magic-publish.json",
+    "FINAL_SOURCE_DOSSIER.json",
+    "pitch-rehearsal.json",
+    "rehearsal-gate.json",
+    "journey.json",
+    "quality-insights.json",
+}
 
 TEXT_LEAF_SKIP_KEYS = {"title", "icon", "img", "image", "src", "url", "href", "company_logo"}
 
@@ -610,7 +630,7 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
     source_knowledge_refs = [
         {
             "source": "user-provided",
-            "provider": "upload-recognizer",
+            "provider": "upload-parser",
             "title": item.get("title") or item.get("id") or "用户素材知识",
             "summary": str(item.get("content") or "")[:300],
             "cache_path": ((item.get("provenance") or {}).get("source") or ""),
@@ -1266,6 +1286,72 @@ def run_command(cmd: list[str], log_path: Path, cwd: Path = REPO) -> subprocess.
     return proc
 
 
+def find_source_dossier(input_dir: Path, output_dir: Path) -> Path | None:
+    for path in [
+        input_dir / "runtime-library" / "source-dossier.json",
+        input_dir / "source-dossier.json",
+        output_dir / "source-dossier.json",
+    ]:
+        if path.exists():
+            return path
+    return None
+
+
+def materialize_deck_assets(
+    *,
+    task: dict[str, Any],
+    input_dir: Path,
+    output_dir: Path,
+    log_dir: Path,
+    journey: dict[str, Any],
+) -> None:
+    deck_path = output_dir / "deck.json"
+    if not deck_path.exists() or not MATERIALIZE_ASSETS.exists():
+        return
+    cmd = [
+        "python3",
+        str(MATERIALIZE_ASSETS),
+        str(deck_path),
+        str(output_dir),
+        "--report",
+        str(log_dir / "asset-materialization.json"),
+        "--markdown",
+        str(output_dir / "ASSET_MATERIALIZATION.md"),
+        "--fail-on-unresolved",
+    ]
+    source_dossier = find_source_dossier(input_dir, output_dir)
+    if source_dossier:
+        cmd.extend(["--source-dossier", str(source_dossier)])
+    materialize_log = log_dir / "asset-materialization.txt"
+    proc = run_command(cmd, materialize_log)
+    task["logs"]["asset_materialization"] = str(materialize_log)
+    report_path = log_dir / "asset-materialization.json"
+    summary: dict[str, Any] = {}
+    if report_path.exists():
+        try:
+            report = read_json(report_path)
+            if isinstance(report.get("summary"), dict):
+                summary = report["summary"]
+        except Exception:
+            summary = {}
+    if proc.returncode != 0:
+        append_journey_event(
+            journey,
+            "asset_materialization_failed",
+            "system",
+            "飞书/Lark 文件素材未能在渲染前落成本地资产。",
+            {"exit": proc.returncode, **summary},
+        )
+        raise RuntimeError("asset materialization failed")
+    append_journey_event(
+        journey,
+        "assets_materialized",
+        "system",
+        "已检查并落地 DeckJSON 中的飞书/Lark 文件素材。",
+        summary,
+    )
+
+
 def source_candidates_from_value(value: Any) -> list[str]:
     if value in (None, "", [], {}):
         return []
@@ -1309,7 +1395,7 @@ def request_sources(request: dict[str, Any]) -> list[str]:
     return sources
 
 
-def brief_text_for_recognizer(brief: dict[str, Any]) -> str:
+def brief_text_for_parser(brief: dict[str, Any]) -> str:
     if not brief:
         return ""
     compact = {
@@ -1356,6 +1442,7 @@ def write_runtime_library(input_dir: Path, dossier: dict[str, Any], sources: lis
     knowledge = dossier.get("knowledge_layer") or []
     materials = dossier.get("material_layer") or []
     slides = dossier.get("slide_layer") or []
+    write_json(library_dir / "source-dossier.json", dossier)
     write_json(library_dir / "knowledge.json", {"items": knowledge})
     write_json(library_dir / "materials.json", {"items": materials})
     write_json(library_dir / "slides.json", {"items": slides})
@@ -1439,7 +1526,7 @@ def attach_source_dossier_to_brief(brief: dict[str, Any], dossier: dict[str, Any
     return enriched
 
 
-def run_upload_recognizer(
+def run_upload_parser(
     request: dict[str, Any],
     *,
     task_id: str,
@@ -1453,43 +1540,42 @@ def run_upload_recognizer(
     sources = request_sources(request)
     if not sources:
         return request, None
-    if not UPLOAD_RECOGNIZER.exists():
-        raise RuntimeError(f"upload recognizer missing: {UPLOAD_RECOGNIZER}")
+    if not UPLOAD_PARSER.exists():
+        raise RuntimeError(f"upload parser missing: {UPLOAD_PARSER}")
 
-    recognizer_dir = output_dir / "source-recognizer"
-    recognizer_log = log_dir / "upload-recognizer.txt"
+    parser_dir = output_dir / "source-parser"
+    parser_log = log_dir / "upload-parser.txt"
     proc = run_command(
         [
             "python3",
-            str(UPLOAD_RECOGNIZER),
+            str(UPLOAD_PARSER),
             *sources,
             "--brief",
-            brief_text_for_recognizer(brief),
+            brief_text_for_parser(brief),
             "--output-dir",
-            str(recognizer_dir),
+            str(parser_dir),
             "--task-id",
             task_id,
             "--allow-missing",
         ],
-        recognizer_log,
+        parser_log,
     )
-    task["logs"]["upload_recognizer"] = str(recognizer_log)
+    task["logs"]["upload_parser"] = str(parser_log)
     if proc.returncode != 0:
-        dossier_path = recognizer_dir / "source-dossier.json"
+        dossier_path = parser_dir / "source-dossier.json"
         if not dossier_path.exists():
-            append_journey_event(journey, "upload_recognizer_failed", "system", "上传素材识别失败。", {"exit": proc.returncode})
-            raise RuntimeError("upload recognizer failed")
-        task.setdefault("warnings", []).append("upload-recognizer 返回非 0,但已读取 source-dossier 并继续流程。")
-    dossier_path = recognizer_dir / "source-dossier.json"
+            append_journey_event(journey, "upload_parser_failed", "system", "上传素材解析失败。", {"exit": proc.returncode})
+            raise RuntimeError("upload parser failed")
+        task.setdefault("warnings", []).append("upload-parser 返回非 0,但已读取 source-dossier 并继续流程。")
+    dossier_path = parser_dir / "source-dossier.json"
     if not dossier_path.exists():
-        raise RuntimeError("upload recognizer did not write source-dossier.json")
+        raise RuntimeError("upload parser did not write source-dossier.json")
     dossier = read_json(dossier_path)
     add_source_warnings(task, dossier, journey)
     runtime_library = write_runtime_library(input_dir, dossier, sources)
-    shutil.copy2(dossier_path, output_dir / "source-dossier.json")
-    report_path = recognizer_dir / "SOURCE_DOSSIER.md"
+    report_path = parser_dir / "SOURCE_DOSSIER.md"
     if report_path.exists():
-        shutil.copy2(report_path, output_dir / "SOURCE_DOSSIER.md")
+        shutil.copy2(report_path, Path(runtime_library["path"]) / "SOURCE_DOSSIER.md")
 
     enriched_request = copy.deepcopy(request)
     enriched_request["brief"] = attach_source_dossier_to_brief(brief, dossier, runtime_library)
@@ -1506,9 +1592,9 @@ def run_upload_recognizer(
         task["source"] = "materials+brief"
     append_journey_event(
         journey,
-        "upload_recognized",
+        "upload_parsed",
         "system",
-        "已调用 upload-recognizer,并在本轮 run 内创建 agent runtime 临时知识/素材库。",
+        "已调用 upload-parser,并在本轮 run 内创建 agent runtime 临时知识/素材库。",
         task["source_dossier"],
     )
     return enriched_request, dossier
@@ -1688,7 +1774,7 @@ def output_artifacts(task_id: str, output_dir: Path, base_url: str | None = None
     root = base_url.rstrip("/") if base_url else ""
     for path in sorted(output_dir.iterdir()):
         if path.is_file():
-            if path.name == "index.html" or path.suffix == ".zip":
+            if path.name == "index.html" or path.suffix == ".zip" or path.name in HIDDEN_OUTPUT_ARTIFACTS:
                 continue
             artifacts[path.name] = f"{root}/decks/{task_id}/files/{path.name}" if root else str(path)
     cloud_url = ""
@@ -2226,7 +2312,8 @@ def artifact_links(task: dict[str, Any]) -> str:
         ("飞书妙笔页面", "magic_page_url"),
         ("云端发布入口", "cloud_url"),
         ("需求澄清", "BRIEF_CLARIFICATION.md"),
-        ("素材识别", "SOURCE_DOSSIER.md"),
+        ("设计确认稿", "DESIGN_PLAN.md"),
+        ("素材落地报告", "ASSET_MATERIALIZATION.md"),
         ("验收报告", "AUDIT_REPORT.md"),
         ("Pitch 预演", "PITCH_REHEARSAL.md"),
         ("预演门禁", "REHEARSAL_GATE.md"),
@@ -2375,14 +2462,14 @@ def render_status_page(task_id: str) -> bytes:
     warning_rows = "".join(f"<li>{html.escape(str(item))}</li>" for item in (task.get("warnings") or []))
     confirmation_panel = ""
     if task.get("status") == "awaiting_outline_confirmation":
-        outline_review = output_dir / "OUTLINE_REVIEW.md"
-        outline_text = html.escape(outline_review.read_text(encoding="utf-8")[:18000]) if outline_review.exists() else ""
+        design_plan = output_dir / "DESIGN_PLAN.md"
+        outline_text = html.escape(design_plan.read_text(encoding="utf-8")[:18000]) if design_plan.exists() else ""
         confirmation_panel = f"""
 <section class="panel">
-  <h2>等待确认大纲</h2>
-  <p class="muted">planner 已输出当前框架。确认后才会生成 deckhtml。</p>
+  <h2>等待确认设计方案</h2>
+  <p class="muted">planner 已输出当前框架与页级设计方案。确认后才会生成 deckhtml。</p>
   <div class="actions">
-    <button type="button" onclick="confirmOutline()">确认大纲并生成</button>
+    <button type="button" onclick="confirmOutline()">确认方案并生成</button>
   </div>
   {f'<pre>{outline_text}</pre>' if outline_text else ''}
 </section>
@@ -3182,7 +3269,7 @@ def create_outline_task(
     journey = new_journey(task, request, source)
 
     try:
-        request, _dossier = run_upload_recognizer(
+        request, _dossier = run_upload_parser(
             request,
             task_id=task_id,
             input_dir=input_dir,
@@ -3239,8 +3326,7 @@ def create_outline_task(
                 {"open_questions": len(outline.get("open_questions") or [])},
             )
         write_json(input_dir / "outline.json", outline)
-        write_json(output_dir / "outline.json", outline)
-        (output_dir / "OUTLINE_REVIEW.md").write_text(outline_review_markdown(outline), encoding="utf-8")
+        (output_dir / "DESIGN_PLAN.md").write_text(outline_review_markdown(outline), encoding="utf-8")
 
         outline_log = log_dir / "outline-validator.txt"
         proc = run_command(["python3", str(OUTLINE_VALIDATOR), str(input_dir / "outline.json")], outline_log)
@@ -3673,19 +3759,19 @@ def upload_deck_to_tos(task: dict[str, Any], request: dict[str, Any], *, log_dir
     return payload
 
 
-def recognize_final_deck_for_ingestion(task: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
+def parse_final_deck_for_ingestion(task: dict[str, Any], *, log_dir: Path) -> dict[str, Any]:
     output_dir = Path(task.get("output_dir", ""))
-    if not UPLOAD_RECOGNIZER.exists():
-        return {"ok": False, "reason": f"upload recognizer missing: {UPLOAD_RECOGNIZER}"}
+    if not UPLOAD_PARSER.exists():
+        return {"ok": False, "reason": f"upload parser missing: {UPLOAD_PARSER}"}
     html_path = output_dir / "index.html"
     if not html_path.exists():
         return {"ok": False, "reason": "index.html not found"}
-    final_dir = output_dir / "ingestion-recognizer"
-    log = log_dir / "ingestion-recognizer.txt"
+    final_dir = output_dir / "ingestion-parser"
+    log = log_dir / "ingestion-parser.txt"
     proc = run_command(
         [
             "python3",
-            str(UPLOAD_RECOGNIZER),
+            str(UPLOAD_PARSER),
             str(html_path),
             "--brief",
             "final deckhtml ingestion parse",
@@ -3696,7 +3782,7 @@ def recognize_final_deck_for_ingestion(task: dict[str, Any], *, log_dir: Path) -
         ],
         log,
     )
-    task.setdefault("logs", {})["ingestion_recognizer"] = str(log)
+    task.setdefault("logs", {})["ingestion_parser"] = str(log)
     if proc.returncode != 0:
         return {"ok": False, "reason": "final deck parser failed"}
     dossier_path = final_dir / "source-dossier.json"
@@ -3724,7 +3810,7 @@ def ingest_confirmed_deck(task: dict[str, Any], *, base_url: str | None = None) 
     request = read_json(request_path) if request_path.exists() else {}
     metadata = build_ingest_metadata(task)
     task.setdefault("ingestion", {})
-    parser_result = recognize_final_deck_for_ingestion(task, log_dir=log_dir)
+    parser_result = parse_final_deck_for_ingestion(task, log_dir=log_dir)
     task["ingestion"]["final_deck_parser"] = parser_result
     if not parser_result.get("ok"):
         task.setdefault("warnings", []).append(f"最终 deckhtml 解析器未能完成: {parser_result.get('reason')}")
@@ -3870,14 +3956,27 @@ def summarize_revision_queue(rehearsal: dict[str, Any]) -> list[str]:
     return items[:8]
 
 
+def matches_gate_signal(text_lower: str, term: str) -> bool:
+    needle = term.lower()
+    if re.fullmatch(r"[a-z0-9][a-z0-9+-]*", needle):
+        return re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", text_lower) is not None
+    return needle in text_lower
+
+
+def gate_signal_hits(text_lower: str, terms: list[str]) -> list[str]:
+    return [term for term in terms if matches_gate_signal(text_lower, term)]
+
+
 def rehearsal_gate_context(outline: dict[str, Any], deck: dict[str, Any]) -> tuple[bool, list[str]]:
     text = "\n".join(walk_text({"outline": outline, "deck": deck}))
     lower = text.lower()
-    manufacturing_terms = ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "质量异常", "供应链"]
-    ai_terms = ["agent", "ai", "数字员工", "智能体"]
-    signals = [term for term in manufacturing_terms + ai_terms if term.lower() in lower]
-    applied = any(term.lower() in lower for term in manufacturing_terms) and any(term.lower() in lower for term in ai_terms)
-    return applied, signals
+    manufacturing_core_terms = ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "工厂", "产线", "车间", "良率", "mes", "plm"]
+    manufacturing_context_terms = ["质量异常", "供应链", "工程师"]
+    ai_terms = ["agent", "agents", "ai", "aigc", "genai", "llm", "数字员工", "智能体", "大模型", "人工智能"]
+    manufacturing_hits = gate_signal_hits(lower, manufacturing_core_terms)
+    manufacturing_context_hits = gate_signal_hits(lower, manufacturing_context_terms)
+    ai_hits = gate_signal_hits(lower, ai_terms)
+    return bool(manufacturing_hits and ai_hits), manufacturing_hits + manufacturing_context_hits + ai_hits
 
 
 def evaluate_rehearsal_gate(rehearsal: dict[str, Any], outline: dict[str, Any], deck: dict[str, Any]) -> dict[str, Any]:
@@ -4044,7 +4143,7 @@ def create_or_run_task(
     journey = new_journey(task, request, source)
 
     try:
-        request, _dossier = run_upload_recognizer(
+        request, _dossier = run_upload_parser(
             request,
             task_id=task_id,
             input_dir=input_dir,
@@ -4100,6 +4199,15 @@ def create_or_run_task(
             append_journey_event(journey, "outline_validation_failed", "system", "outline validator 未通过。", {"exit": proc.returncode})
             raise RuntimeError("outline validation failed")
         append_journey_event(journey, "outline_validated", "system", "outline validator 通过。")
+
+        materialize_deck_assets(
+            task=task,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            log_dir=log_dir,
+            journey=journey,
+        )
+        deck = read_json(output_dir / "deck.json")
 
         render_log = log_dir / "render.txt"
         render_cmd = ["python3", str(RENDERER), str(output_dir / "deck.json"), str(output_dir), "--shared=copy"]

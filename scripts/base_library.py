@@ -4,9 +4,10 @@
 Default mode is auto: try the configured Feishu/Lark Base with the current
 lark-cli identity, then fall back to the local package cache with a caller-
 visible warning/report. Users should not have to provide a separate token in
-the normal sandbox-agent path. Base currently stores only knowledge and
-material assets; the Slide Library remains local-only for whole-page
-selection/reuse.
+the normal sandbox-agent path. Base stores planner retrieval tables and
+renderable assets; component records are legacy-optional because component-like
+entries now live in the asset library via 素材类别/组件Key/调用示例. The Slide
+Library remains local-only for whole-page selection/reuse.
 """
 
 from __future__ import annotations
@@ -37,8 +38,11 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     if os.environ.get("LARK_LIBRARY_BASE_TOKEN"):
         data["base_token"] = os.environ["LARK_LIBRARY_BASE_TOKEN"]
     for table_key, env_key in {
-        "assets": "LARK_LIBRARY_ASSETS_TABLE_ID",
+        "scenario_index": "LARK_LIBRARY_SCENARIO_INDEX_TABLE_ID",
+        "outline_templates": "LARK_LIBRARY_OUTLINE_TEMPLATES_TABLE_ID",
         "knowledge": "LARK_LIBRARY_KNOWLEDGE_TABLE_ID",
+        "assets": "LARK_LIBRARY_ASSETS_TABLE_ID",
+        "components": "LARK_LIBRARY_COMPONENTS_TABLE_ID",
     }.items():
         table_cfg = data.get("tables", {}).get(table_key, {})
         config_env_key = table_cfg.get("env_table_id")
@@ -233,24 +237,28 @@ def mapped_scenes(value: Any) -> list[str]:
 
 def mapped_knowledge_type(value: str) -> str:
     low = str(value or "").strip().lower()
-    allowed = {"idea", "case-story", "objection", "metric", "qa", "lesson", "prompt", "feedback"}
-    if low in allowed:
-        return low
+    allowed = {"行业洞察", "场景痛点", "客户案例", "异议处理", "指标口径", "产品能力", "讲法经验", "风险提醒"}
+    if str(value or "").strip() in allowed:
+        return str(value or "").strip()
+    if any(key in low for key in ["industry", "insight", "行业", "洞察"]):
+        return "行业洞察"
+    if any(key in low for key in ["pain", "problem", "痛点", "场景"]):
+        return "场景痛点"
     if any(key in low for key in ["case", "story", "客户", "案例"]):
-        return "case-story"
+        return "客户案例"
     if any(key in low for key in ["objection", "异议", "风险"]):
-        return "objection"
+        return "异议处理"
     if any(key in low for key in ["metric", "数据", "指标"]):
-        return "metric"
-    if "qa" in low or "q&a" in low or "问答" in low:
-        return "qa"
-    if "lesson" in low or "复盘" in low:
-        return "lesson"
-    if "prompt" in low:
-        return "prompt"
+        return "指标口径"
+    if any(key in low for key in ["product", "capability", "feature", "能力", "产品"]):
+        return "产品能力"
+    if any(key in low for key in ["risk", "反例", "禁用", "不适用"]):
+        return "风险提醒"
+    if any(key in low for key in ["qa", "q&a", "问答", "lesson", "复盘", "prompt", "pitch", "deck-ingest"]):
+        return "讲法经验"
     if "feedback" in low or "反馈" in low:
-        return "feedback"
-    return "idea"
+        return "讲法经验"
+    return "讲法经验"
 
 
 def mapped_asset_type(kind: str, fmt: str, path: str) -> str:
@@ -274,6 +282,79 @@ def mapped_asset_type(kind: str, fmt: str, path: str) -> str:
     if "pdf" in raw:
         return "pdf"
     return "image" if any(key in raw for key in ["image", "icon", "avatar", "png", "jpg", "jpeg", "svg", "webp"]) else "image"
+
+
+def mapped_asset_category(kind: str, fmt: str, path: str, usage: str = "") -> str:
+    raw = " ".join([kind or "", fmt or "", path or "", usage or ""]).lower()
+    if "logo" in raw:
+        return "用户logo"
+    if any(key in raw for key in ["avatar", "digital", "数字人", "头像"]):
+        return "数字人头像"
+    if "icon" in raw:
+        return "飞书icon" if any(key in raw for key in ["feishu", "lark", "飞书"]) else "图片"
+    if any(key in raw for key in ["component", "组件"]):
+        return "飞书组件"
+    if any(key in raw for key in ["video", ".mp4", ".mov", ".webm"]):
+        return "视频"
+    if any(key in raw for key in ["audio", ".mp3", ".wav", ".m4a"]):
+        return "音频"
+    if any(key in raw for key in ["demo", "iframe", "http://", "https://"]):
+        return "demo链接"
+    if any(key in raw for key in ["template", "模板"]):
+        return "页面模板"
+    if any(key in raw for key in ["slide", "deck", "ppt", "html"]):
+        return "整页Slide"
+    if any(key in raw for key in ["code", "json", "css", "js"]):
+        return "代码片段"
+    return "图片"
+
+
+def mapped_render_usage(category: str, usage: str, path: str) -> list[str]:
+    raw = " ".join([usage or "", path or ""]).lower()
+    if category == "用户logo":
+        return ["cover-logo"]
+    if category == "数字人头像":
+        return ["avatar"]
+    if category == "飞书icon":
+        return ["icon"]
+    if category == "飞书组件":
+        return ["component"]
+    if category == "视频":
+        return ["video"]
+    if category == "音频":
+        return ["audio"]
+    if category == "demo链接":
+        return ["demo-iframe"]
+    if "background" in raw or "背景" in raw:
+        return ["background"]
+    if "hero" in raw or "主视觉" in raw:
+        return ["hero-image"]
+    if any(key in raw for key in ["mockup", "截图"]):
+        return ["mockup"]
+    return ["decoration"]
+
+
+def mapped_renderer_loading(category: str, path: str) -> str:
+    raw = str(path or "")
+    if raw.startswith(("http://", "https://")):
+        return "iframe" if category == "demo链接" else "cloud-url"
+    if raw:
+        return "local-path"
+    return "generated"
+
+
+def mapped_html_rendering(category: str, path: str) -> str:
+    if category == "视频":
+        return "video"
+    if category == "音频":
+        return "audio"
+    if category == "demo链接":
+        return "iframe"
+    if category in {"飞书组件", "代码片段", "页面模板", "整页Slide"}:
+        return "component-json"
+    if "background" in str(path or "").lower():
+        return "background-image"
+    return "img"
 
 
 def mapped_credibility(value: str) -> str:
@@ -307,6 +388,19 @@ def mapped_asset_status(value: str) -> str:
     return "待审核"
 
 
+def mapped_permission_status(value: str) -> str:
+    low = str(value or "").lower()
+    if any(key in low for key in ["public", "公开"]):
+        return "public"
+    if any(key in low for key in ["internal", "内部"]):
+        return "internal"
+    if any(key in low for key in ["restricted", "限制"]):
+        return "restricted"
+    if any(key in low for key in ["approved", "reusable", "pass", "可复用", "已审核"]):
+        return "approved"
+    return "needs_review"
+
+
 def slugify_id(*values: str) -> str:
     raw = "-".join(value for value in values if value).lower()
     slug = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
@@ -314,11 +408,11 @@ def slugify_id(*values: str) -> str:
 
 
 def row_path(row: dict[str, Any]) -> str:
-    return scalar_any(row, "本地路径", "相对路径", "云端URL")
+    return scalar_any(row, "本地路径", "相对路径", "资源URL", "云端URL")
 
 
 def collection_from_row(row: dict[str, Any], rel_path: str) -> str:
-    raw = scalar_any(row, "集合", "所属目录", default="")
+    raw = scalar_any(row, "集合", "所属目录", "素材类别", default="")
     if raw.startswith(("skills/feishu-deck-h5/assets/shared/", "skills/deck-renderer/assets/shared/", "assets/shared/")):
         parts = Path(rel_path).parts
         return parts[2] if len(parts) > 2 else "root"
@@ -392,7 +486,7 @@ def search_records(config: dict[str, Any], table: str, keyword: str, identity: s
     table_cfg = config["tables"][table]
     body = {
         "keyword": keyword,
-        "search_fields": table_cfg["search_fields"],
+        "search_fields": table_cfg["search_fields"][:20],
         "select_fields": table_cfg["fields"],
         "limit": limit,
         "offset": 0,
@@ -426,9 +520,17 @@ def local_asset_rows(config: dict[str, Any], keyword: str, limit: int) -> list[d
         ).lower()
         if all(term in haystack for term in terms) or any(term in haystack for term in terms):
             rel_path = "skills/deck-renderer/" + str(item.get("path", ""))
+            category = mapped_asset_category(item.get("kind", ""), Path(str(item.get("path", ""))).suffix.lstrip("."), rel_path)
             rows.append(
                 {
                     "素材ID": item.get("id", ""),
+                    "素材名称": item.get("display_name", ""),
+                    "素材类别": category,
+                    "渲染用途": mapped_render_usage(category, "", rel_path),
+                    "DeckJSON引用Key": item.get("id", ""),
+                    "Renderer加载方式": "local-path",
+                    "HTML渲染方式": mapped_html_rendering(category, rel_path),
+                    "可直接渲染": True,
                     "显示名称": item.get("display_name", ""),
                     "类型": item.get("kind", ""),
                     "集合": item.get("collection", ""),
@@ -601,7 +703,9 @@ def search_with_fallback(config: dict[str, Any], table: str, keyword: str, ident
 
     if table == "assets":
         return local_asset_rows(config, keyword, limit)
-    return local_knowledge_rows(config, keyword, limit)
+    if table == "knowledge":
+        return local_knowledge_rows(config, keyword, limit)
+    return []
 
 
 def require_base_write(config: dict[str, Any]) -> None:
@@ -658,28 +762,34 @@ def create_knowledge_fields(args: argparse.Namespace, config: dict[str, Any]) ->
     if args.content_file:
         content = Path(args.content_file).read_text(encoding="utf-8")
     if table_has(config, "knowledge", "知识标题"):
+        source = source_text(args.source_deck, args.source_ppt, args.source_page, args.local_path)
+        source_url = source if source.startswith(("http://", "https://")) else ""
         fields = {
+            "知识ID": args.doc_id,
             "知识标题": args.title,
             "知识类型": mapped_knowledge_type(args.type),
+            "Brief关键词": join_tags([args.industry, args.scene, args.customer, args.product]),
             "正文/要点": content,
-            "摘要": args.summary or content[:240],
+            "推荐讲法": args.summary or content[:240],
             "可信度": mapped_credibility(args.source_level),
             "行业": mapped_industries(args.industry),
-            "场景": mapped_scenes(args.scene),
+            "业务场景": join_tags(args.scene),
             "客户": args.customer,
-            "产品": mapped_products(args.product),
-            "沉淀状态": mapped_knowledge_status(args.permission_status),
-            "来源": source_text(args.source_deck, args.source_ppt, args.source_page, args.local_path),
+            "产品组合": mapped_products(args.product),
+            "状态": mapped_knowledge_status(args.permission_status),
+            "证据/来源": source,
             "标签": join_tags([args.type, f"slide:{args.slide_key}", f"asset:{args.related_asset_id}"]),
             "适用页面": args.slide_key or args.source_page,
             "关联SlideKey": args.slide_key,
             "关联素材ID": args.related_asset_id,
+            "来源文档URL": source_url,
             "来源Deck": args.source_deck,
             "来源PPT": args.source_ppt,
             "来源页码": args.source_page,
             "权限状态": args.permission_status,
             "贡献者": args.contributor,
             "贡献时间": base_datetime(args.contributed_at),
+            "最近验证时间": base_datetime(args.contributed_at),
             "本地路径": args.local_path,
             "字数": len(content),
             "SHA256": args.sha256,
@@ -708,6 +818,40 @@ def create_knowledge_fields(args: argparse.Namespace, config: dict[str, Any]) ->
 
 
 def create_asset_fields(args: argparse.Namespace, config: dict[str, Any]) -> dict[str, Any]:
+    if table_has(config, "assets", "素材名称"):
+        category = mapped_asset_category(args.kind, args.format, args.local_path, args.usage)
+        source = source_text(args.source_deck, args.source_ppt, args.source_page, args.local_path)
+        is_url = str(args.local_path).startswith(("http://", "https://"))
+        mime = args.mime or mimetypes.guess_type(args.local_path)[0] or ""
+        fields = {
+            "素材ID": args.asset_id,
+            "素材名称": args.display_name,
+            "素材类别": category,
+            "渲染用途": mapped_render_usage(category, args.usage, args.local_path),
+            "适合页型": split_terms(args.slide_key or args.source_page),
+            "行业": mapped_industries(args.industry),
+            "客户": args.customer,
+            "产品组合": mapped_products(args.product),
+            "DeckJSON引用Key": args.asset_id,
+            "组件Key": args.asset_id if category == "飞书组件" else "",
+            "Renderer加载方式": mapped_renderer_loading(category, args.local_path),
+            "HTML渲染方式": mapped_html_rendering(category, args.local_path),
+            "资源URL": args.local_path if is_url else "",
+            "本地路径": "" if is_url else args.local_path,
+            "MIME": mime,
+            "尺寸/时长": f"{args.size_kb} KB" if args.size_kb else "",
+            "可直接渲染": category in {"用户logo", "数字人头像", "飞书icon", "飞书组件", "图片", "视频", "音频", "demo链接"},
+            "质量状态": mapped_asset_status(args.permission_status),
+            "权限状态": mapped_permission_status(args.permission_status),
+            "摘要": args.usage,
+            "标签": join_tags([args.tags, args.collection, f"slide:{args.slide_key}", f"knowledge:{args.related_knowledge_id}"]),
+            "调用示例": json.dumps({"asset_ref": args.asset_id}, ensure_ascii=False),
+            "SHA256": args.sha256,
+            "来源": source,
+            "贡献者": args.contributor,
+            "最后校验时间": base_datetime(args.contributed_at),
+        }
+        return configured_fields(config, "assets", fields)
     if table_has(config, "assets", "素材标题"):
         asset_type = mapped_asset_type(args.kind, args.format, args.local_path)
         fields = {
@@ -855,10 +999,10 @@ def asset_index_from_base(config: dict[str, Any], identity: str) -> dict[str, An
         attachments = attachment_list(row)
         size_kb = scalar_any(row, "大小KB", "文件大小KB", default="0")
         size_bytes = int(attachments[0].get("size", 0)) if attachments else int(float(size_kb or 0) * 1024)
-        display_name = scalar_any(row, "显示名称", "素材标题", default=Path(rel_path).stem)
+        display_name = scalar_any(row, "素材名称", "显示名称", "素材标题", default=Path(rel_path).stem)
         collection = collection_from_row(row, rel_path)
         item_id = scalar_any(row, "素材ID") or slugify_id(collection, display_name, scalar_any(row, "SHA256")[:12])
-        kind = scalar_any(row, "类型", "素材类型", default="other")
+        kind = scalar_any(row, "素材类别", "类型", "素材类型", default="other")
         mime = scalar_any(row, "MIME") or mimetypes.guess_type(rel_path)[0] or "application/octet-stream"
         items.append(
             {
@@ -915,11 +1059,22 @@ def doctor(config: dict[str, Any], identity: str, probe: bool) -> int:
         "slide_library": "local-only",
         "tables": {},
     }
-    for table in ["knowledge", "assets"]:
+    active_tables = [
+        table
+        for table in ["scenario_index", "outline_templates", "knowledge", "assets", "components"]
+        if config.get("tables", {}).get(table, {}).get("status") != "legacy_optional"
+    ]
+    legacy_tables = [
+        table
+        for table in ["scenario_index", "outline_templates", "knowledge", "assets", "components"]
+        if config.get("tables", {}).get(table, {}).get("status") == "legacy_optional"
+    ]
+    for table in active_tables:
         table_cfg = config.get("tables", {}).get(table, {})
         result["tables"][table] = {
             "id": table_cfg.get("id", ""),
             "name": table_cfg.get("name", table),
+            "status": table_cfg.get("status", "active"),
             "fields": table_cfg.get("fields", []),
             "search_fields": table_cfg.get("search_fields", []),
         }
@@ -929,6 +1084,14 @@ def doctor(config: dict[str, Any], identity: str, probe: bool) -> int:
                 result["tables"][table]["probe"] = {"ok": True}
             except SystemExit as exc:
                 result["tables"][table]["probe"] = {"ok": False, "error": str(exc)}
+    for table in legacy_tables:
+        table_cfg = config.get("tables", {}).get(table, {})
+        result["tables"][table] = {
+            "id": table_cfg.get("id", ""),
+            "name": table_cfg.get("name", table),
+            "status": table_cfg.get("status", "legacy_optional"),
+            "probe": {"ok": True, "skipped": "legacy_optional"},
+        }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if library_mode(config) == "base" and not result["can_try_base"]:
         return 1
@@ -945,11 +1108,11 @@ def print_records(rows: list[dict[str, Any]], table: str, fmt: str) -> None:
     for row in rows:
         if table == "assets":
             attachments = attachment_list(row)
-            asset_id = scalar_any(row, "素材ID", "素材标题")
-            title = scalar_any(row, "显示名称", "素材标题")
-            kind = scalar_any(row, "类型", "素材类型")
-            fmt_value = scalar_any(row, "格式", "所属目录")
-            collection = scalar_any(row, "集合", "产品", "行业")
+            asset_id = scalar_any(row, "素材ID", "DeckJSON引用Key", "素材标题")
+            title = scalar_any(row, "素材名称", "显示名称", "素材标题")
+            kind = scalar_any(row, "素材类别", "类型", "素材类型")
+            fmt_value = scalar_any(row, "HTML渲染方式", "格式", "所属目录")
+            collection = scalar_any(row, "渲染用途", "产品组合", "集合", "产品", "行业")
             path = row_path(row)
             print(
                 f"- {asset_id} | {title} | "
@@ -957,15 +1120,32 @@ def print_records(rows: list[dict[str, Any]], table: str, fmt: str) -> None:
                 f"{path} | attachments={len(attachments)}"
             )
         elif table == "knowledge":
-            doc_id = scalar_any(row, "文档ID", "知识标题")
+            doc_id = scalar_any(row, "知识ID", "文档ID", "知识标题")
             title = scalar_any(row, "标题", "知识标题")
             kind = scalar_any(row, "类型", "知识类型")
-            industry = scalar_any(row, "关联行业", "行业", "场景")
-            path = scalar_any(row, "本地路径", "来源", "适用页面")
+            industry = scalar_any(row, "关联行业", "行业", "业务场景", "场景")
+            path = scalar_any(row, "来源文档URL", "本地路径", "证据/来源", "来源", "适用页面")
             print(
                 f"- {doc_id} | {title} | "
                 f"{kind} | {industry} | {path}\n"
-                f"  {scalar(row.get('摘要'))}"
+                f"  {scalar_any(row, '推荐讲法', '摘要')}"
+            )
+        elif table == "scenario_index":
+            print(
+                f"- {scalar(row.get('场景ID'))} | {scalar(row.get('场景标题'))} | "
+                f"{scalar(row.get('行业'))} | {scalar(row.get('决策目标'))}\n"
+                f"  {scalar(row.get('推荐叙事'))}"
+            )
+        elif table == "outline_templates":
+            print(
+                f"- {scalar(row.get('模板ID'))} | {scalar(row.get('模板名称'))} | "
+                f"{scalar(row.get('模板类型'))} | scene={scalar(row.get('适用场景ID'))}\n"
+                f"  {scalar(row.get('叙事结构'))}"
+            )
+        elif table == "components":
+            print(
+                f"- {scalar(row.get('组件ID'))} | {scalar(row.get('组件名称'))} | "
+                f"{scalar(row.get('组件类别'))} | key={scalar(row.get('组件Key'))}"
             )
         else:
             print(
@@ -1015,6 +1195,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--limit", type=int, default=10)
     p.add_argument("--format", choices=["markdown", "json"], default="markdown")
 
+    p = sub.add_parser("search-scenarios", help="search planner scenario index records from live Base")
+    p.add_argument("keyword")
+    p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--format", choices=["markdown", "json"], default="markdown")
+
+    p = sub.add_parser("search-outline-templates", help="search outline templates from live Base")
+    p.add_argument("keyword")
+    p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--format", choices=["markdown", "json"], default="markdown")
+
+    p = sub.add_parser("search-components", help="legacy: search optional component records from live Base")
+    p.add_argument("keyword")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--format", choices=["markdown", "json"], default="markdown")
+
     p = sub.add_parser("search-slides", help="search reusable slides from the local Slide Library")
     p.add_argument("keyword")
     p.add_argument("--limit", type=int, default=20)
@@ -1033,7 +1228,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--output", type=Path)
     p.add_argument("--check", action="store_true")
 
-    p = sub.add_parser("doctor", help="show live Base readiness and configured two-table schema")
+    p = sub.add_parser("doctor", help="show live Base readiness and configured library schema")
     p.add_argument("--probe", action="store_true", help="call lark-cli to verify table access when Base credentials are present")
 
     p = sub.add_parser("create-record", help="create/update a live Base record in any configured table")
@@ -1103,6 +1298,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "search-knowledge":
         print_records(search_with_fallback(config, "knowledge", args.keyword, args.identity, args.limit), "knowledge", args.format)
+        return 0
+    if args.command == "search-scenarios":
+        print_records(search_with_fallback(config, "scenario_index", args.keyword, args.identity, args.limit), "scenario_index", args.format)
+        return 0
+    if args.command == "search-outline-templates":
+        print_records(search_with_fallback(config, "outline_templates", args.keyword, args.identity, args.limit), "outline_templates", args.format)
+        return 0
+    if args.command == "search-components":
+        print_records(search_with_fallback(config, "components", args.keyword, args.identity, args.limit), "components", args.format)
         return 0
     if args.command == "search-slides":
         print_records(search_with_fallback(config, "slides", args.keyword, args.identity, args.limit), "slides", args.format)

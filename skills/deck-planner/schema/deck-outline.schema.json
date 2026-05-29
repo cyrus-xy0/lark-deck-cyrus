@@ -246,6 +246,22 @@
         },
         "layout_candidate": { "$ref": "#/$defs/layout_candidate" },
         "visual_intent": { "type": "string" },
+        "motion_policy": {
+          "enum": ["none", "reveal", "state-loop", "sequence-highlight", "demo-loop", "live-dashboard", "media-restart", "iframe-native"],
+          "description": "Preferred DeckJSON motion policy. Use only when motion explains state, sequence, media restart, or native iframe interaction."
+        },
+        "prototype_kind": {
+          "enum": ["report", "dashboard", "workflow-map", "mini-app", "phone-demo", "video-demo", "other"],
+          "description": "For iframe/demo pages: what kind of work surface will be embedded."
+        },
+        "interaction": {
+          "enum": ["static-scroll", "clickable", "guided-loop", "native-app", "video-only"],
+          "description": "For iframe/demo pages: expected interaction contract."
+        },
+        "allow_remote": {
+          "type": "boolean",
+          "description": "For iframe/demo pages only. True when an https embed is intentionally remote and cannot be packaged locally."
+        },
         "assets": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }

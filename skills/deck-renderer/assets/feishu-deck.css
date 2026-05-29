@@ -1668,6 +1668,99 @@ body {
 }
 
 /* ============================================================================
+   MOTION POLICY + REUSABLE MICRO-INTERACTION PRESETS
+   motion_policy is authored in DeckJSON and rendered as data-motion-policy.
+   Keep motion purposeful: explain sequence, state, media/demo life, or iframe
+   interaction. Raw/custom slides can opt into these classes instead of defining
+   one-off keyframes in every deck.
+   ============================================================================ */
+
+.slide[data-motion-policy="none"] > * {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+.slide .fs-motion-hover-pause:hover,
+.slide .fs-motion-hover-pause:hover * {
+  animation-play-state: paused !important;
+}
+
+.slide .fs-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.slide .fs-typing-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.38;
+}
+.slide .fs-motion-sequence > *:nth-child(1) { --child-i: 1; }
+.slide .fs-motion-sequence > *:nth-child(2) { --child-i: 2; }
+.slide .fs-motion-sequence > *:nth-child(3) { --child-i: 3; }
+.slide .fs-motion-sequence > *:nth-child(4) { --child-i: 4; }
+.slide .fs-motion-sequence > *:nth-child(5) { --child-i: 5; }
+.slide .fs-motion-sequence > *:nth-child(6) { --child-i: 6; }
+.slide .fs-motion-sequence > *:nth-child(7) { --child-i: 7; }
+.slide .fs-motion-sequence > *:nth-child(8) { --child-i: 8; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .slide-frame.is-current .slide .fs-motion-pop {
+    animation: fs-motion-pop 0.36s cubic-bezier(.2, .72, .18, 1) both;
+  }
+  .slide-frame.is-current .slide .fs-motion-rise {
+    animation: fs-motion-rise 0.42s ease both;
+  }
+  .slide-frame.is-current .slide .fs-motion-flow {
+    background-size: 220% 100%;
+    animation: fs-motion-flow 2.8s linear infinite;
+  }
+  .slide-frame.is-current .slide .fs-typing-dots i {
+    animation: fs-typing-dot 1.15s ease-in-out infinite;
+  }
+  .slide-frame.is-current .slide .fs-typing-dots i:nth-child(2) { animation-delay: .14s; }
+  .slide-frame.is-current .slide .fs-typing-dots i:nth-child(3) { animation-delay: .28s; }
+  .slide-frame.is-current .slide .fs-motion-sequence > * {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+    animation: fs-motion-rise 0.36s ease forwards;
+    animation-delay: calc(0.06s * var(--child-i, 1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide .fs-motion-pop,
+  .slide .fs-motion-rise,
+  .slide .fs-motion-flow,
+  .slide .fs-typing-dots i,
+  .slide .fs-motion-sequence > * {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+@keyframes fs-motion-pop {
+  from { opacity: 0; transform: translate3d(0, 8px, 0) scale(.97); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes fs-motion-rise {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes fs-motion-flow {
+  from { background-position: 0% 50%; }
+  to   { background-position: 220% 50%; }
+}
+@keyframes fs-typing-dot {
+  0%, 72%, 100% { opacity: 0.32; transform: translateY(0); }
+  28%           { opacity: 1;    transform: translateY(-3px); }
+}
+
+/* ============================================================================
    ATMOSPHERIC DECORATION — data-decor attribute (规范)
    Decoration is ORTHOGONAL to layout. A slide can carry any combination of
    layout + variant + decor. When re-rendering an existing slide into a

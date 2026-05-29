@@ -13,6 +13,8 @@ the schema alone can't express:
   - table.rows[*].length == headers.length
   - agenda.items has at most one `active: true`
   - one-pager-case fit-check (placeholder / short-beat / duplicate-beat)
+  - iframe-embed prototype contract (no user-local/file URLs, packaged local
+    files must exist, remote embeds require allow_remote:true)
   - language warnings (R-LANG-ish): zh-only deck shouldn't carry title_en
     in non-agenda layouts
 
@@ -227,7 +229,69 @@ def is_variant(slide: dict, layout: str, variant: str) -> bool:
     return slide.get("layout") == layout and slide.get("variant") == variant
 
 
-def check_business_rules(deck: dict, result: Result, strict: bool) -> None:
+REMOTE_URL_RE = re.compile(r"^https?://", re.IGNORECASE)
+DATA_URL_RE = re.compile(r"^data:", re.IGNORECASE)
+WINDOWS_ABS_RE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def _is_remote_url(src: str) -> bool:
+    return bool(REMOTE_URL_RE.search(src))
+
+
+def _is_user_local_path(src: str) -> bool:
+    lowered = src.lower()
+    return (
+        lowered.startswith("file:")
+        or src.startswith("/")
+        or bool(WINDOWS_ABS_RE.search(src))
+        or src.startswith("~")
+    )
+
+
+def _check_iframe_contract(data: dict, result: Result, sp: str, deck_path: Path | None) -> None:
+    src = str(data.get("src") or "").strip()
+    if not src:
+        return
+    if src == "about:blank":
+        result.err(f"{sp}.data.src", "about:blank is a planning placeholder; package a real prototype/report before rendering")
+        return
+    if _is_user_local_path(src):
+        result.err(
+            f"{sp}.data.src",
+            "iframe src must be deck-local or explicitly remote; file://, absolute paths, and ~/ paths are not deliverable",
+        )
+        return
+    if _is_remote_url(src):
+        if not data.get("allow_remote"):
+            result.err(
+                f"{sp}.data.allow_remote",
+                "remote iframe src requires allow_remote:true; prefer copying the prototype into output/prototypes/",
+            )
+        return
+    if DATA_URL_RE.search(src):
+        return
+    if deck_path is None:
+        return
+
+    deck_dir = deck_path.resolve().parent
+    target_src = src.split("#", 1)[0].split("?", 1)[0]
+    target = (deck_dir / target_src).resolve()
+    try:
+        target.relative_to(deck_dir)
+    except ValueError:
+        result.err(
+            f"{sp}.data.src",
+            "iframe src escapes the deck folder; copy prototypes into output/prototypes/ and use a relative path",
+        )
+        return
+    if not target.exists():
+        result.err(
+            f"{sp}.data.src",
+            f"iframe src does not exist beside deck.json: {target_src!r}; copy the prototype/report into the output folder",
+        )
+
+
+def check_business_rules(deck: dict, result: Result, strict: bool, deck_path: Path | None = None) -> None:
     slides = deck.get("slides", [])
     deck_lang = deck.get("deck", {}).get("language", "zh-only")
 
@@ -323,7 +387,16 @@ def check_business_rules(deck: dict, result: Result, strict: bool) -> None:
         if slide.get("accent") == "cyan":
             result.err(f"{sp}.accent", "cyan is inline-highlight only, not slide accent (R49)")
 
-    # 6. Strict mode: promote warnings to errors
+        # 6. iframe/prototype contract: live demos must be packaged or explicitly remote.
+        if layout == "iframe-embed":
+            _check_iframe_contract(data, result, sp, deck_path)
+        if slide.get("motion_policy") == "iframe-native" and layout not in {"iframe-embed", "raw"}:
+            result.err(
+                f"{sp}.motion_policy",
+                "iframe-native motion_policy is only valid for iframe-embed or raw slides with embedded prototypes",
+            )
+
+    # 7. Strict mode: promote warnings to errors
     if strict and result.warnings:
         result.errors.extend(result.warnings)
         result.warnings = []
@@ -368,7 +441,7 @@ def main(argv=None) -> int:
         print(f"validate-deck: validator crashed: {e}", file=sys.stderr); return 2
 
     if not args.no_business_rules:
-        check_business_rules(deck, result, args.strict)
+        check_business_rules(deck, result, args.strict, args.deck)
 
     # Render output
     title = deck.get("deck", {}).get("title", "<no title>")

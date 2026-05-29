@@ -105,6 +105,10 @@
           "enum": ["zh-only", "zh-en"],
           "description": "Override deck.language for this slide only."
         },
+        "motion_policy": {
+          "$ref": "#/$defs/motion_policy",
+          "description": "Authoring intent for slide motion. Rendered as data-motion-policy and checked by validator so motion explains state/order instead of decorative noise."
+        },
         "custom_css": {
           "type": "string",
           "description": "ESCAPE HATCH. Per-slide raw CSS scoped under [data-page=NN]. Use sparingly — drives R20/R06 drift."
@@ -1105,8 +1109,30 @@
         "src":          { "type": "string", "minLength": 1, "description": "Path to the embedded HTML, relative to the deck's output directory (e.g. 'prototypes/foo.html')." },
         "iframe_title": { "type": "string", "description": "iframe `title` attr for a11y. Defaults to data.title when omitted." },
         "hint":         { "type": "string", "description": "Bottom-right pill caption, e.g. '报告可滚动查阅'. Omit / empty to hide the pill." },
+        "prototype_kind": {
+          "enum": ["report", "dashboard", "workflow-map", "mini-app", "phone-demo", "video-demo", "other"],
+          "description": "What kind of work surface is embedded. Used by authors/auditors to preserve the right interaction expectations."
+        },
+        "interaction": {
+          "enum": ["static-scroll", "clickable", "guided-loop", "native-app", "video-only"],
+          "description": "Expected interaction mode. If it looks clickable, choose clickable/native-app and make the iframe actually respond."
+        },
+        "allow_remote": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set true only when intentionally embedding an https URL that cannot be packaged locally. Local packaged prototypes are preferred."
+        },
+        "preview_image": {
+          "type": "string",
+          "description": "Optional local preview image for library thumbnails or fallback docs. Not rendered by the iframe layout."
+        },
         "zoom":         { "type": "number", "minimum": 0.5, "maximum": 2.5, "description": "Optional content scaling. 1.0 = native (default); >1 enlarges (use when embedded text is hard to read at slide scale); <1 shrinks (use when prototype is wider than the iframe). Implemented via CSS transform + width/height compensation, so the iframe always fills its container regardless of zoom." }
       }
+    },
+
+    "motion_policy": {
+      "enum": ["none", "reveal", "state-loop", "sequence-highlight", "demo-loop", "live-dashboard", "media-restart", "iframe-native"],
+      "description": "Shared motion taxonomy: none/reveal for normal pages; state-loop and sequence-highlight for diagrams; demo-loop/live-dashboard for work surfaces; media-restart for video/audio; iframe-native when the embedded prototype owns interaction."
     }
   }
 }

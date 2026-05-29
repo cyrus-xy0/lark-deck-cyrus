@@ -11,7 +11,7 @@ set -euo pipefail
 
 PACKAGE_NAME="lark-deck-cyrus"
 SKILLS_ROOT="skills"
-SKILL_NAMES=("lark-deck-cyrus" "upload-recognizer" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator" "deck-ingestor")
+SKILL_NAMES=("lark-deck-cyrus" "upload-parser" "deck-planner" "deck-renderer" "deck-auditor" "pitch-simulator" "deck-ingestor")
 
 for SKILL_NAME in "${SKILL_NAMES[@]}"; do
   if [ ! -d "$SKILLS_ROOT/$SKILL_NAME" ]; then
@@ -74,6 +74,7 @@ INCLUDE_PATHS=(
   "config"
   "knowledge"
   "library"
+  "docs"
   "README.md"
   "INSTALL.md"
   "CLOUD_AGENT.md"
@@ -81,10 +82,6 @@ INCLUDE_PATHS=(
   "install.sh"
   "package-skill.sh"
   "LICENSE"
-  "PRODUCT.md"
-  "PRODUCT_PLAN.md"
-  "BUSINESS_RULES.md"
-  "DESIGN.md"
   "CONTRIBUTING.md"
 )
 for path in "${INCLUDE_PATHS[@]}"; do
@@ -110,7 +107,7 @@ By default this copies the package into \`~/Projects/lark-deck-cyrus\`, then
 symlinks these skills into \`~/.claude/skills/\`:
 
 - \`lark-deck-cyrus\`
-- \`upload-recognizer\`
+- \`upload-parser\`
 - \`deck-planner\`
 - \`deck-renderer\`
 - \`deck-auditor\`

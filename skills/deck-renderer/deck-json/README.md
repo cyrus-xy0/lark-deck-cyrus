@@ -73,6 +73,12 @@ python3 deck-json/compile-outline.py \
   --report runs/<ts>/output/compile-report.json \
   --feedback runs/<ts>/output/FEEDBACK.md
 
+python3 deck-json/materialize-feishu-assets.py \
+  runs/<ts>/output/deck.json \
+  runs/<ts>/output \
+  --source-dossier runs/<ts>/input/runtime-library/source-dossier.json \
+  --fail-on-unresolved
+
 python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 ```
 
@@ -97,6 +103,7 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 | **`arch-stack`** | — | 4 层架构图(应用/平台/AI/数据底座) |
 | `end` | — | 结束页,固定飞书 slogan PNG;不渲染自定义 CTA 文本 |
 | **specials** | | |
+| `iframe-embed` | — | deck-framed live prototype / dashboard / HTML report |
 | `replica` | — | 全屏 PDF 页图 |
 | `raw` | — | 单页 HTML 自由发挥(escape hatch) |
 
@@ -136,7 +143,27 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 | `accent` | enum: blue/teal/violet/purple/orange | **无 cyan** (规则 R49 编码在 schema) |
 | `decor` | string[] (token) | violet-glow / blue-glow / mix-glow / teal-glow / orange-spark / aurora / grain / topo / flower-bg / section-bg / photo-bg |
 | `language_override` | enum | 单 slide override `deck.language` |
+| `motion_policy` | enum | none / reveal / state-loop / sequence-highlight / demo-loop / live-dashboard / media-restart / iframe-native; 会渲染成 `data-motion-policy` |
 | `notes` | string | 作者备注(不渲染) |
+
+## Prototype embed contract
+
+`iframe-embed` 用于把真实工作台放进 deck: 报告页、dashboard、流程地图、
+mini-app、手机 demo 等。它不是截图位,而是一个可交互证据页。
+
+最小可交付规则:
+
+- `data.src` 默认必须是 deck-local 相对路径,例如
+  `prototypes/taste-radar/index.html`。先把原型复制到 output 目录,再写
+  DeckJSON。
+- 禁止 `file://`、`/Users/...`、`~/Downloads/...` 和 `../` 逃出 deck
+  目录的路径;这些在发给别人后会断。
+- 远程 `https://` iframe 只有在确实无法本地打包时才允许,并且必须显式写
+  `allow_remote: true`。
+- 建议补充 `prototype_kind` 和 `interaction`: 例如
+  `dashboard + clickable`、`report + static-scroll`、`mini-app + native-app`。
+- 如果页面只是静态示意,降低可点击视觉;如果看起来能点,就放进 iframe 或写真
+  JS,不要做“假控件”。
 
 ---
 
@@ -150,6 +177,9 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
    - decor token whitelist
    - 长 title 警告
    - texts.md 兼容性 hint
+   - `iframe-embed` 交付契约: 禁止 user-local 路径,本地 prototype 必须存在,
+     远程 iframe 必须显式 `allow_remote:true`
+   - `motion_policy` 基本匹配: `iframe-native` 只能用于 iframe/raw prototype 页
 
 3. **HTML validator** (assets/validate.py) — 渲染产物再过一道,~40 条规则 (R02 / R06 / R20 / L1-L4 / BF1-BF12 / 等)
 

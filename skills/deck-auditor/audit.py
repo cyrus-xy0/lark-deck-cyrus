@@ -55,7 +55,7 @@ def parse_h5_counts(report_text: str) -> tuple[int, int]:
 
 
 def classify_routing(report_text: str) -> dict[str, list[str]]:
-    renderer_codes = ["R-OVERFLOW", "R-OVERLAP", "R-VIS", "R06", "R20", "L1", "L2", "L4", "R10", "R12", "R47", "R48", "T00", "T01", "T02", "T03", "R-FEEDBACK", "R-DOM", "R-KEY"]
+    renderer_codes = ["R-OVERFLOW", "R-OVERLAP", "R-VIS", "R06", "R20", "L1", "L2", "L4", "R10", "R12", "R47", "R48", "R-CSSVAR", "R-BULLET-DASH", "T00", "T01", "T02", "T03", "R-FEEDBACK", "R-DOM", "R-KEY"]
     planner_codes = ["R-HIERARCHY", "R-ECHO", "R-LANG"]
     routing = {"deck-renderer": [], "deck-planner": [], "deck-ingestor": []}
     for code in renderer_codes:
@@ -114,6 +114,17 @@ def _walk_text(value: Any) -> list[str]:
     return []
 
 
+def _matches_signal(text_lower: str, term: str) -> bool:
+    needle = term.lower()
+    if re.fullmatch(r"[a-z0-9][a-z0-9+-]*", needle):
+        return re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", text_lower) is not None
+    return needle in text_lower
+
+
+def _signal_hits(text_lower: str, terms: list[str]) -> list[str]:
+    return [term for term in terms if _matches_signal(text_lower, term)]
+
+
 def _slide_signature(slide: dict[str, Any]) -> str:
     layout = str(slide.get("layout") or "")
     variant = str(slide.get("variant") or slide.get("style") or "")
@@ -137,23 +148,44 @@ def design_readiness(deck_json: Path | None) -> dict[str, Any]:
     deck = read_json(deck_json)
     slides = [slide for slide in deck.get("slides", []) if isinstance(slide, dict) and not slide.get("_disabled")]
     text_blob = "\n".join(_walk_text(deck))
-    enterprise_terms = [
+    manufacturing_core_terms = [
         "中际旭创",
         "innolight",
         "npi",
         "光模块",
         "高端制造",
         "制造业",
+        "工厂",
+        "产线",
+        "车间",
+        "良率",
+        "mes",
+        "plm",
+    ]
+    manufacturing_context_terms = [
         "质量异常",
         "供应链",
         "工程师",
-        "数字员工",
-        "agent",
-        "ai",
     ]
-    signals = [term for term in enterprise_terms if term.lower() in text_blob.lower()]
-    manufacturing_signal = any(term in text_blob.lower() for term in ["中际旭创", "innolight", "npi", "光模块", "高端制造", "制造业", "质量异常", "供应链"])
-    ai_signal = any(term in text_blob.lower() for term in ["agent", "ai", "数字员工", "智能体"])
+    ai_terms = [
+        "数字员工",
+        "智能体",
+        "大模型",
+        "人工智能",
+        "agent",
+        "agents",
+        "ai",
+        "aigc",
+        "genai",
+        "llm",
+    ]
+    text_lower = text_blob.lower()
+    manufacturing_hits = _signal_hits(text_lower, manufacturing_core_terms)
+    manufacturing_context_hits = _signal_hits(text_lower, manufacturing_context_terms)
+    ai_hits = _signal_hits(text_lower, ai_terms)
+    signals = manufacturing_hits + manufacturing_context_hits + ai_hits
+    manufacturing_signal = bool(manufacturing_hits)
+    ai_signal = bool(ai_hits)
     applied = manufacturing_signal and ai_signal and len(slides) >= 8
     if not applied:
         return {

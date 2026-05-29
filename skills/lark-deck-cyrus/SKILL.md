@@ -8,7 +8,7 @@ description: |
   Feishu / Lark-style deckhtml. Cyrus coordinates requirement clarification,
   narrative planning, upload recognition, DeckJSON/HTML rendering, quality
   acceptance, pitch rehearsal, cloud ingestion, user-confirmed iteration, and
-  final delivery across upload-recognizer, deck-planner, deck-renderer,
+  final delivery across upload-parser, deck-planner, deck-renderer,
   deck-auditor, pitch-simulator, and deck-ingestor. The visual style, layout
   discipline, generation gates, check-only behavior, and delivery contract
   remain the feishu-deck-h5 standard.
@@ -19,7 +19,7 @@ description: |
 目标:把一个初始需求变成客户现场可以直接讲的飞书 / Lark 风格 H5 pitch deck。
 这个 skill 是总控入口,负责判断当前应该调用哪个子 skill,并维护从需求到交付的上下文闭环。
 
-**原则:**Cyrus 是结构化工作流升级,不是新视觉体系。凡是涉及 H5 deck 的外观、布局、字号、调色板、DeckJSON、HTML、校验、交付物和编辑回路,以 `deck-renderer` 中继承自 `feishu-deck-h5` 的规则为准。Cyrus 的 recognizer / planner / auditor / simulator / ingestor 只增强“素材怎么拆、讲什么、能不能交付、客户会怎么反应、如何沉淀复用”,不能覆盖 H5 已定义的风格和生产纪律。
+**原则:**Cyrus 是结构化工作流升级,不是新视觉体系。凡是涉及 H5 deck 的外观、布局、字号、调色板、DeckJSON、HTML、校验、交付物和编辑回路,以 `deck-renderer` 中继承自 `feishu-deck-h5` 的规则为准。Cyrus 的 parser / planner / auditor / simulator / ingestor 只增强“素材怎么拆、讲什么、能不能交付、客户会怎么反应、如何沉淀复用”,不能覆盖 H5 已定义的风格和生产纪律。
 
 ## 入口判断
 
@@ -27,8 +27,8 @@ description: |
 
 - 端到端:从 brief / 客户需求 / 销售想法开始,需要最终可讲 deck。继续使用本总控。
 - 只要规划:用户明确要大纲、讲法、每页重点。路由到 `deck-planner`,但进入生产前仍必须回到本总控的 H5 生成流程。
-- 只要识别上传物:用户给出 PDF / PPT / HTML / 图片 / 飞书文档等素材,需要拆解内容。路由到 `upload-recognizer`。
-- 只要生产:用户已有 outline / deck.json / 素材识别结果,要生成、改稿、打包。路由到 `deck-renderer`,并遵守 H5 的 MODE SELECTION、PREFLIGHT、DESIGN-FIRST、DeckJSON-first 和 validator gate。
+- 只要解析上传物:用户给出 PDF / PPT / HTML / 图片 / 飞书文档等素材,需要拆解内容。路由到 `upload-parser`。
+- 只要生产:用户已有 outline / deck.json / 素材解析结果,要生成、改稿、打包。路由到 `deck-renderer`,并遵守 H5 的 MODE SELECTION、PREFLIGHT、DESIGN-FIRST、DeckJSON-first 和 validator gate。
 - 只要验收:用户问是否合格、能否分享、能否入库、哪里不合规。路由到 `deck-auditor`。auditor 内部完成 H5 CHECK-ONLY 标准检查,不要把底层 check-only 作为用户可见路径单独拎出来。
 - 只要预演:用户问客户会怎么反应、怎么讲、会被问什么。路由到 `pitch-simulator`,预演建议需用户确认后才能进入改稿。
 - 只要入库:用户说沉淀、入库、复用、同步到云端库。路由到 `deck-ingestor`,但 HTML deck / slide 入库前必须先有 `deck-auditor` 的通过结论。
@@ -43,15 +43,15 @@ Cyrus 对外只保留三个主入口。不要再把“PPT/PDF 转 HTML”、“H
 |---|---|---|
 | **1. 上传 HTML deck 做检查 / 入库** | 用户给出一个已有 HTML deck,只问是否合格、能否入库、哪里失败 | `lark-deck-cyrus -> deck-auditor -> deck-ingestor`。auditor 通过才调用 ingestor;失败则返回失败理由和修复路由,不自动改稿 |
 | **2. 只有 brief,新建 deckhtml** | 用户只有文字 brief、主题、销售想法、客户提案方向 | `lark-deck-cyrus -> deck-planner -> 用户确认 outline -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。planner 直接基于知识库和 brief 生成 outline;不要在 planner 后插 simulator |
-| **3. brief + 其他素材,新建或改成新 deckhtml** | 用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包,并要求转换、改版、重做或基于材料生成 | `lark-deck-cyrus -> upload-recognizer -> 临时知识/素材库 -> deck-planner -> 用户确认 outline -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。先识别上传物并拆成知识层和素材层,在 agent runtime 本轮 run 内保存临时库,再由 planner 结合 brief 生成 outline |
+| **3. brief + 其他素材,新建或改成新 deckhtml** | 用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包,并要求转换、改版、重做或基于材料生成 | `lark-deck-cyrus -> upload-parser -> 临时知识/素材库 -> deck-planner -> 用户确认 outline -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。先解析上传物并拆成知识层和素材层,在 agent runtime 本轮 run 内保存临时库,再由 planner 结合 brief 生成 outline |
 
 场景 3 中的 PDF / PPT / HTML / 飞书文档处理原则:
 
-- PDF / PPT / 旧 HTML 都先由 `upload-recognizer` 做 source inventory,不要直接进 renderer。
-- 识别结果必须拆成知识层(场景、主张、证据、讲法、风险)和素材层(slide、图片、logo、截图、layout 线索、可复用片段)。
+- PDF / PPT / 旧 HTML 都先由 `upload-parser` 做 source inventory,不要直接进 renderer。
+- 解析结果必须拆成知识层(场景、主张、证据、讲法、风险)和素材层(slide、图片、logo、截图、layout 线索、可复用片段)。
 - `deck-planner` 消费 brief + 知识层生成 outline;`deck-renderer` 消费 outline + 素材层生成 H5 deck。
-- H5 的 Replica / Rewrite / per-page polish 判断仍由 renderer 执行,但它必须基于 recognizer 的 inventory 和 planner 的目标。
-- 飞书文档不是独立路线;读取后的标题、层级、表格、图片、附件和引用也先进入 recognizer 输出。
+- H5 的 Replica / Rewrite / per-page polish 判断仍由 renderer 执行,但它必须基于 parser 的 inventory 和 planner 的目标。
+- 飞书文档不是独立路线;读取后的标题、层级、表格、图片、附件和引用也先进入 parser 输出。
 
 ## 两个核心工作过程
 
@@ -98,7 +98,7 @@ Cyrus 上游只能规划 DeckJSON 的 `layout + variant`;不要直接让 planner
 
 Cyrus 的结构性工作围绕 H5 生产过程插入:
 
-- `upload-recognizer` 负责把用户上传的 PDF / PPT / HTML / 飞书文档 / 素材包拆成知识层和素材层,为 planner 与 ingestor 提供结构化输入。
+- `upload-parser` 负责把用户上传的 PDF / PPT / HTML / 飞书文档 / 素材包拆成知识层和素材层,为 planner 与 ingestor 提供结构化输入。
 - `deck-planner` 负责把业务 brief + 知识层变成可执行 outline:受众、决策目标、核心冲突、每页职责、关键 idea、讲法、证据缺口、素材计划和候选 layout。
 - `deck-renderer` 负责把已确认的 outline / deck.json 落成 H5 标准交付物。它可以调整 planner 的 `layout_candidate`,但调整理由必须是 H5 renderer 更安全或更贴近 H5 风格。
 - `deck-auditor` 负责把 H5 validator、截图、visual gate、交付包和可讲性合成验收结论,并把问题路由回 planner 或 renderer。
@@ -115,7 +115,7 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 ## 子 skill 分工
 
 - `deck-planner`: 负责讲什么、每页讲什么、重点是什么、关键 idea 是什么、应该怎么讲。
-- `upload-recognizer`: 负责上传识别,把 PDF / PPT / HTML / 飞书文档拆成知识层和素材层。
+- `upload-parser`: 负责上传解析,把 PDF / PPT / HTML / 飞书文档拆成知识层和素材层。
 - `deck-renderer`: 根据已确认规划生产 DeckJSON,并按 H5 标准渲染成可编辑、可交付的 HTML deck。
 - `deck-auditor`: 对生成后的 deck 做质量验收,覆盖 validator、screenshot、gate、交付物完整性和可讲性检查。
 - `pitch-simulator`: 模拟客户看到 deck 后的反应,输出异议地图、讲法建议和改稿队列。
@@ -126,23 +126,23 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 1. **场景分流**
    - 先判定是“上传 HTML deck 检查 / 入库”、“只有 brief 新建 deckhtml”,还是“brief + 其他素材新建或改版 deckhtml”。
    - 上传 HTML deck 且只做检查 / 入库时,直接交给 `deck-auditor`;通过才调用 `deck-ingestor`,失败只返回失败理由。
-   - 只有 brief 时,跳过 `upload-recognizer`,直接进入 `deck-planner`。
-   - brief + 其他素材时,先调用 `upload-recognizer`,再进入 `deck-planner`。
+   - 只有 brief 时,跳过 `upload-parser`,直接进入 `deck-planner`。
+   - brief + 其他素材时,先调用 `upload-parser`,再进入 `deck-planner`。
 
 2. **需求澄清**
    - 如果用户明确说 `lark-deck-cyrus`,直接使用本总控。
    - 先判断用户要向谁讲、希望对方做什么决定、当前已有多少事实/素材、最终交付形态是什么。
    - 信息不足时,优先提出少量关键澄清问题;如果可以合理假设,先记录假设并继续推进。
 
-3. **上传识别**
-   - 仅在用户提供 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包且不是单纯检查 HTML deck 时调用 `upload-recognizer`。
+3. **上传解析**
+   - 仅在用户提供 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包且不是单纯检查 HTML deck 时调用 `upload-parser`。
    - 输出必须拆成知识层和素材层,并保留来源、页码、文件名、置信度和缺口。
    - 总控必须在本轮 run 内创建临时知识/素材库,例如 `input/runtime-library/knowledge.json`、`materials.json`、`slides.json` 和 `manifest.json`;后续 planner、renderer、ingestor 均以这些结构化结果为本轮事实源之一。
-   - 不在识别阶段决定最终 deck 结构,也不直接渲染 HTML。
+   - 不在解析阶段决定最终 deck 结构,也不直接渲染 HTML。
 
 4. **规划讲法**
    - 调用 `deck-planner`。
-   - planner 基于知识库、用户 brief 和 upload-recognizer 的知识层生成 outline;不要在 planner 后先跑 simulator。
+   - planner 基于知识库、用户 brief 和 upload-parser 的知识层生成 outline;不要在 planner 后先跑 simulator。
    - 输出必须说明整套 deck 的主线、每页职责、页级重点、关键 idea、建议讲法、证据缺口、素材需求和候选 DeckJSON layout。
    - 规划不是排版草稿,而是后续生产、验收、预演和迭代的事实源。
    - 输出后必须暂停,让用户确认目标受众、行业痛点、主张、证据缺口、素材计划和页序;用户确认前不得渲染 deckhtml。
@@ -150,11 +150,12 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 5. **H5 设计确认**
    - 根据 planner outline 和 H5 DESIGN-FIRST POLICY 输出页级设计方案。
    - 明确哪些页用 H5 标准 layout,哪些页需要 `raw` / `replica` / `iframe-embed`,以及为什么。
-   - 所有场景都必须等用户确认 outline / 设计框架;即使方案全是标准 schema 且风险低,也只能把假设写入 `OUTLINE_REVIEW.md` / `DESIGN-PLAN.md`,不得直接创建最终 deckjson 或生成 HTML。
+   - 所有场景都必须等用户确认 outline / 设计框架;即使方案全是标准 schema 且风险低,也只能把假设写入单一用户可见确认稿 `DESIGN_PLAN.md`,不得直接创建最终 deckjson 或生成 HTML。`input/outline.json` 和 `input/runtime-library/source-dossier.json` 是后续脚本消费的机器契约,不要复制成 output 里的用户产物。
 
 6. **生成和渲染**
    - 调用 `deck-renderer`。
    - 先完成 PREFLIGHT 和 run workspace,再用 DeckJSON-first 流程生产 `deck.json`、`index.html`、`texts.md`、`FEEDBACK.md` 和资产包。
+   - 渲染前必须把 DeckJSON 中的飞书 / Lark 文件 URL 落成本地资产;不要把 `https://feishu.cn/file/...` 或 `https://*.larkoffice.com/file/...` 直接留在最终 HTML / zip 里。
    - 如果生产时发现规划无法落地,把原因写回反馈,再由总控决定是否回到 `deck-planner`。
 
 7. **质量验收**
@@ -173,7 +174,7 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 9. **成稿确认、入库和最终交付**
    - deckhtml 生成、验收和预演完成后,必须先让用户确认是否按预演反馈修改;不修改时再询问是否入库。用户确认入库前不得自动入库。
    - deckhtml 通过验收且预演门禁通过后,默认用 `publish-magic-page` 发布为飞书妙笔 / Magic 云端 HTML 页面,并把 `app_url` / `cloud_publish.url` 作为最终交付入口;本地 `index.html` 和 zip 只作为审计、编辑和打包产物。只有用户明确要求“嵌入文档 / 生成飞书文档 / Docx HTML Box”时,才使用 legacy `generate-magic-doc` 路径,并把它标为文档嵌入而不是默认妙笔交付。
-   - 用户确认入库后,随后调用 recognizer 解析最终 deckhtml,再调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
+   - 用户确认入库后,随后调用 parser 解析最终 deckhtml,再调用 `deck-ingestor` 把通过验收且适合复用的知识和素材写入云端库;Slide Library 暂时不建云端表,整页可选复用单元保存在本地 Slide 候选库。Slide Library 的事实仍由 `素材库 + 知识库` 联合表达“怎么呈现 + 怎么讲”。
    - 默认优先使用云端素材库和知识库,以当前沙箱 agent 的 user 身份访问;不要要求用户配置 token。只有云端不可访问或无权限时才回退本地缓存,并用明文告诉用户“已回退本地”及原因。
    - 如果 simulator 发现必须修改的问题,先等待用户确认是否迭代;不要把未确认的模拟建议直接入库为事实。
    - 最终状态应是一份用户可以直接拿去讲的 H5 pitch deck。
@@ -184,14 +185,14 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 - 新安装/注册时使用这些 skill 名:
   - `lark-deck-cyrus`
   - `deck-planner`
-  - `upload-recognizer`
+  - `upload-parser`
   - `deck-renderer`
   - `deck-auditor`
   - `pitch-simulator`
   - `deck-ingestor`
 - `lark-deck-cyrus` 是总控 skill,不直接承担具体生产、验收或预演实现。
 - 机器可读编排入口在 `assets/pipeline.yaml`;它只描述调度与交付契约,具体能力仍由各子 skill 和可执行脚本承担。
-- 当前只有六个子 skill:`upload-recognizer`、`deck-planner`、`deck-renderer`、`deck-auditor`、`pitch-simulator`、`deck-ingestor`。
+- 当前只有六个子 skill:`upload-parser`、`deck-planner`、`deck-renderer`、`deck-auditor`、`pitch-simulator`、`deck-ingestor`。
 - 云端发布不是上述子 skill 的生产责任;默认最终发布调用独立
   `publish-magic-page`,legacy 文档嵌入才调用 `generate-magic-doc`。
 - `deck-planner` 可以提出业务主线和候选 layout,但不能绕开 H5 design-first 确认,也不能要求 renderer 牺牲 H5 风格。

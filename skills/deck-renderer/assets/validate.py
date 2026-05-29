@@ -2273,8 +2273,16 @@ def audit_feedback_md(html_path: Path, iss: Issues):
             'comment once you\'ve filled it in to silence this warning.')
 
 
+def _visual_unavailable(iss: Issues, msg: str, *, required: bool) -> None:
+    if required:
+        iss.err('R-VISUAL', msg)
+    else:
+        iss.warn_soft('R-VISUAL', msg)
+
+
 def run_visual_audits(html_path: Path, iss: Issues, *,
-                       want_screenshots: bool = False):
+                       want_screenshots: bool = False,
+                       required: bool = False):
     """Single Playwright session that runs all `--visual` audits.
 
     Replaces standalone audit_visual_overflow. One Chromium launch covers:
@@ -2324,11 +2332,13 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
         # stderr hint (not a warning so it doesn't pollute the issue list /
         # break CI parsing) and continue with static-only output. Re-enable
         # by `bash install.sh`, or suppress this notice via `--no-visual`.
-        print('  (visual audits skipped — playwright not installed; '
-              'run `bash install.sh` to install project-local Playwright '
-              'and Chromium, or pass `--no-visual` to skip R-OVERFLOW / '
-              'R-VIS-* checks)',
-              file=sys.stderr)
+        _visual_unavailable(
+            iss,
+            'visual checks could not run (ImportError: playwright not installed). '
+            'Run `bash install.sh` to install project-local Playwright and '
+            'Chromium, or pass `--no-visual` for a non-delivery dry run.',
+            required=required,
+        )
         return
 
     url = html_path.resolve().as_uri()
@@ -2398,10 +2408,14 @@ def run_visual_audits(html_path: Path, iss: Issues, *,
 
             browser.close()
     except Exception as e:
-        iss.warn_soft('R-VISUAL',
+        _visual_unavailable(
+            iss,
             f'visual checks could not run ({type(e).__name__}: {e}). '
             'Try `bash install.sh` to refresh project-local Playwright / '
-            'Chromium, or open the deck in a browser manually to verify.')
+            'Chromium, rerun from a browser-capable environment, or pass '
+            '`--no-visual` only for a non-delivery dry run.',
+            required=required,
+        )
         return
 
     # ----- Format findings from the JS report -----

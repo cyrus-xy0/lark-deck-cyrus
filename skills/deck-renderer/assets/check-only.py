@@ -12,7 +12,7 @@
     适合 review-style 看一份外部 deck 的整体卫生.
 
   入库门禁 — `bash check-only.sh deck.html --gate ingest`
-    只看 21 条必修规则 (业务关切 A/B/C 三类), 全部 warn 升 error.
+    只看 22 条必修规则 (业务关切 A/B/C 三类), 全部 warn 升 error.
     用 business-rules.yaml 把每条违规渲染成业务语言: 业务症状 / 不修后果 /
     具体修改步骤 + 技术代码做小字附注.
     适合 deck-ingestor 调来做 slide-library 准入扫描.
@@ -34,9 +34,10 @@ import validate as V
 FAMILIES = [
     ('结构 / DOM',           ['R02', 'R07', 'R-DOM']),
     ('排版 / 文案',          ['R05', 'R06', 'R13', 'R20', 'R56',
-                              'R-WHITE-TEXT', 'R-HIERARCHY']),
+                              'R-WHITE-TEXT', 'R-HIERARCHY', 'R-ECHO',
+                              'R-BULLET-DASH']),
     ('品牌 / 调色板',        ['L1', 'R10', 'R12', 'R38', 'R49', 'R-LANG']),
-    ('布局完整性',           ['L2', 'L4', 'R36', 'R47', 'R48']),
+    ('布局完整性',           ['L2', 'L4', 'R36', 'R47', 'R48', 'R-CSSVAR']),
     ('UI 仿真 / slide-key',  ['UI1', 'R-KEY']),
     ('演示模式 / 运行时',    ['R29-32']),
     ('texts.md 联动',        ['T00', 'T01', 'T02', 'T03']),
@@ -76,7 +77,7 @@ CONCERN_ORDER = [
 
 
 def load_business_rules() -> dict:
-    """从 business-rules.yaml 加载 21 条必修规则的业务文案."""
+    """从 business-rules.yaml 加载 22 条必修规则的业务文案."""
     try:
         import yaml
     except ImportError:
@@ -261,7 +262,7 @@ def build_gate_report(html_path: Path, slides_count: int, violations: list,
     lines.append(f'- **Slide 数**: {slides_count}')
 
     if not violations:
-        lines.append(f'- **结果**: ✅ **通过** —— 21 条必修规则全部满足, 可入库')
+        lines.append(f'- **结果**: ✅ **通过** —— 22 条必修规则全部满足, 可入库')
         lines.append('')
         lines.append('---')
         lines.append('')
@@ -410,10 +411,12 @@ def _run_all_audits(html: str, slides: list, path: Path,
     V.audit_copy_rules(html, iss)
     V.audit_font_sizes(html, iss)
     V.audit_type_ladder(html, iss)
+    V.audit_undefined_css_vars(html, iss)
     V.audit_white_text(html, iss)
     V.audit_no_drop_shadows(html, iss)
     V.audit_data_decor(slides, iss)
     V.audit_hex_palette(html, iss)
+    V.audit_bullet_dash(html, iss)
     V.audit_runtime_chrome(html, iss, path)
     V.audit_centering_pattern(html, iss)
     V.audit_layout_integrity(html, iss)
@@ -425,11 +428,12 @@ def _run_all_audits(html: str, slides: list, path: Path,
     V.audit_header_minimal(slides, iss)
     V.audit_slide_keys(slides, iss)
     V.audit_language_policy(html, slides, iss)
+    V.audit_list_echo(slides, iss)
     V.audit_perf(html, iss)
     V.audit_text_ids(html, path, iss)
     V.audit_feedback_md(path, iss)
     if visual:
-        V.run_visual_audits(path, iss, want_screenshots=False)
+        V.run_visual_audits(path, iss, want_screenshots=False, required=True)
 
 
 # ---------------------------------------------------------------------------
@@ -445,7 +449,7 @@ def main() -> int:
   # 默认模式: 按 family 分组 review-style 报告
   python3 check-only.py ../examples/sample-deck.html
 
-  # 入库门禁模式: 21 条必修规则, 业务语言报告, 任一违规即 exit 1
+  # 入库门禁模式: 22 条必修规则, 业务语言报告, 任一违规即 exit 1
   python3 check-only.py /path/to/deck.html --gate ingest
 
   # 写报告到文件 (默认或 gate 模式都可)
@@ -457,7 +461,7 @@ def main() -> int:
     p.add_argument('--visual', action='store_true',
                    help='加跑 Playwright 视觉审计; --gate ingest 自动开启')
     p.add_argument('--gate', choices=['ingest'],
-                   help='入库门禁模式. ingest = 21 条必修规则, '
+                   help='入库门禁模式. ingest = 22 条必修规则, '
                         '业务语言报告, deck-ingestor 用')
     p.add_argument('--report', metavar='PATH',
                    help='把 markdown 报告写到指定路径; 不带则打到 stdout')
@@ -488,7 +492,7 @@ def main() -> int:
     # 渲染报告
     if is_gate:
         rules = load_business_rules()
-        # 只保留 yaml 里覆盖的规则 (21 条必修)
+        # 只保留 yaml 里覆盖的规则 (22 条必修)
         kept = [(c, m) for c, m in iss.errors if c in rules]
         report = build_gate_report(path, len(slides), kept, rules)
         # exit code 反映 gate 通过与否

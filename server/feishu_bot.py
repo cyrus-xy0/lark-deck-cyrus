@@ -251,16 +251,16 @@ def format_task_reply(task: dict[str, Any]) -> str:
     artifacts = task.get("artifacts") or {}
     status_url = artifacts.get("status_url") or ""
     cloud_url = artifacts.get("magic_page_url") or artifacts.get("app_url") or artifacts.get("cloud_url") or artifacts.get("magic_url") or artifacts.get("preview_url") or artifacts.get("magic_doc_url") or artifacts.get("doc_url") or ""
-    if not status_url and artifacts.get("OUTLINE_REVIEW.md"):
-        status_url = f"{artifacts.get('OUTLINE_REVIEW.md', '').rsplit('/files/', 1)[0]}/status"
+    if not status_url and artifacts.get("DESIGN_PLAN.md"):
+        status_url = f"{artifacts.get('DESIGN_PLAN.md', '').rsplit('/files/', 1)[0]}/status"
     if task.get("status") != "succeeded":
         if task.get("status") == "awaiting_outline_confirmation":
             return "\n".join(
                 [
-                    "我已经生成大纲框架，先停在 planner 后等你确认。",
+                    "我已经生成设计确认稿，先停在 planner 后等你确认。",
                     f"任务 ID: {task.get('id')}",
                     f"状态页: {status_url}" if status_url else "",
-                    f"大纲: {artifacts.get('OUTLINE_REVIEW.md', '')}",
+                    f"设计确认稿: {artifacts.get('DESIGN_PLAN.md', '')}",
                     "",
                     "确认这个框架后回复“确认”，我再生成 deckhtml。",
                     "如果要调整，请直接告诉我改哪里，我会先更新大纲而不是直接渲染。",

@@ -228,7 +228,14 @@ def entry_terms(entry: dict[str, Any]) -> str:
     return " ".join(str(item) for item in fields if item).lower()
 
 
-def validate_entry(entry: dict[str, Any], *, seen_ids: set[str], seen_slide_keys: set[str]) -> list[dict[str, str]]:
+def validate_entry(
+    entry: dict[str, Any],
+    *,
+    seen_ids: set[str],
+    seen_slide_keys: set[str] | None = None,
+    seen_candidate_slide_refs: set[str] | None = None,
+    seen_candidate_slide_keys: set[str] | None = None,
+) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     for key in REQUIRED_ENTRY_KEYS:
         if entry.get(key) in (None, "", []):
@@ -255,9 +262,29 @@ def validate_entry(entry: dict[str, Any], *, seen_ids: set[str], seen_slide_keys
     slide_key = str(slide.get("key") or source.get("slide_key") or "")
     if not slide_key:
         issues.append({"severity": "error", "code": "LIB-SLIDE-KEY", "message": "slide key is required"})
-    elif slide_key in seen_slide_keys:
-        issues.append({"severity": "error", "code": "LIB-DUPLICATE-SLIDE-KEY", "message": slide_key})
-    seen_slide_keys.add(slide_key)
+    elif status == "approved":
+        if seen_slide_keys is not None and slide_key in seen_slide_keys:
+            issues.append({"severity": "error", "code": "LIB-DUPLICATE-SLIDE-KEY", "message": slide_key})
+        if seen_slide_keys is not None:
+            seen_slide_keys.add(slide_key)
+    elif seen_candidate_slide_refs is not None:
+        source_deck = str(source.get("deck") or "")
+        source_ref = f"{source_deck}::{slide_key}"
+        if source_ref in seen_candidate_slide_refs:
+            issues.append({"severity": "error", "code": "LIB-DUPLICATE-SOURCE-SLIDE", "message": source_ref})
+        seen_candidate_slide_refs.add(source_ref)
+        if seen_candidate_slide_keys is not None:
+            if slide_key in seen_candidate_slide_keys:
+                issues.append({
+                    "severity": "warning",
+                    "code": "LIB-CANDIDATE-SLIDE-KEY-REUSED",
+                    "message": f"{slide_key} appears in multiple candidate sources; allowed until approval",
+                })
+            seen_candidate_slide_keys.add(slide_key)
+    elif seen_slide_keys is not None:
+        if slide_key in seen_slide_keys:
+            issues.append({"severity": "error", "code": "LIB-DUPLICATE-SLIDE-KEY", "message": slide_key})
+        seen_slide_keys.add(slide_key)
 
     if entry.get("layout") != slide.get("layout"):
         issues.append({"severity": "error", "code": "LIB-LAYOUT-MISMATCH", "message": "entry.layout must match slide.layout"})
@@ -291,11 +318,19 @@ def validate_entry(entry: dict[str, Any], *, seen_ids: set[str], seen_slide_keys
 def validate_library(include_candidates: bool = True) -> dict[str, Any]:
     entries = library_entries(include_candidates=include_candidates, fallback=False)
     seen_ids: set[str] = set()
-    seen_slide_keys: set[str] = set()
+    seen_approved_slide_keys: set[str] = set()
+    seen_candidate_slide_refs: set[str] = set()
+    seen_candidate_slide_keys: set[str] = set()
     results = []
     ok = True
     for entry in entries:
-        issues = validate_entry(entry, seen_ids=seen_ids, seen_slide_keys=seen_slide_keys)
+        issues = validate_entry(
+            entry,
+            seen_ids=seen_ids,
+            seen_slide_keys=seen_approved_slide_keys,
+            seen_candidate_slide_refs=seen_candidate_slide_refs,
+            seen_candidate_slide_keys=seen_candidate_slide_keys,
+        )
         if any(issue["severity"] == "error" for issue in issues):
             ok = False
         results.append({"id": entry.get("id"), "path": entry.get("_path"), "issues": issues})
@@ -612,7 +647,16 @@ def approve_candidate(
     if entry["id"].startswith("candidate-"):
         entry["id"] = "biz-" + entry["id"].removeprefix("candidate-")
 
-    issues = validate_entry(entry, seen_ids=set(), seen_slide_keys=set())
+    approved_entries = load_business_entries(include_candidates=False)
+    seen_ids = {str(item.get("id") or "") for item in approved_entries}
+    seen_slide_keys = {
+        str((item.get("slide") or {}).get("key") or (item.get("source") or {}).get("slide_key") or "")
+        for item in approved_entries
+        if item.get("status") == "approved"
+    }
+    seen_ids.discard("")
+    seen_slide_keys.discard("")
+    issues = validate_entry(entry, seen_ids=seen_ids, seen_slide_keys=seen_slide_keys)
     if any(issue["severity"] == "error" for issue in issues):
         return {"ok": False, "entry": summarize_entry(entry), "issues": issues}
 
@@ -735,7 +779,7 @@ def register_ppt_upload(
 
     This does not convert PPT pages to H5. It preserves the PPT as a source
     artifact and creates placeholder replica slide records so GTM users can
-    search/select pages for later recognizer/renderer processing.
+    search/select pages for later parser/renderer processing.
     """
     if not ppt_path.exists() or not ppt_path.is_file():
         raise FileNotFoundError(str(ppt_path))

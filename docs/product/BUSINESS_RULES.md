@@ -229,10 +229,18 @@ A. 3+1 hero(三并列汇聚到一个 hero) · B. 判定卡(GO / 部分 GO / NO-G
   半透明 hairline 卡片共同建立高级感;不要靠花哨装饰补质感。
 - **live artifact 优先**:能展示运行状态的页面,用 iframe / video /
   animated tabs / typing dots / voice waves 等轻动效表达"正在发生"。
+- **prototype 必须可交付**:`iframe-embed` 的 `src` 默认必须是 deck-local
+  相对路径,且文件真实存在于输出目录;远程链接要显式 `allow_remote:true`。
+  推荐标注 `prototype_kind` 和 `interaction`,让审稿人知道这是 report、
+  dashboard、workflow-map 还是 mini-app,以及它应该滚动、点击还是自循环。
 - **控件不要装死**:tab / segmented control / toolbar button / slider 等
   明显可操作的控件,必须用 H5 runtime 的 `data-tab-*` / iframe / video /
   真实 JS 变成可互动状态;若只是静态示意,必须显式标 `data-static-tabs`
   并在 notes 里说明理由。不要交付“看起来能点但点了没反应”的原型页。
+- **动效要有意图**:DeckJSON 可用 `motion_policy` 标注 none / reveal /
+  state-loop / sequence-highlight / demo-loop / live-dashboard / media-restart /
+  iframe-native。动效只服务于顺序、状态、媒体生命周期或原型交互,不要为了
+  “高级感”堆一页一次性的 keyframes。
 - **呼吸页负责节奏**:章节页、quote 页、hero 结论页不是浪费页,它们负责
   切换注意力,防止整套 deck 变成连续 dashboard。
 

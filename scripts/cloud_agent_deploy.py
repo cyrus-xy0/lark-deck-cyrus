@@ -112,7 +112,7 @@ bash deploy/cloud-agent/start-generator.sh
 
 启动后运行 `bash deploy/cloud-agent/healthcheck.sh` 验证。部署完成后，用户可以直接说“给某客户/主题做一份飞书风格 H5 deck”，agent 调用 `POST /decks`，先停在大纲确认；用户确认后再生成并发布到飞书妙笔云端 HTML 页面，把返回的 `magic_page_url` / `cloud_url` 发给用户，不返回本地文件包。
 
-注意：Slide Library 保持本地；飞书 Base 只写 `知识库` 和 `素材库`。默认优先使用云端 Base,不要求用户配置 token；如果云端 agent 的 `lark-cli` user 身份没有权限,系统会明文提示并回退本地候选库。
+注意：Slide Library 保持本地；飞书 Base 主链路保存 `场景索引`、`Outline模板库`、`知识库` 和 `素材库`。`组件库` 仅作为 legacy optional 表保留,组件类能力统一沉淀为素材库记录。默认优先使用云端 Base,不要求用户配置 token；如果云端 agent 的 `lark-cli` user 身份没有权限,系统会明文提示并回退本地候选库。
 """
     manifest = {
         "version": "1.0",
@@ -132,7 +132,7 @@ bash deploy/cloud-agent/start-generator.sh
             "library_slides": "GET /library/slides",
             "ppt_uploads": "POST /library/ppt-uploads",
         },
-        "base_policy": "Feishu Base writes only knowledge/assets. Slide Library is local-only.",
+        "base_policy": "Feishu Base stores planner retrieval tables and renderable assets. Component-like entries live in the asset library; the legacy component table is optional. Slide Library is local-only.",
         "required_runtime": ["python3", "node", "bash", "lark-cli for live Base/bot operations"],
     }
     write(output / "env.example", env_example)
@@ -171,7 +171,7 @@ bash deploy/cloud-agent/start-feishu-bot.sh
 
 User-facing delivery is the Feishu/Miaobi Magic Page link (`magic_page_url` /
 `cloud_url`), not local HTML or zip files. Slide Library stays local.
-`--write-base` writes only `知识库` and `素材库`.
+`--write-base` writes planner knowledge and renderable asset metadata into the configured Feishu Base. Component-like entries should be stored as asset records.
 """
     write(output / "README.md", readme)
     return {key: str(output / value) for key, value in {

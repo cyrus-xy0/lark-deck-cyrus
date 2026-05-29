@@ -101,7 +101,8 @@ def inline_css_urls(css: str, css_path: Path) -> tuple[str, int]:
         if uri is None:
             return m.group(0)
         count += 1
-        return f'url("{uri}")'
+        # Single quotes are safe in CSS and in any later double-quoted attrs.
+        return f"url('{uri}')"
 
     return url_re.sub(replace_url, css), count
 
@@ -220,7 +221,9 @@ def inline_html_style_urls(html: str, html_path: Path) -> tuple[str, int]:
         if uri is None:
             return m.group(0)
         count += 1
-        return f'url("{uri}")'
+        # This pass rewrites url(...) inside double-quoted HTML style attrs.
+        # Keep the data URI in single quotes so the surrounding attr stays valid.
+        return f"url('{uri}')"
 
     return url_re.sub(replace_url, html), count
 
