@@ -38,6 +38,7 @@ import pitch_recipes
 REPO = Path(__file__).resolve().parents[1]
 RUNS_DIR = REPO / "runs"
 OUTLINE_VALIDATOR = REPO / "skills/deck-planner/validate-outline.py"
+COMPILE_OUTLINE = REPO / "skills/deck-renderer/deck-json/compile-outline.py"
 MATERIALIZE_ASSETS = REPO / "skills/deck-renderer/deck-json/materialize-feishu-assets.py"
 RENDERER = REPO / "skills/deck-renderer/deck-json/render-deck.py"
 CHECK_ONLY = REPO / "skills/deck-renderer/assets/check-only.sh"
@@ -589,6 +590,54 @@ def process_reinvention_slides(title: str, customer: str, business_moment: str) 
     ]
 
 
+def is_enterprise_manufacturing_ai_brief(
+    industry: str,
+    business_moment: str,
+    core_tension: str,
+    product_scope: list[str],
+    solution_angle: str,
+) -> bool:
+    text = " ".join([industry, business_moment, core_tension, solution_angle, *product_scope]).lower()
+    manufacturing_terms = ["制造", "工厂", "产线", "车间", "质量", "异常", "npi", "mes", "plm", "供应链", "光模块"]
+    ai_terms = ["ai", "agent", "智能体", "数字员工", "大模型", "人工智能"]
+    workflow_terms = ["飞书", "base", "任务", "知识", "bot", "多维表格", "工作流"]
+    return any(term in text for term in manufacturing_terms) and (
+        any(term in text for term in ai_terms) or any(term in text for term in workflow_terms)
+    )
+
+
+def strengthen_enterprise_manufacturing_outline(slides: list[dict[str, Any]], business_moment: str) -> None:
+    """Add concrete scene/prototype anchors before the H5 renderer handoff."""
+    for slide in slides:
+        key = slide.get("key")
+        if key == "role-lens":
+            slide.update(
+                {
+                    "title": "工程师的一天:从异常发现到纠正动作",
+                    "role": "insight",
+                    "message": f"把{business_moment}变成一个可追踪工作台,让工程师、督导和 IT 都看到同一条异常闭环。",
+                    "content_beats": ["工程师发现异常", "督导确认责任与时限", "IT 守住权限和系统边界"],
+                    "layout_candidate": {"layout": "content", "variant": "2col"},
+                    "visual_intent": "左侧讲角色路径,右侧用质量异常闭环工作台/看板 mock 承载证据、责任人和下一步动作。",
+                    "assets": ["quality-workbench-mock"],
+                    "risk_flags": ["这是待验证的工作台原型,不写成客户已上线事实。"],
+                }
+            )
+        elif key == "adjacent-proof":
+            slide.update(
+                {
+                    "title": "一次质量异常闭环案例",
+                    "role": "evidence",
+                    "message": "用一个假设案例页说明从异常、证据、纠正动作到复盘沉淀的完整链路,避免只讲产品模块。",
+                    "content_beats": ["异常进入统一入口", "AI 汇总 8D / 巡检 / 邮件证据", "负责人和时限写入任务", "复盘沉淀为下一次预警"],
+                    "layout_candidate": {"layout": "content", "variant": "story-case"},
+                    "visual_intent": "案例页采用 pain / conflict / solution / value 结构,配一个工厂质量 review panel 示意图。",
+                    "assets": ["quality-review-panel"],
+                    "risk_flags": ["案例是场景化演示,需要用户补充真实异常样本后才能当客户事实。"],
+                }
+            )
+
+
 def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
     pitch_plan = pitch_recipes.plan_pitch(brief)
     recipe = pitch_plan["recipe"]
@@ -686,6 +735,13 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
         for idx, item in enumerate(source_materials, 1)
         if isinstance(item, dict)
     ]
+    enterprise_manufacturing = is_enterprise_manufacturing_ai_brief(
+        industry,
+        business_moment,
+        core_tension,
+        product_scope,
+        solution_angle,
+    )
 
     industry_pains = industry_pack.get("core_pains", []) or []
     evidence_suggestions = industry_pack.get("evidence_suggestions", []) or []
@@ -819,6 +875,8 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
                 "assets": [],
             },
         ]
+        if enterprise_manufacturing:
+            strengthen_enterprise_manufacturing_outline(slides, business_moment)
     slides = [enrich_slide_plan(slide) for slide in slides]
 
     return {
@@ -910,6 +968,30 @@ def brief_to_outline(brief: dict[str, Any]) -> dict[str, Any]:
                 "fallback": "只写指标定义和待确认项。",
                 "required": False,
             },
+            *(
+                [
+                    {
+                        "id": "quality-workbench-mock",
+                        "type": "image",
+                        "need": "质量异常闭环工作台或看板原型图,用于说明工程师/督导/IT 共用同一事实面板。",
+                        "query": "制造 质量异常 工作台 review panel",
+                        "preferred_source": "generated-placeholder",
+                        "fallback": "用 H5 原生 2col mock 表达,并标注为待验证原型。",
+                        "required": False,
+                    },
+                    {
+                        "id": "quality-review-panel",
+                        "type": "image",
+                        "need": "工厂质量异常 review panel / 复盘面板示意图,用于案例页的视觉锚点。",
+                        "query": "质量异常 8D 巡检 邮件 复盘 看板",
+                        "preferred_source": "generated-placeholder",
+                        "fallback": "用 story-case 的结构化案例视觉表达,不伪造真实客户截图。",
+                        "required": False,
+                    },
+                ]
+                if enterprise_manufacturing
+                else []
+            ),
             *[
                 {
                     "id": slugify(str(item.get("id") or f"user-material-{idx}"), f"user-material-{idx}"),
@@ -1537,6 +1619,35 @@ def run_upload_parser(
     task: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     brief = request.get("brief") if isinstance(request.get("brief"), dict) else {}
+    existing_dossier = request.get("source_dossier")
+    if not isinstance(existing_dossier, dict):
+        existing_dossier = brief.get("source_dossier") if isinstance(brief.get("source_dossier"), dict) else None
+    if existing_dossier:
+        sources = request_sources(request)
+        runtime_library = write_runtime_library(input_dir, existing_dossier, sources)
+        enriched_request = copy.deepcopy(request)
+        enriched_request["brief"] = attach_source_dossier_to_brief(brief, existing_dossier, runtime_library)
+        enriched_request["source_dossier"] = existing_dossier
+        enriched_request["runtime_library"] = runtime_library
+        task["source_dossier"] = {
+            "sources": len(sources),
+            "knowledge_items": len(existing_dossier.get("knowledge_layer") or []),
+            "material_items": len(existing_dossier.get("material_layer") or []),
+            "slide_items": len(existing_dossier.get("slide_layer") or []),
+            "runtime_library": runtime_library["path"],
+            "reused": True,
+        }
+        if task.get("source") in {"brief", "outline"} and sources:
+            task["source"] = "materials+brief"
+        append_journey_event(
+            journey,
+            "upload_parser_reused",
+            "system",
+            "复用已确认 outline 之前生成的 source dossier 和 runtime 临时库,不重新解析上传物。",
+            task["source_dossier"],
+        )
+        return enriched_request, existing_dossier
+
     sources = request_sources(request)
     if not sources:
         return request, None
@@ -2488,7 +2599,7 @@ async function confirmOutline() {{
         confirmation_panel = f"""
 <section class="panel">
   <h2>等待确认预演</h2>
-  <p class="muted">deckhtml 已生成并发布到妙笔,同时已触发 pitch simulator。你可以按反馈回到规划确认环节,也可以暂不修改并进入入库确认。</p>
+  <p class="muted">deckhtml 已生成并完成 pitch simulator 预演。你可以按反馈回到规划确认环节,也可以暂不修改;暂不修改后才会发布云端页面并进入入库确认。</p>
   <div class="actions">
     <button type="button" onclick="acceptRehearsal()">不用修改,进入入库确认</button>
     <button class="secondary" type="button" onclick="reviseFromRehearsal()">按预演反馈重做大纲</button>
@@ -3446,6 +3557,47 @@ def write_cloud_publish_report(output_dir: Path, payload: dict[str, Any]) -> Non
     (output_dir / "CLOUD_PUBLISH.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_pending_cloud_publish_report(output_dir: Path, request: dict[str, Any]) -> dict[str, Any]:
+    target = request_publish_target(request)
+    if target == "none":
+        payload = {
+            "target": "none",
+            "enabled": False,
+            "ok": True,
+            "dry_run": False,
+            "app_url": "",
+            "doc_url": "",
+            "app_id": "",
+            "reason": "disabled",
+        }
+    else:
+        payload = {
+            "target": target,
+            "enabled": False,
+            "ok": False,
+            "dry_run": False,
+            "app_url": "",
+            "doc_url": "",
+            "app_id": "",
+            "reason": "awaiting-rehearsal-confirmation",
+        }
+    write_cloud_publish_report(output_dir, payload)
+    return payload
+
+
+def cloud_publish_ready(output_dir: Path) -> bool:
+    cloud_path = output_dir / "cloud-publish.json"
+    if not cloud_path.exists():
+        return False
+    try:
+        payload = read_json(cloud_path)
+    except Exception:
+        return False
+    if payload.get("target") == "none" and payload.get("ok"):
+        return True
+    return bool(payload.get("enabled") and payload.get("ok") and (payload.get("app_url") or payload.get("doc_url")))
+
+
 def magic_page_publish_config(request: dict[str, Any]) -> dict[str, Any]:
     magic = request.get("magic") if isinstance(request.get("magic"), dict) else {}
     magic_page = request.get("magic_page") if isinstance(request.get("magic_page"), dict) else {}
@@ -3898,7 +4050,7 @@ def accept_rehearsal_task(task_id: str, *, base_url: str | None = None) -> dict[
     output_dir = Path(task.get("output_dir", ""))
     journey = load_journey_for_task(task) or new_journey(task, {}, str(task.get("source") or "unknown"))
     append_journey_event(journey, "rehearsal_accepted", "user", "用户确认本轮 pitch simulator 反馈暂不改稿,进入是否入库确认。")
-    if not (output_dir / "cloud-publish.json").exists():
+    if not cloud_publish_ready(output_dir):
         request_path = task_dir / "input" / "request.json"
         deck_path = output_dir / "deck.json"
         request = read_json(request_path) if request_path.exists() else {}
@@ -4117,7 +4269,8 @@ def create_or_run_task(
     )
     task_id = task_id or unique_generated_task_id(str(title_source))
     task_dir, input_dir, output_dir, log_dir = task_paths(task_id)
-    if task_dir.exists():
+    preserve_existing_run = bool(metadata and metadata.get("outline_confirmed"))
+    if task_dir.exists() and not preserve_existing_run:
         shutil.rmtree(task_dir)
     input_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -4172,6 +4325,14 @@ def create_or_run_task(
         if library["mode"] != "cloud":
             task["warnings"].append(library["message"])
 
+        outline_log = log_dir / "outline-validator.txt"
+        proc = run_command(["python3", str(OUTLINE_VALIDATOR), str(input_dir / "outline.json")], outline_log)
+        task["logs"]["outline_validator"] = str(outline_log)
+        if proc.returncode != 0:
+            append_journey_event(journey, "outline_validation_failed", "system", "outline validator 未通过。", {"exit": proc.returncode})
+            raise RuntimeError("outline validation failed")
+        append_journey_event(journey, "outline_validated", "system", "outline validator 通过。")
+
         if request.get("deck_json"):
             deck = request["deck_json"]
             append_journey_event(
@@ -4181,24 +4342,38 @@ def create_or_run_task(
                 "使用请求中提供的 DeckJSON 作为源文件。",
                 {"slide_count": len(deck.get("slides", [])) if isinstance(deck, dict) else 0},
             )
+            write_json(output_dir / "deck.json", deck)
         else:
-            deck = outline_to_deck(outline)
+            compile_log = log_dir / "compile-outline.txt"
+            proc = run_command(
+                [
+                    "python3",
+                    str(COMPILE_OUTLINE),
+                    str(input_dir / "outline.json"),
+                    str(output_dir / "deck.json"),
+                    "--report",
+                    str(output_dir / "compile-report.json"),
+                    "--author",
+                    "lark-deck-cyrus generator",
+                    "--cover-date",
+                    compact_date(),
+                    "--customer-slug",
+                    slugify(str(title_source)),
+                ],
+                compile_log,
+            )
+            task["logs"]["compile_outline"] = str(compile_log)
+            if proc.returncode != 0:
+                append_journey_event(journey, "deckjson_compile_failed", "system", "确认后的 outline 编译 DeckJSON 失败。", {"exit": proc.returncode})
+                raise RuntimeError("outline compile failed")
+            deck = read_json(output_dir / "deck.json")
             append_journey_event(
                 journey,
-                "deckjson_created",
+                "deckjson_compiled",
                 "system",
-                "将 outline 编译为 DeckJSON 初稿。",
+                "使用 deck-renderer 的 compile-outline.py 将确认后的 outline 编译为 DeckJSON。",
                 {"slide_count": len(deck.get("slides", [])) if isinstance(deck, dict) else 0},
             )
-        write_json(output_dir / "deck.json", deck)
-
-        outline_log = log_dir / "outline-validator.txt"
-        proc = run_command(["python3", str(OUTLINE_VALIDATOR), str(input_dir / "outline.json")], outline_log)
-        task["logs"]["outline_validator"] = str(outline_log)
-        if proc.returncode != 0:
-            append_journey_event(journey, "outline_validation_failed", "system", "outline validator 未通过。", {"exit": proc.returncode})
-            raise RuntimeError("outline validation failed")
-        append_journey_event(journey, "outline_validated", "system", "outline validator 通过。")
 
         materialize_deck_assets(
             task=task,
@@ -4402,37 +4577,15 @@ def create_or_run_task(
             write_journey_artifacts(output_dir, journey)
             raise FlowPaused()
 
-        cloud_publish = publish_deck_to_cloud(task, request, deck, log_dir=log_dir)
+        cloud_publish = write_pending_cloud_publish_report(output_dir, request)
         task["cloud_publish"] = cloud_publish
-        if cloud_publish.get("target") == "magic-page":
-            task["magic_page_publish"] = cloud_publish
-        elif cloud_publish.get("target") == "magic-doc":
-            task["magic_doc_publish"] = cloud_publish
-        if cloud_publish.get("ok") and cloud_publish.get("enabled"):
-            cloud_url = cloud_publish.get("app_url") or cloud_publish.get("doc_url") or ""
-            task.setdefault("artifacts", {})["cloud_url"] = cloud_url
-            task.setdefault("artifacts", {})["magic_url"] = cloud_url
-            task.setdefault("artifacts", {})["miaobi_url"] = cloud_url
-            task.setdefault("artifacts", {})["preview_url"] = cloud_url
-            if cloud_publish.get("app_url"):
-                task.setdefault("artifacts", {})["magic_page_url"] = cloud_publish.get("app_url", "")
-                task.setdefault("artifacts", {})["app_url"] = cloud_publish.get("app_url", "")
-            if cloud_publish.get("doc_url"):
-                task.setdefault("artifacts", {})["magic_doc_url"] = cloud_publish.get("doc_url", "")
-                task.setdefault("artifacts", {})["miaobi_doc_url"] = cloud_publish.get("doc_url", "")
-                task.setdefault("artifacts", {})["doc_url"] = cloud_publish.get("doc_url", "")
-            append_journey_event(
-                journey,
-                "cloud_published",
-                "system",
-                "预演门禁通过后,已将生成的 htmldeck 发布为云端妙笔 HTML 页面;若用户显式选择 legacy 文档模式,则返回文档嵌入链接。",
-                {"url": cloud_url, "target": cloud_publish.get("target", ""), "dry_run": cloud_publish.get("dry_run", False)},
-            )
-        elif cloud_publish.get("ok") and not cloud_publish.get("enabled"):
-            append_journey_event(journey, "cloud_publish_disabled", "system", "本轮按配置跳过妙笔云端发布。", {"target": cloud_publish.get("target", "")})
-        elif cloud_publish.get("enabled"):
-            append_journey_event(journey, "cloud_publish_failed", "system", "妙笔云端页面发布失败,本轮不返回云端链接。", {"reason": cloud_publish.get("reason", "")})
-            raise RuntimeError("cloud publish failed: " + str(cloud_publish.get("reason") or "unknown"))
+        append_journey_event(
+            journey,
+            "cloud_publish_pending",
+            "system",
+            "deckhtml 与 pitch rehearsal 已准备好;等待用户确认是否按预演反馈修改后再发布云端页面。",
+            {"target": cloud_publish.get("target", ""), "reason": cloud_publish.get("reason", "")},
+        )
         upsert_journey_version(journey, task, deck)
         write_journey_artifacts(output_dir, journey)
 

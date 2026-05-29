@@ -71,10 +71,19 @@ def main() -> int:
             }
         }
     )
-    if task.get("status") != "succeeded":
+    if task.get("status") not in {"succeeded", "awaiting_rehearsal_decision"}:
         print("generator task failed", file=sys.stderr)
         print(json.dumps(task, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
+    if task.get("status") == "awaiting_rehearsal_decision":
+        gate_payload = task.get("rehearsal_gate") or {}
+        if gate_payload.get("ok") or not gate_payload.get("applied"):
+            print("manufacturing AI deck paused without a blocking rehearsal gate", file=sys.stderr)
+            print(json.dumps(task, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 1
+        if task.get("artifacts", {}).get("magic_page_url"):
+            print("manufacturing AI deck was published despite a blocking rehearsal gate", file=sys.stderr)
+            return 1
 
     output_dir = Path(task["output_dir"])
     outline = json.loads((Path(task["input_dir"]) / "outline.json").read_text(encoding="utf-8"))

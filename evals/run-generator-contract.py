@@ -37,8 +37,6 @@ REQUIRED = [
     "PITCH_REHEARSAL.md",
     "cloud-publish.json",
     "CLOUD_PUBLISH.md",
-    "magic-page-publish.json",
-    "MAGIC_PAGE_PUBLISH.md",
     "journey.json",
     "JOURNEY.md",
     "quality-insights.json",
@@ -98,8 +96,9 @@ def main() -> int:
             print(json.dumps(source_task, ensure_ascii=False, indent=2), file=sys.stderr)
             return 1
         for path in [
-            source_output / "source-dossier.json",
-            source_output / "SOURCE_DOSSIER.md",
+            source_output / "DESIGN_PLAN.md",
+            source_input / "runtime-library" / "source-dossier.json",
+            source_input / "runtime-library" / "SOURCE_DOSSIER.md",
             source_input / "runtime-library" / "knowledge.json",
             source_input / "runtime-library" / "materials.json",
             source_input / "runtime-library" / "slides.json",
@@ -107,9 +106,30 @@ def main() -> int:
             if not path.exists():
                 print(f"source parser artifact missing: {path}", file=sys.stderr)
                 return 1
-        source_outline = json.loads((source_output / "outline.json").read_text(encoding="utf-8"))
+        source_outline = json.loads((source_input / "outline.json").read_text(encoding="utf-8"))
         if not any(ref.get("provider") == "upload-parser" for ref in source_outline.get("knowledge_refs", [])):
             print("outline did not include upload-parser knowledge refs", file=sys.stderr)
+            return 1
+        source_path.unlink()
+        source_confirm_proc = subprocess.run(
+            ["python3", str(GENERATOR), "confirm-outline", source_task["id"]],
+            cwd=REPO,
+            text=True,
+            capture_output=True,
+        )
+        if source_confirm_proc.returncode != 0:
+            print(source_confirm_proc.stdout)
+            print(source_confirm_proc.stderr, file=sys.stderr)
+            return source_confirm_proc.returncode
+        source_confirmed = json.loads(source_confirm_proc.stdout)
+        if source_confirmed.get("status") != "awaiting_rehearsal_decision":
+            print(json.dumps(source_confirmed, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 1
+        if source_confirmed.get("source_dossier", {}).get("knowledge_items") != 1:
+            print("confirmed source task lost parsed knowledge items", file=sys.stderr)
+            return 1
+        if any("source not found" in warning for warning in source_confirmed.get("warnings", [])):
+            print("confirmed source task re-parsed the deleted upload instead of reusing runtime-library", file=sys.stderr)
             return 1
 
         missing_request_path = Path(td) / "request-with-missing-source.json"
@@ -164,8 +184,8 @@ def main() -> int:
         print(json.dumps(task, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
     output_dir = Path(task["output_dir"])
-    if not (output_dir / "OUTLINE_REVIEW.md").exists():
-        print("outline review was not written", file=sys.stderr)
+    if not (output_dir / "DESIGN_PLAN.md").exists():
+        print("design plan was not written", file=sys.stderr)
         return 1
 
     confirm_proc = subprocess.run(
@@ -181,6 +201,9 @@ def main() -> int:
     task = json.loads(confirm_proc.stdout)
     if task.get("status") != "awaiting_rehearsal_decision":
         print(json.dumps(task, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+    if task.get("artifacts", {}).get("magic_page_url"):
+        print("deck was published before rehearsal confirmation", file=sys.stderr)
         return 1
 
     output_dir = Path(task["output_dir"])
@@ -219,6 +242,13 @@ def main() -> int:
     if accepted_task.get("status") != "awaiting_deck_confirmation":
         print(json.dumps(accepted_task, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
+    if not accepted_task.get("artifacts", {}).get("magic_page_url", "").startswith("https://magic.solutionsuite.cn/dryrun/"):
+        print("accepted task magic_page_url missing Magic Page dry-run link", file=sys.stderr)
+        return 1
+    for name in ["magic-page-publish.json", "MAGIC_PAGE_PUBLISH.md"]:
+        if not (Path(accepted_task["output_dir"]) / name).exists():
+            print(f"accepted task missing publish artifact: {name}", file=sys.stderr)
+            return 1
 
     with tempfile.TemporaryDirectory() as td:
         patch_path = Path(td) / "edit.json"
@@ -266,8 +296,8 @@ def main() -> int:
     if edited_deck["deck"]["title"] != "连锁零售 AI 知识库 pitch v2":
         print("edited deck title did not update", file=sys.stderr)
         return 1
-    if not edited_task.get("artifacts", {}).get("magic_page_url", "").startswith("https://magic.solutionsuite.cn/dryrun/"):
-        print("edited task magic_page_url missing Magic Page dry-run link", file=sys.stderr)
+    if edited_task.get("artifacts", {}).get("magic_page_url"):
+        print("edited task was published before rehearsal confirmation", file=sys.stderr)
         return 1
     edited_output_dir = Path(edited_task["output_dir"])
     journey = json.loads((edited_output_dir / "journey.json").read_text(encoding="utf-8"))
@@ -285,7 +315,7 @@ def main() -> int:
     status_page = generator.render_status_page(edited_task["id"]).decode("utf-8")
     edit_page = generator.render_edit_page(edited_task["id"]).decode("utf-8")
     journey_page = generator.render_journey_page(edited_task["id"]).decode("utf-8")
-    expected_status = ["飞书妙笔页面", "验收报告", "Pitch 预演", "等待确认预演", "版本", "用户旅程", "精调信号", edited_task["id"]]
+    expected_status = ["验收报告", "Pitch 预演", "等待确认预演", "版本", "用户旅程", "精调信号", edited_task["id"]]
     expected_editor = ["轻量编辑", "全局信息", "素材库", "插入已有 slide", "保存并生成新版本", "slide-editor"]
     if (
         any(phrase not in status_page for phrase in expected_status)

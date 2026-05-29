@@ -536,7 +536,6 @@ class OutlineCompiler:
             "risk",
             "asset_need",
             "visual_intent",
-            "talk_track",
         )
         if candidates:
             candidate = candidates[min(index, len(candidates) - 1)]

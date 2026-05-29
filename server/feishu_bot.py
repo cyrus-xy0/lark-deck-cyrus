@@ -269,10 +269,10 @@ def format_task_reply(task: dict[str, Any]) -> str:
         if task.get("status") == "awaiting_rehearsal_decision":
             return "\n".join(
                 [
-                    "已生成飞书 H5 Deck，并完成 pitch simulator 预演。先等你判断是否按反馈修改。",
+                    "已生成飞书 H5 Deck，并完成 pitch simulator 预演。先等你判断是否按反馈修改；暂不修改后我再发布妙笔页面。",
                     f"任务 ID: {task.get('id')}",
                     f"状态页: {status_url}",
-                    f"飞书妙笔页面: {cloud_url}",
+                    f"飞书妙笔页面: {cloud_url}" if cloud_url else "飞书妙笔页面: 待你确认预演后发布",
                     f"预演报告: {artifacts.get('PITCH_REHEARSAL.md', '')}",
                     "",
                     "如果要按预演反馈改,回复“修改”；如果暂不修改并进入入库确认,回复“不用改”。",
