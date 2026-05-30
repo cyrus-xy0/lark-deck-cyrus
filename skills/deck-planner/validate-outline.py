@@ -23,22 +23,24 @@ LAYOUTS = {
     "flow",
     "logo-wall",
     "arch-stack",
+    "chart",
     "iframe-embed",
     "replica",
     "raw",
     "end",
 }
-VARIANT_REQUIRED = {"content", "stats", "flow"}
+VARIANT_REQUIRED = {"content", "stats", "flow", "chart"}
 DELIVERY_MODES = {"local-agent", "feishu-bot", "unknown"}
 EVIDENCE_LEVELS = {"user-provided", "approved-story", "public-pattern", "hypothesis"}
 KNOWLEDGE_SOURCES = {"feishu-base", "local-cache", "user-provided", "public"}
 
 
 class Validator:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, strict_design: bool = False):
         self.path = path
         self.errors: list[str] = []
         self.root = self.find_repo_root(path.resolve())
+        self.strict_design = strict_design
 
     @staticmethod
     def find_repo_root(path: Path) -> Path:
@@ -215,6 +217,12 @@ class Validator:
                 elif any(not isinstance(item, str) or not item.strip() for item in value):
                     self.error(f"{where}.{list_key}", "must contain only non-empty strings")
 
+            if self.strict_design:
+                fine_fields = ["hero", "density_budget", "design_spec", "content_completion", "fact_boundary"]
+                for field in fine_fields:
+                    if field not in slide:
+                        self.error(f"{where}.{field}", "required by --strict-design")
+
             if "hero" in slide and not isinstance(slide.get("hero"), bool):
                 self.error(f"{where}.hero", "must be a boolean when present")
             for text_key in ["density_budget", "content_completion", "fact_boundary"]:
@@ -254,12 +262,17 @@ class Validator:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--strict-design",
+        action="store_true",
+        help="Require Cyrus page-level design_spec, density_budget, content_completion, fact_boundary, and hero fields.",
+    )
     parser.add_argument("paths", nargs="+", type=Path)
     args = parser.parse_args(argv)
 
     ok = True
     for path in args.paths:
-        validator = Validator(path)
+        validator = Validator(path, strict_design=args.strict_design)
         if validator.validate():
             print(f"PASS {path}")
             continue

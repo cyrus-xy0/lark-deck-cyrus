@@ -286,7 +286,11 @@
       el.classList.remove('dragging', 'drop-target', 'drop-above', 'drop-below');
     });
     clone.querySelectorAll('.edit-bar, .edit-toast, .edit-sidebar').forEach((el) => el.remove());
+    // Strip stale edit-mode class from both roots so a saved file reopens in
+    // normal presentation mode instead of preserving edit chrome.
     clone.classList.remove('deck-edit-mode');
+    const cloneBody = clone.querySelector('body');
+    if (cloneBody) cloneBody.classList.remove('deck-edit-mode');
     // Restore deck mode attribute to its pre-edit value
     const deckEl = clone.querySelector('.deck');
     if (deckEl && prevDeckMode) deckEl.setAttribute('data-mode', prevDeckMode);
@@ -696,6 +700,11 @@
     clearTimeout(inputDebounce);
     inputDebounce = setTimeout(() => snapshot('input'), 600);
   });
+
+  // ── boot: never start in edit-mode visual state ───────────────────────
+  if (document.body && document.body.classList.contains('deck-edit-mode')) {
+    document.body.classList.remove('deck-edit-mode');
+  }
 
   // ── expose a tiny API to the page (useful for debugging / bookmarklets) ──
   window.deckEdit = {

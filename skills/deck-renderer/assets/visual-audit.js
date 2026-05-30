@@ -8,7 +8,8 @@
 //   { overflow: [...], tier: [...], hier: [...], align: [...],
 //     label_floor: [...], overlap: [...], body_floor: [...],
 //     card_overflow: [...], opt_out_abuse: [...],
-//     title_position: [...], abspos_dual_anchor: [...], orphan: [...] }
+//     title_position: [...], abspos_dual_anchor: [...], orphan: [...],
+//     balance: [...], focal: [...], slack_flex: [...] }
 //
 // Why on disk (not embedded in validate.py): JS in a Python r"""..."""
 // string is invisible to syntax highlight, gets no `node --check`,
@@ -50,6 +51,10 @@
   // big-stat, end-slogan, quote with big blockquote, image-text cinematic).
   // 2026-05-20 · added 'image-text' — title is master-spec 88 px (hero),
   // sits over a full-bleed image. Documented in SKILL.md "Hero exception".
+  // F-13 · NOT the same as Python validate.py HERO_TITLE_LAYOUTS (do not sync):
+  // this is the hero-ZONE set (hero sizes anywhere) and INCLUDES big-stat; the
+  // Python set is the hero-TITLE set (flexible header) and excludes big-stat
+  // because it has no title. Different questions, intentionally different members.
   const HERO_LAYOUTS = new Set([
     'cover', 'section', 'big-stat', 'end', 'quote', 'image-text'
   ]);
@@ -131,7 +136,7 @@
     return false;
   };
 
-  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [], card_overflow: [], opt_out_abuse: [], title_position: [], abspos_dual_anchor: [], orphan: [] };
+  const out = { overflow: [], tier: [], hier: [], align: [], label_floor: [], overlap: [], body_floor: [], card_overflow: [], opt_out_abuse: [], title_position: [], abspos_dual_anchor: [], orphan: [], balance: [], focal: [], slack_flex: [], card_min_height_sparse: [] };
   const slides = document.querySelectorAll('.slide');
   slides.forEach((slide, idx) => {
     const slide_idx = idx + 1;
@@ -147,12 +152,10 @@
       });
     }
 
-    // ---- Cover collision ----
-    // The generic overlap rule skips absolute-positioned siblings to avoid
-    // flagging intentional chrome overlays. Cover .author is absolute, though,
-    // and can collide with a wrapped subtitle when the customer/project title
-    // becomes long. Keep this explicit pair check so master cover regressions
-    // are caught by visual audit instead of by user screenshots.
+    // ---- Cover collision (Cyrus) ----
+    // Generic overlap skips many absolute-positioned siblings to avoid
+    // intentional chrome overlays. Cover .author is absolute, though, and can
+    // collide with a wrapped subtitle/title on long customer names.
     if (layout === 'cover') {
       const coverPairs = [
         [slide.querySelector('.stage .subtitle'), slide.querySelector('.author')],
@@ -202,6 +205,39 @@
             overflow_px: dh,
             direction: 'vertical',
           });
+        }
+      } else {
+        // (a') Visible vertical spill (added 2026-05-27) — overflow NOT hidden,
+        // but a CHILD element extends below the box's border-box bottom, i.e.
+        // content is bleeding out past border/background (visible, not clipped).
+        // Slide-level R-OVERFLOW misses it (spill stays within the 1920×1080
+        // canvas) and the clip-only branch (a) ignored overflow:visible — the
+        // gap that let a lifted content-3up hero card spill 61px unflagged.
+        //
+        // We require an actual CHILD-element bottom past the parent box, NOT
+        // just scrollHeight > clientHeight: a large-font leaf (e.g. big-stat
+        // `.num` at 132px) has a line-box taller than its glyph, so
+        // scrollHeight - clientHeight > 0 without any VISIBLE spill. Comparing
+        // child rects to the parent's border-box bottom avoids that false
+        // positive. GEOMETRY → stays error even on lifted slides.
+        const dh = el.scrollHeight - el.clientHeight;
+        if (dh > 8 && el.clientHeight > 0 && el.children.length > 0) {
+          const elBottom = el.getBoundingClientRect().bottom;
+          let spill = 0;
+          for (const ch of el.children) {
+            if (ch.tagName === 'SCRIPT' || ch.tagName === 'STYLE') continue;
+            spill = Math.max(spill, ch.getBoundingClientRect().bottom - elBottom);
+          }
+          if (spill > 8) {
+            out.card_overflow.push({
+              slide_idx,
+              selector: shortSel(el),
+              content_h: el.scrollHeight,
+              card_h: el.clientHeight,
+              overflow_px: Math.round(spill),
+              direction: 'vertical-visible',
+            });
+          }
         }
       }
       // (b) Horizontal overflow on flex/grid container with nowrap children
@@ -356,7 +392,7 @@
       const key = `${sel}::${px}`;
       if (seenTierViolations.has(key)) return;
       seenTierViolations.add(key);
-      out.tier.push({ slide_idx, selector: sel, computed_px: px });
+      out.tier.push({ slide_idx, selector: sel, computed_px: px, lifted: !!el.closest('[data-lifted]') });
     });
 
     // ---- Hierarchy: within each card, meta should be ≤ body ----
@@ -446,6 +482,7 @@
             card_sel: shortSel(card),
             label_sel: sel,
             label_px: px,
+            lifted: !!el.closest('[data-lifted]'),
           });
         });
       }
@@ -464,25 +501,20 @@
       'contact', 'eyebrow', 'pill', 'tag', 'chip', 'badge', 'demo-tag',
       'demo-label', 'caption-meta', 'cite',
     ];
-    const MOCK_CONTAINERS = [
-      'ui-window', 'ui-screen', 'ui-chat', 'ui-body', 'ui-toolbar',
-      'ui-sidebar', 'ui-grid', 'ui-cell', 'ui-list-item', 'ui-msg',
-      'phone', 'phone-screen', 'p22-ph', 'p17-phone', 'fs-phone',
-      'chat-body', 'chat-header', 'p22-chat', 'p22-noti', 'p22-know',
-      'p22-task', 'ph-bar', 'ph-status', 'ph-chat', 'msg-ai', 'msg-user',
-      'dash', 'mini-ui', 'browser-mock', 'p17-xhs', 'p17-dy', 'p17-flow-card',
-      'page-replica',  // replica mode = full PDF image, no text leaves
-      // 2026-05-19 · doc / report mockups (Lark Doc / Wiki preview at small px)
-      'report-toc', 'report-mock', 'doc-mock', 'doc-preview', 'wiki-mock',
-      'feishu-doc', 'lark-doc-mock',
-      'doc-grid', 'doc-stage', 'doc-card',
-    ];
+    // F-13: single source — the body-floor mock set IS the tier mock set (the
+    // TIER_MOCK comment says "Shared with R-VIS-BODY-FLOOR below"). They had
+    // silently drifted: `pd-card` was added to TIER_MOCK (2026-05-19) but not
+    // here, so .pd-card's ≤13px nodes were exempt from TIER/ORPHAN/FOCAL yet
+    // wrongly policed by BODY-FLOOR. Alias keeps them in lockstep forever.
+    const MOCK_CONTAINERS = TIER_MOCK;
     const seenBodyFloor = new Set();
     textEls.forEach(el => {
       // Skip SVG (different size semantics)
       if (el.ownerSVGElement || el.tagName === 'TEXT' || el.tagName === 'tspan') return;
-      // Skip non-rendered text holders. Raw-layout slides may carry <style> or
-      // <script> content inside body; that source text is not slide copy.
+      // Skip non-rendered text holders — a <style>/<script> in body (common in
+      // raw-layout slides per SKILL.md Mode A) carries its CSS/JS source as
+      // textContent at the default 16px and would false-positive. R-VIS-TIER
+      // already skips these (line ~157); body-floor must match.
       if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') return;
       const cs = window.getComputedStyle(el);
       const px = Math.round(parseFloat(cs.fontSize));
@@ -518,6 +550,7 @@
         slide_idx, selector: sel, rendered_px: px,
         char_count: directText.length,
         preview: directText.length > 40 ? directText.slice(0, 40) + '…' : directText,
+        lifted: !!el.closest('[data-lifted]'),
       });
     });
 
@@ -680,9 +713,16 @@
     });
 
     // ---- R-VIS-ORPHAN · CJK 孤字 / 上长下短 失衡换行 (2026-05-25) ----
-    // Measure leaf CJK text lines and flag lonely one-character final lines
-    // or short labels where the last line is much narrower than the widest.
-    // This catches the fixed-width cases that `text-wrap: balance` cannot fix.
+    // For each leaf CJK text element, measure its line boxes. Flag when it
+    // wraps to >=2 lines AND either (a) the last line is a lonely ~1-char
+    // orphan, or (b) it is a short 2-3 line label whose last line is < 38%
+    // of the widest line (the "上面长下面短" imbalance). `text-wrap: balance`
+    // in the framework CSS prevents most of these; this catches the residue
+    // (fixed-width / flex-clamped containers where balance can't help — fix
+    // with a wider container, `white-space: nowrap`, or a smaller font, or
+    // by splitting a trailing word into a `display:block` sub-label).
+    // Skip: elements with block-level children (intentional sub-label
+    // breaks like .role), SVG text, mockup-internal text, nowrap elements.
     const seenOrphan = new Set();
     slide.querySelectorAll('*').forEach(el => {
       if (!hasOwnText(el)) return;
@@ -702,15 +742,12 @@
       const cs = window.getComputedStyle(el);
       if (cs.whiteSpace === 'nowrap' || cs.whiteSpace === 'pre') return;
       const fs = parseFloat(cs.fontSize) || 16;
-      const rng = document.createRange();
-      rng.selectNodeContents(el);
+      const rng = document.createRange(); rng.selectNodeContents(el);
       const byTop = new Map();
       [...rng.getClientRects()].forEach(r => {
         if (r.width < 1 || r.height < 1) return;
         let key = Math.round(r.top);
-        for (const k of byTop.keys()) {
-          if (Math.abs(k - key) < 4) { key = k; break; }
-        }
+        for (const k of byTop.keys()) { if (Math.abs(k - key) < 4) { key = k; break; } }
         byTop.set(key, Math.max(byTop.get(key) || 0, r.width));
       });
       const widths = [...byTop.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]);
@@ -718,24 +755,354 @@
       const last = widths[widths.length - 1];
       const maxw = Math.max(...widths);
       const isOrphan = last <= fs * 1.45;
-      const isImbalanced = widths.length <= 3 && last < maxw * 0.38 && cjk <= 14;
+      // imbalance 针对短标签/标题:长正文 2 行末行天然短,不是缺陷。
+      // CJK 上限按 hero 上下文放宽 — hero 标题字号 ≥ 72px(section 88 /
+      // cover 100 / quote 88+ 都在这一档),一行能放 13-15 CJK 就到 max-width,
+      // 16+ CJK 在 hero 里仍是"短标题"。Body 用 14 字 cap 防长正文误报。
+      // (2026-05-29 · P08 章节标题 16 CJK 漏报触发)
+      const heroFont = fs >= 72;
+      const cjkCap = heroFont ? 25 : 14;
+      const isImbalanced = widths.length <= 3 && last < maxw * 0.38 && cjk <= cjkCap;
       if (!isOrphan && !isImbalanced) return;
       const sel = shortSel(el);
       if (seenOrphan.has(sel)) return;
       seenOrphan.add(sel);
       out.orphan.push({
-        slide_idx,
-        selector: sel,
-        lines: widths.length,
+        slide_idx, selector: sel, lines: widths.length,
         line_px: widths.map(w => Math.round(w)),
-        last_px: Math.round(last),
-        max_px: Math.round(maxw),
-        font_px: Math.round(fs),
+        last_px: Math.round(last), max_px: Math.round(maxw), font_px: Math.round(fs),
         kind: isOrphan ? 'orphan' : 'imbalanced',
         balance: cs.textWrap || '',
         preview: (el.textContent || '').trim().slice(0, 16),
       });
     });
+
+    // ---- R-VIS-BALANCE · 视觉重心 / 留白均衡 (2026-05-28) ----
+    // 在非 hero 页上,正文容器内的内容应大致居中,不应顶到顶部留下半屏空白,
+    // 也不应"中空"——两块内容之间有一条大于 140 px 的死带。Floor 防得很死
+    // 但天花板要靠这条规则推:大量 "上空 / 下空 / 中空" 的反馈被 R-OVERFLOW
+    // 漏过,因为 validator 只看溢出不看留白。
+    //
+    // Skip: HERO_LAYOUTS (cover/section/big-stat/end/quote/image-text — 构图
+    // 本就非居中)。Per-slide opt-out: `data-allow-imbalance`(罕见,例如
+    // 故意"顶天立地"的封面变体)。
+    if (!isHeroLayout && !slide.hasAttribute('data-allow-imbalance')) {
+      // 找正文容器 —— 直接子元素优先 .stage,fallback 到框架已知正文容器
+      let bodyContainer = slide.querySelector(':scope > .stage')
+        || slide.querySelector(':scope > .grid')
+        || slide.querySelector(':scope > .flow')
+        || slide.querySelector(':scope > .nodes')
+        || slide.querySelector(':scope > .toc')
+        || slide.querySelector(':scope > .table-wrap')
+        || slide.querySelector(':scope > .stack');
+      // 若 .stage 只包了一层 .grid / .flow / 等,钻进去——gap 要量在真正的
+      // 内容容器上,不要把 stage→grid 的 padding 误算成内容空隙。
+      while (bodyContainer && bodyContainer.children.length === 1) {
+        const only = bodyContainer.children[0];
+        const rawc = only.className;
+        const clsc = (rawc && rawc.baseVal !== undefined ? rawc.baseVal : (rawc || '')).toString().toLowerCase();
+        if (/\b(grid|flow|nodes|toc|table-wrap|stack)\b/.test(clsc)) {
+          bodyContainer = only;
+        } else { break; }
+      }
+      if (bodyContainer) {
+        const bodyRect = bodyContainer.getBoundingClientRect();
+        // 容器至少要有 200 px 才有"重心"概念
+        if (bodyRect.height >= 200 && bodyRect.width >= 200) {
+          const blocks = [...bodyContainer.children].filter(c => {
+            if (c.tagName === 'STYLE' || c.tagName === 'SCRIPT') return false;
+            const cs = window.getComputedStyle(c);
+            if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+            if (cs.position === 'absolute' || cs.position === 'fixed') return false;
+            const r = c.getBoundingClientRect();
+            return r.width > 8 && r.height > 8;
+          }).map(c => ({ el: c, rect: c.getBoundingClientRect() }))
+            .sort((a, b) => a.rect.top - b.rect.top);
+          if (blocks.length > 0) {
+            const contentTop = blocks[0].rect.top;
+            const contentBottom = blocks[blocks.length - 1].rect.bottom;
+            const topGap = contentTop - bodyRect.top;
+            const bottomGap = bodyRect.bottom - contentBottom;
+            const slack = topGap + bottomGap;
+            // 只有当容器有明显富余 (slack ≥ 150 px) 时,失衡才有意义。
+            // 内容塞满了的页,topGap == bottomGap == 0,自然不报。
+            if (slack > 150) {
+              if (bottomGap > topGap + 120) {
+                out.balance.push({
+                  slide_idx,
+                  container_sel: shortSel(bodyContainer),
+                  kind: 'top-heavy',
+                  top_gap: Math.round(topGap),
+                  bottom_gap: Math.round(bottomGap),
+                  body_height: Math.round(bodyRect.height),
+                });
+              } else if (topGap > bottomGap + 120) {
+                out.balance.push({
+                  slide_idx,
+                  container_sel: shortSel(bodyContainer),
+                  kind: 'bottom-heavy',
+                  top_gap: Math.round(topGap),
+                  bottom_gap: Math.round(bottomGap),
+                  body_height: Math.round(bodyRect.height),
+                });
+              }
+            }
+            // 死带:相邻内容块之间的垂直空隙 > 140 px。水平 grid (3-up)
+            // 子元素的 top/bottom 差几乎为 0,自然不会误报;仅对纵向 stack
+            // 有意义。140 px ≈ 13% slide 高,是肉眼能感觉到"中间空一块"
+            // 的阈值。
+            for (let i = 1; i < blocks.length; i++) {
+              const prev = blocks[i - 1].rect;
+              const curr = blocks[i].rect;
+              const gap = curr.top - prev.bottom;
+              if (gap > 140) {
+                out.balance.push({
+                  slide_idx,
+                  container_sel: shortSel(bodyContainer),
+                  kind: 'dead-band',
+                  gap_px: Math.round(gap),
+                  between_a: shortSel(blocks[i - 1].el),
+                  between_b: shortSel(blocks[i].el),
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ---- R-VIS-SLACK-FLEX · flex:1 子容器撑出内部空白 (2026-05-28) ----
+    // R-VIS-BALANCE 看的是 body container 顶级 children 之间的 sibling gap;
+    // 但视觉"远"还有另一类来源 —— `flex:1`(或 flex-grow ≥ 1)子容器
+    // 抢光剩余空间后,**内部内容比拿到的空间小**,内部 justify-content
+    // (center / flex-end / space-between)把空白分到容器内部上/下/中间。
+    // 这种内部 slack 在 R-VIS-BALANCE 的 sibling gap 检测里看不到(sibling
+    // 之间只有 stage 的 gap,几 px),但视觉上 user 看到的是 flex 子项内部
+    // 末元素到下一 sibling 之间的"大距离"。典型踩坑:`flex:1` arch3 内部
+    // justify-content:center,arch3 拿到 800px,内容 600px,200 px slack 分
+    // 给 arch3 顶/底各 100 px → arch3 最后一行到 sibling closing 的视觉间距
+    // ≈ 100 + stage.gap。Eye 读到"closing 离 arch3 太远"。
+    //
+    // 检测:为每个 flex column 容器的 child,若 child computed flex-grow ≥ 1
+    // 且 child 内部 visible grandchild 存在,measure:
+    //   topSlack    = grandchildFirst.top    - child.contentBox.top
+    //   bottomSlack = child.contentBox.bottom - grandchildLast.bottom
+    // 任一 > 80 px → WARN(80 ≈ slide 8%,肉眼能感觉到)。
+    //
+    // Skip: HERO_LAYOUTS(cover/section/big-stat/end/quote/image-text 构图
+    // 通常不是 flex column)、容器自身 height < 200(不可能有显著 slack)、
+    // grandchild count == 0(空 flex 容器)。
+    // Opt-out: `data-allow-flex-slack` 在 flex container OR flex-grow child
+    // 上(罕见:故意把内容推到某一端,e.g. push-footer-to-bottom layout)。
+    if (!isHeroLayout) {
+      slide.querySelectorAll('*').forEach(container => {
+        const cs = window.getComputedStyle(container);
+        if (cs.display !== 'flex' && cs.display !== 'inline-flex') return;
+        if (!cs.flexDirection.startsWith('column')) return;
+        if (container.hasAttribute('data-allow-flex-slack')) return;
+        const cRect = container.getBoundingClientRect();
+        if (cRect.height < 200) return;
+        // iterate direct children
+        [...container.children].forEach(child => {
+          if (child.tagName === 'STYLE' || child.tagName === 'SCRIPT') return;
+          if (child.hasAttribute('data-allow-flex-slack')) return;
+          const ccs = window.getComputedStyle(child);
+          if (ccs.display === 'none' || ccs.visibility === 'hidden') return;
+          const grow = parseFloat(ccs.flexGrow || '0');
+          if (!(grow >= 1)) return;
+          const chRect = child.getBoundingClientRect();
+          if (chRect.height < 200) return;
+          // visible grandchildren — filter style/script and 0-size
+          const gcs = [...child.children].filter(gc => {
+            if (gc.tagName === 'STYLE' || gc.tagName === 'SCRIPT') return false;
+            const gccs = window.getComputedStyle(gc);
+            if (gccs.display === 'none' || gccs.visibility === 'hidden') return false;
+            const r = gc.getBoundingClientRect();
+            return r.height > 4;
+          });
+          if (gcs.length === 0) return;
+          const rects = gcs.map(gc => gc.getBoundingClientRect())
+                            .sort((a, b) => a.top - b.top);
+          // child content box: bbox minus padding (simplified — pad-aware)
+          const padTop    = parseFloat(ccs.paddingTop)    || 0;
+          const padBottom = parseFloat(ccs.paddingBottom) || 0;
+          const contentTop    = chRect.top    + padTop;
+          const contentBottom = chRect.bottom - padBottom;
+          const topSlack    = rects[0].top    - contentTop;
+          const bottomSlack = contentBottom - rects[rects.length - 1].bottom;
+          // threshold 80 px (≈ 7.4% of canvas height)
+          const THRESHOLD = 80;
+          if (topSlack < THRESHOLD && bottomSlack < THRESHOLD) return;
+          out.slack_flex.push({
+            slide_idx,
+            container_sel: shortSel(container),
+            child_sel: shortSel(child),
+            flex_grow: grow,
+            child_height: Math.round(chRect.height),
+            content_height: Math.round(rects[rects.length - 1].bottom - rects[0].top),
+            top_slack: Math.round(topSlack),
+            bottom_slack: Math.round(bottomSlack),
+            justify: ccs.justifyContent,
+          });
+        });
+      });
+    }
+
+    // ---- R-VIS-CARD-MIN-HEIGHT-SPARSE · min-height 撑空 + 没 space-between (2026-05-29) ----
+    // 作者用 `min-height` 撑 card 视觉体量(常见于"5 卡一行"等 grid),但 card
+    // 内是 default `justify-content: flex-start` → 内容堆顶,卡底大量空白。
+    // 正解:加 `class="fs-card-fill"` (= space-between),让 N 个 child 均布。
+    //
+    // 触发 2026-05-29 P15 调试:min-height 540/640 默认 flex-start,卡底
+    // 看着空。space-between 是答案,但 framework 没默认提醒 → 作者不知道。
+    //
+    // 检测(bbox 量法,2026-05-29 修):
+    //   1) flex column 元素
+    //   2) min-height > 50px (作者刻意撑了)
+    //   3) usable_height (clientH - padTop - padBottom) 减去
+    //      content_extent (last_child.bottom - first_child.top)
+    //      > 60px (这是"真"slack — gap/margin 都自动含进 extent)
+    //   4) justify-content 不在 {space-between, space-evenly, space-around}
+    // → WARN(留白判断主观,故 warn 不 error)
+    //
+    // 早期版用 sum(kid heights) + gap 计算 content,但忽略了 `margin` 间距,
+    // 在用 margin-bottom 撑子元素的卡上(P04 bytedance hero)误报 95px slack
+    // (实际只有 10px)。bbox 量法对 gap / margin 一视同仁,不再误报。
+    //
+    // Skip: HERO_LAYOUTS;有 `.fs-card-fill` 类的元素(已 opt-in);
+    // 单 child 元素(没意义);data-allow-min-height-sparse opt-out。
+    if (!isHeroLayout) {
+      slide.querySelectorAll('*').forEach(el => {
+        if (el.classList.contains('fs-card-fill')) return;
+        if (el.hasAttribute('data-allow-min-height-sparse')) return;
+        const cs = window.getComputedStyle(el);
+        if (cs.display !== 'flex' && cs.display !== 'inline-flex') return;
+        if (!cs.flexDirection.startsWith('column')) return;
+        const minH = parseFloat(cs.minHeight) || 0;
+        if (minH < 50) return;
+        const jc = cs.justifyContent;
+        if (jc === 'space-between' || jc === 'space-evenly' || jc === 'space-around') return;
+        // Count visible direct children
+        const kids = [...el.children].filter(c => {
+          if (c.tagName === 'STYLE' || c.tagName === 'SCRIPT') return false;
+          const ccs = window.getComputedStyle(c);
+          if (ccs.display === 'none' || ccs.visibility === 'hidden') return false;
+          return c.getBoundingClientRect().height > 4;
+        });
+        if (kids.length < 2) return;
+        // bbox-based content extent — auto-includes any margin/gap spacing
+        const elRect = el.getBoundingClientRect();
+        const firstTop = kids[0].getBoundingClientRect().top - elRect.top;
+        const lastBottom = kids[kids.length - 1].getBoundingClientRect().bottom - elRect.top;
+        const contentExtent = lastBottom - firstTop;
+        const padTop = parseFloat(cs.paddingTop) || 0;
+        const padBottom = parseFloat(cs.paddingBottom) || 0;
+        const usableH = elRect.height - padTop - padBottom;
+        const slack = usableH - contentExtent;
+        if (slack < 60) return;
+        out.card_min_height_sparse.push({
+          slide_idx,
+          selector: shortSel(el),
+          client_h: Math.round(elRect.height),
+          content_extent: Math.round(contentExtent),
+          usable_h: Math.round(usableH),
+          slack: Math.round(slack),
+          kid_count: kids.length,
+          justify: jc,
+          min_height: Math.round(minH),
+        });
+      });
+    }
+
+    // ---- R-FOCAL-CHECK · 视觉焦点是否清晰 (2026-05-28) ----
+    // 一张内容页应该有"唯一的视觉重点":第一眼能落下来的元素。最简单
+    // 的客观信号是 — 全页只有一个文本元素占据最大字号。如果 ≥3 个元素
+    // 共享最大字号,且无任何元素声明 `.is-hero` / `data-focal`,焦点就
+    // 模糊了(eye 不知道从哪看起)。
+    //
+    // Skip:hero layouts(焦点 == 整张 slide)+ 故意平行结构的 layout
+    // (agenda / logo-wall / arch-stack / table / timeline / process /
+    // stats / iframe-embed / replica)。这些 layout 的 N 元素等大本身
+    // 是设计,不该报。Per-slide opt-out: `data-allow-no-focal`(例如
+    // overview 页有意 N 路平权)。
+    const FOCAL_PARALLEL_LAYOUTS = new Set([
+      'agenda', 'logo-wall', 'arch-stack', 'table', 'timeline', 'process',
+      'stats', 'iframe-embed', 'replica',
+    ]);
+    if (!isHeroLayout
+        && !FOCAL_PARALLEL_LAYOUTS.has(layout)
+        && !slide.hasAttribute('data-allow-no-focal')) {
+      const FOCAL_CHROME_CLASSES = ['wordmark', 'pageno', 'source-footer',
+        'footnote', 'source', 'attrib', 'copyright', 'demo-tag',
+        'deck-progress', 'deck-controls', 'eyebrow', 'caption',
+        'iframe-hint'];
+      const focalCands = [];
+      slide.querySelectorAll('*').forEach(el => {
+        if (!hasOwnText(el)) return;
+        if (el.tagName === 'STYLE' || el.tagName === 'SCRIPT') return;
+        if (el.ownerSVGElement || el.tagName === 'TEXT' || el.tagName === 'tspan') return;
+        if (hasAnyClass(el, FOCAL_CHROME_CLASSES)) return;
+        // Skip mockup-internal
+        let inMock = false;
+        for (let n = el; n && n !== slide; n = n.parentElement) {
+          if (hasAnyClass(n, TIER_MOCK)) { inMock = true; break; }
+        }
+        if (inMock) return;
+        const cs = window.getComputedStyle(el);
+        const px = Math.round(parseFloat(cs.fontSize));
+        // 小于 20 px 的元素一般是 chrome / 注释,不参与焦点计算
+        if (!px || px < 20) return;
+        focalCands.push({ el, px });
+      });
+      if (focalCands.length >= 3) {
+        const maxPx = Math.max(...focalCands.map(c => c.px));
+        const atMax = focalCands.filter(c => c.px === maxPx);
+        // 1 个独享最大字号 → 焦点清晰
+        // 2 个共享 → 通常是 title + 一个 body hero,允许
+        // ≥3 个共享 → 焦点模糊,报告
+        if (atMax.length >= 3) {
+          // 平行模式容器 —— 若 atMax 元素全部共享一个"显式 N 路平权"的祖先
+          // (overview-grid / north-star-map / scene-grid / logo-wall / 等),
+          // 平等大小就是设计本身,不算焦点模糊。
+          const PARALLEL_PATTERN_CONTAINERS = new Set([
+            'overview-grid', 'north-star-map', 'scene-grid', 'logo-wall',
+            'verdict-grid', 'principle-band', 'kpi-strip', 'arch-stack',
+            'arch-hands', 'pipeline', 'steps', 'pills', 'toc',
+            'agenda-stack', 'iron-corners', 'two-hand-arch',
+          ]);
+          const ancestorClassSets = atMax.map(c => {
+            const set = new Set();
+            for (let n = c.el.parentElement; n && n !== slide; n = n.parentElement) {
+              const raw = n.className;
+              const cls = (raw && raw.baseVal !== undefined ? raw.baseVal : (raw || '')).toString().toLowerCase().split(/\s+/);
+              cls.forEach(x => { if (x) set.add(x); });
+            }
+            return set;
+          });
+          const commonAncestors = [...ancestorClassSets[0]].filter(
+            c => ancestorClassSets.every(s => s.has(c)));
+          const inParallelPattern = commonAncestors.some(
+            c => PARALLEL_PATTERN_CONTAINERS.has(c));
+          if (inParallelPattern) {
+            // 走人,这页是显式平行模式
+          } else {
+            const declared = atMax.filter(c =>
+              hasAnyClass(c.el, ['is-hero', 'focal', 'hero-anchor'])
+              || (c.el.dataset && c.el.dataset.focal != null));
+            // 声明了至少一个 .is-hero / data-focal → 通过(作者已表态)
+            if (declared.length === 0) {
+              out.focal.push({
+                slide_idx,
+                layout,
+                top_size_px: maxPx,
+                tied_count: atMax.length,
+                examples: atMax.slice(0, 4).map(c => shortSel(c.el)),
+              });
+            }
+          }
+        }
+      }
+    }
   });
 
   return out;

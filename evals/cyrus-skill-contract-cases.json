@@ -1,0 +1,158 @@
+{
+  "version": "1.0",
+  "purpose": "Cyrus product workflow contract cases: each sub skill gets one happy path and one corner case, then the confirmed end-to-end flow is checked.",
+  "cases": [
+    {
+      "id": "parser-html-happy",
+      "skill": "upload-parser",
+      "path": "happy",
+      "objective": "Parse an existing H5 deck into a source dossier with knowledge, material, slide layers, and downstream handoff targets.",
+      "input": "skills/deck-renderer/examples/sample-deck.html",
+      "expected": ["source-dossier.json validates", "knowledge/material/slide layers are non-empty", "HTML dependencies are preserved as material items"]
+    },
+    {
+      "id": "parser-missing-source-corner",
+      "skill": "upload-parser",
+      "path": "corner",
+      "objective": "A missing local source must not crash the parser when --allow-missing is used, and must surface confirmation gaps.",
+      "input": "missing PDF path",
+      "expected": ["source-dossier.json validates", "source_inventory marks exists=false", "confidence.needs_confirmation includes source not found", "deck-ingestor handoff is not ready"]
+    },
+    {
+      "id": "planner-outline-happy",
+      "skill": "deck-planner",
+      "path": "happy",
+      "objective": "A production-ready outline validates with the stricter Cyrus design contract.",
+      "input": "generated rich outline fixture",
+      "expected": ["validate-outline.py --strict-design passes", "every slide has hero, density_budget, design_spec, content_completion, and fact_boundary"]
+    },
+    {
+      "id": "planner-thin-outline-corner",
+      "skill": "deck-planner",
+      "path": "corner",
+      "objective": "A thin page-list outline must fail the strict design gate before it reaches renderer.",
+      "input": "rich outline fixture with one design field removed",
+      "expected": ["validate-outline.py --strict-design fails", "failure points to the missing fine-grained design field"]
+    },
+    {
+      "id": "renderer-compile-render-happy",
+      "skill": "deck-renderer",
+      "path": "happy",
+      "objective": "Compile a confirmed outline to DeckJSON, validate it, and render index.html/texts.md/FEEDBACK.md.",
+      "input": "generated rich outline fixture",
+      "expected": ["deck.json validates", "index.html exists", "texts.md exists", "FEEDBACK.md exists"]
+    },
+    {
+      "id": "renderer-invalid-deck-corner",
+      "skill": "deck-renderer",
+      "path": "corner",
+      "objective": "Invalid DeckJSON is rejected before rendering.",
+      "input": "bad deck.json with invalid key and missing content variant",
+      "expected": ["validate-deck.py fails", "renderer is not invoked"]
+    },
+    {
+      "id": "auditor-rendered-deck-happy",
+      "skill": "deck-auditor",
+      "path": "happy",
+      "objective": "Auditor wraps H5 check-only and emits a valid audit-report.json for a rendered deck.",
+      "input": "renderer happy-path output",
+      "expected": ["audit-report.json validates", "verdict=pass", "ingestion_handoff.ready=true"]
+    },
+    {
+      "id": "auditor-broken-html-corner",
+      "skill": "deck-auditor",
+      "path": "corner",
+      "objective": "Broken standalone HTML must be rejected and routed away from ingestion.",
+      "input": "minimal invalid HTML deck",
+      "expected": ["audit-report.json validates", "verdict is not pass", "ingestion_handoff.ready=false"]
+    },
+    {
+      "id": "pitch-simulator-happy",
+      "skill": "pitch-simulator",
+      "path": "happy",
+      "objective": "Simulate a post-audit pitch rehearsal from outline + deck.json.",
+      "input": "planner and renderer happy-path outputs",
+      "expected": ["pitch-rehearsal.json validates", "audience_panel has at least three roles", "claim_discipline.simulated_not_observed=true"]
+    },
+    {
+      "id": "pitch-invalid-meeting-corner",
+      "skill": "pitch-simulator",
+      "path": "corner",
+      "objective": "Unsupported meeting types are rejected by the simulator CLI instead of silently normalizing unintended input.",
+      "input": "--meeting-type not-a-meeting",
+      "expected": ["CLI exits non-zero", "no rehearsal JSON is produced"]
+    },
+    {
+      "id": "ingestor-audited-dry-run-happy",
+      "skill": "deck-ingestor",
+      "path": "happy",
+      "objective": "Audited decks can produce a schema-valid dry-run ingestion manifest without writing local or cloud libraries.",
+      "input": "renderer output plus pass audit-report.json",
+      "expected": ["ingestion-manifest.json validates", "slide_records are present", "records are marked dry-run"]
+    },
+    {
+      "id": "ingestor-unaudited-corner",
+      "skill": "deck-ingestor",
+      "path": "corner",
+      "objective": "Unaudited deck output is blocked from ingestion by default.",
+      "input": "deck.json without pass audit-report.json",
+      "expected": ["CLI exits non-zero", "error mentions deck-auditor pass verdict"]
+    },
+    {
+      "id": "flow-confirmed-pipeline-happy",
+      "skill": "lark-deck-cyrus",
+      "path": "happy",
+      "objective": "The confirmed pipeline can render, audit, rehearse, and emit the fixed handoff artifacts offline.",
+      "input": "evals/run-cyrus-pipeline-contract.py",
+      "expected": ["pipeline contract exits 0", "deck/audit/rehearsal artifacts are present"]
+    },
+    {
+      "id": "flow-plan-only-outline-gate-happy",
+      "skill": "lark-deck-cyrus",
+      "path": "happy",
+      "objective": "Brief-only generator tasks must pause after DESIGN_PLAN/outline and must not render before user outline confirmation.",
+      "input": "server/examples/brief-request.json",
+      "expected": ["status=awaiting_outline_confirmation", "confirmation_required=outline", "DESIGN_PLAN.md exists", "outline validates with --strict-design", "deck.json is absent"]
+    },
+    {
+      "id": "flow-auto-confirm-requires-explicit-corner",
+      "skill": "lark-deck-cyrus",
+      "path": "corner",
+      "objective": "Non-interactive auto-confirm is blocked unless the caller explicitly opts into skipping outline confirmation.",
+      "input": "generator create --auto-confirm-outline without --allow-skip-outline-confirmation",
+      "expected": ["CLI exits non-zero", "error mentions --allow-skip-outline-confirmation"]
+    },
+    {
+      "id": "flow-accept-rehearsal-publishes-happy",
+      "skill": "lark-deck-cyrus",
+      "path": "happy",
+      "objective": "After the generated deck passes audit and rehearsal, accepting rehearsal feedback publishes the Magic Page dry-run and pauses for ingestion confirmation.",
+      "input": "generator plan -> confirm-outline -> accept-rehearsal",
+      "expected": ["status=awaiting_deck_confirmation", "confirmation_required=ingestion", "magic_page_url is dry-run", "publish artifacts exist"]
+    },
+    {
+      "id": "flow-revise-from-rehearsal-happy",
+      "skill": "lark-deck-cyrus",
+      "path": "happy",
+      "objective": "When the user chooses to modify based on pitch simulator feedback, the workflow creates a new version and returns to outline confirmation instead of mutating the rendered deck directly.",
+      "input": "generator plan -> confirm-outline -> revise-from-rehearsal",
+      "expected": ["new task id ends with -v001", "source=rehearsal-feedback", "status=awaiting_outline_confirmation", "new DESIGN_PLAN.md exists"]
+    },
+    {
+      "id": "flow-skip-ingestion-happy",
+      "skill": "lark-deck-cyrus",
+      "path": "happy",
+      "objective": "If the user declines ingestion after the delivery is ready, the task closes without writing ingestion records.",
+      "input": "generator plan -> confirm-outline -> accept-rehearsal -> skip-ingest",
+      "expected": ["status=completed_without_ingestion", "confirmation_required is empty", "ingestion.skipped=true"]
+    },
+    {
+      "id": "flow-rehearsal-gate-corner",
+      "skill": "lark-deck-cyrus",
+      "path": "corner",
+      "objective": "High-stakes manufacturing AI decks are blocked from publish when rehearsal asks for more evidence.",
+      "input": "synthetic manufacturing AI rehearsal with low trust and P0 evidence item",
+      "expected": ["rehearsal gate applies", "gate ok=false", "blockers explain evidence or trust issue"]
+    }
+  ]
+}

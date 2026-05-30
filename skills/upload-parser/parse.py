@@ -595,6 +595,23 @@ def build_layers(inventory: list[dict[str, Any]], brief: str) -> dict[str, Any]:
                 "path": item,
                 "provenance": {"source": original_source, "runtime_source": source_path},
             })
+        html_assets = src.get("html_assets") if isinstance(src.get("html_assets"), dict) else {}
+        for kind, asset_type in [
+            ("images", "image"),
+            ("scripts", "script"),
+            ("stylesheets", "stylesheet"),
+        ]:
+            for item in html_assets.get(kind) or []:
+                item_text = str(item).strip()
+                if not item_text:
+                    continue
+                digest = hashlib.sha1(f"{source_path}:{kind}:{item_text}".encode("utf-8")).hexdigest()[:10]
+                material_items.append({
+                    "id": f"html-{asset_type}-{digest}",
+                    "type": asset_type,
+                    "path": item_text,
+                    "provenance": {"source": original_source, "runtime_source": source_path},
+                })
         if src.get("material_kind"):
             material_items.append({
                 "id": f"asset-{hashlib.sha1(str(source_path).encode()).hexdigest()[:10]}",

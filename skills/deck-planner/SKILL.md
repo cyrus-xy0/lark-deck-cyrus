@@ -111,6 +111,11 @@ planner 输出不能只是一张“页码 + 标题 + layout”的目录表。进
      `knowledge/recipes/zhongji-innolight-ai-lecture.md`,并把其中的
      "业务场景 -> 痛点 -> AI 机制 -> 人的角色变化 -> 价值证明"结构写入
      outline,而不是只复述资料标题。
+   - 消费品 / 零售 / 食饮 / 渠道销售 / 品牌增长 / AI 重写增长逻辑 /
+     高管 AI 讲座类 deck,必须读取
+     `knowledge/recipes/kangshifu-ai-lecture.md`,并把其中的
+     "开场冲突 -> 增长公式 -> 业务现场 -> UI 证据 -> 人的角色变化 ->
+     管理模型收束"结构写入 outline。不要把这类 deck 写成普通产品功能介绍。
 
 4. **形成行业痛点判断**
    - 每个痛点必须包含:为什么现在重要、业务后果、建议证据、证据等级。
@@ -136,20 +141,35 @@ planner 输出不能只是一张“页码 + 标题 + layout”的目录表。进
    - 高质量企业 AI deck 的节奏应是:概念定调 -> 典型场景 -> 可视化机制
      -> 客户/类比案例 -> 落地建议;连续同构卡片页超过 3 页时必须插入
      quote / section / hero / demo 呼吸页。
+   - 高质量消费品 AI / 经营增长讲座的节奏应是:失败悖论 -> 一句增长公式
+     -> 三段增长逻辑 -> 角色化业务现场 -> 可运行 UI/仪表盘证据 -> 组织
+     模型抽象。P3 前必须出现可复述公式或操作模型;核心章节必须至少
+     安排 3 页 UI/工作台/手机/雷达/地图/飞轮等视觉锚点,并在
+     `design_spec` 中写清这些锚点如何证明主张。
    - 对制造业 / NPI / 质量 / 供应链 / 高管 AI 讲座类 deck,outline 必须至少包含:
      角色化业务场景页 1 页(如工程师的一天或一次异常闭环)、可视化机制/原型页
      1 页(仪表盘、review panel、雷达、工作台、iframe/raw demo 均可)、案例/证据页
      1 页、落地建议页 1 页。缺任何一类时,标记为 replan/open question,
      不允许交给 renderer 只套 3up / matrix / process / table。
+   - 对消费品 / 零售 / 食饮 / 渠道销售 AI 讲座类 deck,outline 必须至少包含:
+     开场悖论页 1 页、增长公式页 1 页、多部门或角色化卡点页 1 页、产品 UI
+     证据页 2 页、知识/经验复利页 1 页、模型收束页 1 页。缺任何一类时,
+     标记为 replan/open question,不允许交给 renderer 只套普通卡片模板。
 
 6. **映射到 DeckJSON**
    - 优先选择 `deck-renderer/deck-json/deck-schema.json` 已有 layout。
    - 每页都给 `layout_candidate`,但只作为建议;`deck-renderer` 可在生产时调整。
    - 若需要真实交互或在线体验,标记 `iframe-embed` / `phone-iframe` 或 `demo` asset。
+   - 若页面是确定性数值图表,优先标记 `chart/bar|line|donut`,由 renderer 计算
+     SVG/CSS 图形;不要为了画柱线饼图退回 `raw` 或自由 SVG。
    - 若页面规划为工作台、仪表盘、应用原型或多状态 UI,tab / segmented
      control / slider / button 等控件必须在素材计划里标明交互状态。tab
      类控件默认需要可切换;如果只是静态示意,必须写出静态理由,不能把
      “看起来可点”的控件交给 renderer 自行脑补。
+   - 消费品 AI 讲座的高复用页面优先映射到这些 renderer block:
+     `formula-band`(增长公式 / 操作模型)、`friction-grid`(多部门卡点 /
+     多系统断点)、`flywheel-loop`(执行反哺下一次执行)。这些 block
+     无法承载真实工作台时,再使用 `iframe-embed` 或单页 `raw`。
 
 7. **生成素材计划**
    - logo/icon/demo 先查统一入口: `python3 scripts/base_library.py search-assets "<关键词>" --limit 20`。

@@ -694,7 +694,9 @@ def search_with_fallback(config: dict[str, Any], table: str, keyword: str, ident
         return local_slide_rows(config, keyword, limit)
     if can_try_base(config):
         try:
-            return search_records(config, table, keyword, identity, limit)
+            rows = search_records(config, table, keyword, identity, limit)
+            if rows or library_mode(config) == "base":
+                return rows
         except SystemExit:
             if library_mode(config) == "base":
                 raise

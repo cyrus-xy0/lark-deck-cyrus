@@ -1,0 +1,131 @@
+{
+  "version": "1.0",
+  "notes": "Smoke example for Kangshifu AI lecture reusable blocks: formula-band, friction-grid, flywheel-loop.",
+  "deck": {
+    "title": "康师傅 AI 讲座 block smoke",
+    "author": "skill maintainer",
+    "date": "2026.05.29",
+    "presentation_date": "2026-05-29",
+    "customer_slug": "kangshifu-blocks",
+    "language": "zh-only",
+    "mode": "rewrite"
+  },
+  "slides": [
+    {
+      "key": "cover",
+      "layout": "cover",
+      "data": {
+        "title": "康师傅 AI 讲座\nBlock Smoke",
+        "author": "skill maintainer",
+        "date": "2026.05.29"
+      }
+    },
+    {
+      "key": "growth-formula",
+      "layout": "content",
+      "variant": "blocks",
+      "accent": "teal",
+      "decor": ["teal-glow"],
+      "motion_policy": "sequence-highlight",
+      "screen_label": "01 增长公式",
+      "data": {
+        "title": "消费品企业的新增长共识",
+        "body_blocks": [
+          {
+            "type": "formula-band",
+            "headline": "企业价值如何重新计算",
+            "lhs": "企业价值",
+            "operator": "×",
+            "factors": [
+              { "top": "消费者", "bottom": "深度理解" },
+              { "top": "决策", "bottom": "响应速度" },
+              { "top": "经验", "bottom": "复利共享" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "eight-desk-friction",
+      "layout": "content",
+      "variant": "blocks",
+      "accent": "orange",
+      "decor": ["orange-spark"],
+      "motion_policy": "sequence-highlight",
+      "screen_label": "02 八张桌子",
+      "data": {
+        "title": "一个新品的 4 个月,卡在 8 张桌子之间",
+        "lede": "卡点不是某个部门不努力,而是输入、系统和责任边界没有被同一张工作台串起来。",
+        "body_blocks": [
+          {
+            "type": "friction-grid",
+            "tone": "orange",
+            "cards": [
+              {
+                "num": "01",
+                "title": "研发中心",
+                "system": "PLM 产品系统",
+                "pain": "完成减盐配方小试,等待量产可行性反馈。",
+                "stuck": "工艺、采购、品保结论没有同步回来。",
+                "footer": "拉通靠周会、邮件和临时群。"
+              },
+              {
+                "num": "02",
+                "title": "工艺部",
+                "system": "部门 Excel",
+                "pain": "把配方翻译成可量产工艺参数。",
+                "stuck": "改动只在部门表里,下游不知道新版逻辑。",
+                "footer": "返工常发生在试产前。"
+              },
+              {
+                "num": "03",
+                "title": "采购中心",
+                "system": "SAP 物料系统",
+                "pain": "确认新物料供应商、认证和交付周期。",
+                "stuck": "研发试验与供应商认证节奏脱节。",
+                "footer": "供应风险发现太晚。"
+              },
+              {
+                "num": "04",
+                "title": "工厂",
+                "system": "MES 试产系统",
+                "pain": "排产试产并记录良率、损耗和异常。",
+                "stuck": "排产窗口、物料齐套和工艺参数没有一页看全。",
+                "footer": "现场异常回传慢。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "report-flywheel",
+      "layout": "content",
+      "variant": "blocks",
+      "accent": "teal",
+      "decor": ["mix-glow"],
+      "motion_policy": "state-loop",
+      "screen_label": "03 汇报飞轮",
+      "data": {
+        "title": "当汇报不再是终点,而是燃料",
+        "body_blocks": [
+          {
+            "type": "flywheel-loop",
+            "center": {
+              "title": "汇报飞轮",
+              "subtitle": "既输出,也输入"
+            },
+            "nodes": [
+              { "label": "01", "title": "生成", "body": "AI 基于库内素材组装初稿。" },
+              { "label": "02", "title": "汇报", "body": "售前对客户讲,录音和互动全程在场。" },
+              { "label": "03", "title": "质检", "body": "系统评估表达质量和关键问题应答。" },
+              { "label": "04", "title": "入库", "body": "逐字稿和反馈结构化沉淀为片段。" },
+              { "label": "05", "title": "反哺", "body": "沉淀内容成为下一次生成素材。" }
+            ],
+            "closing": "飞轮转一圈,组织知识资产就厚一层。"
+          }
+        ]
+      }
+    }
+  ]
+}

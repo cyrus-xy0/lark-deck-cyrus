@@ -20,7 +20,8 @@ stdlib-only Python 3.11+. No external deps. Mirrors render.py conventions
 
 Phase 1.a coverage (this version):
   layouts:  cover, agenda, content/3up, content/2col, quote, end
-  blocks:   pullquote, kpi-strip, cta-box, data-panel
+  blocks:   pullquote, kpi-strip, cta-box, data-panel, formula-band,
+            friction-grid, flywheel-loop
   Slides using uncovered (layout, variant) combos error with a clear msg.
 
 Phase 1.b/c/d (later versions) add the rest of the 12 layouts + 3 blocks.
@@ -33,11 +34,22 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+# Story-case fit primitives are single-sourced in _story_case_fit.py (F-15) so
+# render-deck.py and validate-deck.py can't drift apart.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _story_case_fit import (  # noqa: E402
+    get_path,
+    PLACEHOLDER_PATTERNS as _PLACEHOLDER_PATTERNS,
+    STORY_CASE_FIT_CHECK,
+    _min_len_for,
+)
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -110,15 +122,6 @@ def _esc_br(s):
 # Helpers (mirror render.py — kept inline for self-contained script)
 # ---------------------------------------------------------------------------
 
-def get_path(d, dotted: str):
-    cur = d
-    for k in dotted.split("."):
-        if not isinstance(cur, dict) or k not in cur:
-            raise KeyError(dotted)
-        cur = cur[k]
-    return cur
-
-
 def resolve_asset_refs(value, manifest: dict | None):
     """Replace DeckJSON asset:id tokens with concrete paths from deck.assets."""
     if not manifest:
@@ -145,34 +148,10 @@ def resolve_asset_refs(value, manifest: dict | None):
 # presence; this catches placeholder, too-short, or duplicated story beats.
 # ---------------------------------------------------------------------------
 
-_PLACEHOLDER_PATTERNS = (
-    r"\b(TBD|TBC|TODO|XXX|N/?A|FIXME)\b",
-    r"(待补|具体待补|占位|稍后补充|有待补充|待定|暂无|未填|None)",
-    r"^[\s\.\-…—_]+$",
-    r"^(\?+|？+)$",
-    r"\.\.\.{2,}|…{2,}",
-)
-_MIN_LEN_FULL = 10
-_MIN_LEN_ACCENT = 2
-_MIN_LEN_CONNECTIVE = 1
-
-STORY_CASE_FIT_CHECK = (
-    "hook.lead", "hook.accent", "hook.tail",
-    "arc.pain", "arc.conflict", "arc.solution",
-    "arc.value.lead", "arc.value.accent", "arc.value.tail",
-)
 STORY_CASE_ACCENT_PATHS = (
     ("hook", "hook"),
     ("value", "arc.value"),
 )
-
-
-def _min_len_for(path: str) -> int:
-    if path.endswith(".accent"):
-        return _MIN_LEN_ACCENT
-    if path.endswith((".lead", ".tail")):
-        return _MIN_LEN_CONNECTIVE
-    return _MIN_LEN_FULL
 
 
 def check_story_case_fit(data: dict) -> list[str]:
@@ -335,6 +314,12 @@ def _build_data_attrs(slide: dict) -> str:
         parts.append(f'data-logo-position="{_esc_br(slide["logo_position"])}"')
     if slide.get("motion_policy"):
         parts.append(f'data-motion-policy="{_esc_br(slide["motion_policy"])}"')
+    if slide.get("lifted"):
+        # Native slide lift: style-only issues on verbatim lifted slides are
+        # surfaced as warnings by validate.py / visual-audit.js; geometry and
+        # overflow remain hard failures.
+        val = slide["lifted"] if isinstance(slide["lifted"], str) else "1"
+        parts.append(f'data-lifted="{_esc_br(val)}"')
     if slide.get("layout") == "cover":
         cover_style = slide.get("variant") if slide.get("variant") in {"plain", "master"} else "master"
         parts.append(f'data-cover-style="{_esc_br(cover_style)}"')
@@ -433,6 +418,91 @@ def _enrich_verdict_grid(block):
             f'            </div>'
         )
     block["cards_html"] = "\n".join(parts)
+
+
+def _enrich_formula_band(block):
+    headline = block.get("headline")
+    block["headline_html"] = (
+        f'            <div class="formula-headline">{_esc_br(headline)}</div>'
+        if headline else ""
+    )
+    operator = block.get("operator") or "×"
+    factors = block.get("factors", [])
+    parts = []
+    for i, factor in enumerate(factors):
+        if i:
+            parts.append(f'              <span class="op">{_esc_br(operator)}</span>')
+        parts.append(
+            '              <span class="factor">'
+            f'<span class="f-top">{_esc_br(factor.get("top", ""))}</span>'
+            f'<span class="f-bottom">{_esc_br(factor.get("bottom", ""))}</span>'
+            '</span>'
+        )
+    block["factors_html"] = "\n".join(parts)
+
+
+def _enrich_friction_grid(block):
+    cards = block.get("cards", [])
+    count = len(cards)
+    block["card_count"] = count
+    block["grid_cols"] = 4 if count > 4 else count
+    block["tone_modifier"] = _tone_modifier(block.get("tone", "orange"))
+    parts = []
+    for card in cards:
+        system = card.get("system")
+        footer = card.get("footer")
+        system_html = (
+            f'              <div class="system">{_esc_br(system)}</div>'
+            if system else ""
+        )
+        footer_html = (
+            f'              <div class="footer-note">{_esc_br(footer)}</div>'
+            if footer else ""
+        )
+        parts.append(
+            '            <article class="friction-card">\n'
+            '              <div class="friction-head">'
+            f'<span class="num">{_esc_br(card.get("num", ""))}</span>'
+            f'<h3>{_esc_br(card.get("title", ""))}</h3></div>\n'
+            f'{system_html}\n'
+            f'              <p class="pain">{_esc_br(card.get("pain", ""))}</p>\n'
+            f'              <div class="stuck"><span>卡在哪</span>{_esc_br(card.get("stuck", ""))}</div>\n'
+            f'{footer_html}\n'
+            '            </article>'
+        )
+    block["cards_html"] = "\n".join(parts)
+
+
+def _enrich_flywheel_loop(block):
+    nodes = block.get("nodes", [])
+    count = len(nodes)
+    block["node_count"] = count
+    parts = []
+    radius = 33
+    for i, node in enumerate(nodes):
+        angle = -90 + (360 / max(count, 1)) * i
+        rad = math.radians(angle)
+        left = 50 + radius * math.cos(rad)
+        top = 50 + radius * math.sin(rad)
+        parts.append(
+            '              <div class="flywheel-node fs-motion-pop" '
+            f'style="left:{left:.3f}%;top:{top:.3f}%;--child-i:{i + 1}">\n'
+            f'                <span class="label">{_esc_br(node.get("label", ""))}</span>\n'
+            f'                <h3>{_esc_br(node.get("title", ""))}</h3>\n'
+            f'                <p>{_esc_br(node.get("body", ""))}</p>\n'
+            '              </div>'
+        )
+    block["nodes_html"] = "\n".join(parts)
+    center = block.get("center") or {}
+    subtitle = center.get("subtitle")
+    block["center_subtitle_html"] = (
+        f'                <p>{_esc_br(subtitle)}</p>' if subtitle else ""
+    )
+    closing = block.get("closing")
+    block["closing_html"] = (
+        f'            <div class="flywheel-closing">{_esc_br(closing)}</div>'
+        if closing else ""
+    )
 
 
 def _enrich_phone_iframe(block):
@@ -549,6 +619,9 @@ BLOCK_ENRICHERS = {
     "kpi-strip":        _enrich_kpi_strip,
     "data-panel":       _enrich_data_panel,
     "verdict-grid":     _enrich_verdict_grid,
+    "formula-band":     _enrich_formula_band,
+    "friction-grid":    _enrich_friction_grid,
+    "flywheel-loop":    _enrich_flywheel_loop,
     "phone-iframe":     _enrich_phone_iframe,
     "testimonial-card": _enrich_testimonial_card,
     "mockup-card":      _enrich_mockup_card,
@@ -572,8 +645,9 @@ def render_block(block: dict, asset_path: str = "..") -> str:
     if not tpl_path.exists():
         raise SystemExit(
             f"render-deck: no template for block type='{block_type}' (expected {tpl_path}). "
-            f"Known types: pullquote, kpi-strip, cta-box, data-panel, "
-            f"verdict-grid, phone-iframe, principle-band, testimonial-card."
+            f"Known types: pullquote, kpi-strip, cta-box, data-panel, verdict-grid, "
+            f"formula-band, friction-grid, flywheel-loop, phone-iframe, "
+            f"principle-band, testimonial-card, mockup-card, persona-card."
         )
     enricher = BLOCK_ENRICHERS.get(block_type)
     block_ctx = dict(block)
@@ -655,6 +729,42 @@ ICON_LIB = {
     "trending-up":      '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
     "clock":            '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
     "layout-dashboard": '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',
+    # Expanded 2026-05-29: quality benchmark showed models reach for these Lucide names.
+    "activity":         '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    "trending-down":    '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>',
+    "target":           '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    "bar-chart":        '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
+    "bar-chart-2":      '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+    "pie-chart":        '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+    "arrow-right":      '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+    "arrow-up-right":   '<line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>',
+    "arrow-up":         '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
+    "arrow-down":       '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
+    "star":             '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    "award":            '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+    "alert-triangle":   '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    "shield":           '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    "lightbulb":        '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>',
+    "rocket":           '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+    "layers":           '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+    "database":         '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+    "calendar":         '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    "mail":             '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',
+    "search":           '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+    "eye":              '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+    "globe":            '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    "git-branch":       '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+    "map-pin":          '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+    "dollar-sign":      '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    "briefcase":        '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+    "file-text":        '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>',
+    "flag":             '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+    "heart":            '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+    "x-circle":         '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+    "plus-circle":      '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
+    "refresh-cw":       '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+    "filter":           '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+    "package":          '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
 }
 
 
@@ -666,6 +776,10 @@ def _render_icon(icon, default_svg=None):
         paths = ICON_LIB[icon]
         return (f'<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" '
                 f'fill="none" stroke-linecap="round" stroke-linejoin="round">{paths}</svg>')
+    if isinstance(icon, str) and icon:
+        print(f'  ! icon "{icon}" not in ICON_LIB — dropped. Known ({len(ICON_LIB)}): '
+              f'{", ".join(sorted(ICON_LIB))}. Or pass an inline {{"svg": "<svg…>"}}.',
+              file=sys.stderr)
     return default_svg or ""
 
 
@@ -1274,6 +1388,132 @@ def _enrich_stats_waterfall(ctx, slide):
         ctx.get("footnote"), snp, "footnote", classes="footnote", indent="        ")
 
 
+_CHART_TOKENS = ["var(--fs-blue)", "var(--fs-teal)", "var(--fs-violet)", "var(--fs-orange)"]
+_CHART_NAMED = {
+    "blue": "var(--fs-blue)",
+    "teal": "var(--fs-teal)",
+    "violet": "var(--fs-violet)",
+    "orange": "var(--fs-orange)",
+    "grey": "rgba(255,255,255,0.45)",
+}
+
+
+def _chart_color(idx, override=None):
+    """Series/segment color -> brand token. Never free hex (stays inside R10)."""
+    if override and override in _CHART_NAMED:
+        return _CHART_NAMED[override]
+    return _CHART_TOKENS[idx % len(_CHART_TOKENS)]
+
+
+def _enrich_chart(ctx, slide):
+    """layout:chart — deterministic bar / line / donut data-viz from numbers."""
+    snp = ctx["slide_no_padded"]
+    variant = slide.get("variant") or "bar"
+    series = ctx.get("series") or []
+    unit = _esc_br(ctx.get("unit", "") or "")
+
+    def vlabel(p):
+        vl = p.get("value_label")
+        if vl:
+            return _esc_br(str(vl))
+        v = p.get("value", 0)
+        if isinstance(v, float) and v.is_integer():
+            v = int(v)
+        return f"{v}{unit}"
+
+    def legend_chips(items):
+        chips = "".join(
+            f'<span class="cl-chip"><i style="background:{c}"></i>{_esc_br(n)}</span>'
+            for c, n in items if n
+        )
+        return f'        <div class="chart-legend">{chips}</div>\n' if chips else ""
+
+    chart_html = ""
+
+    if variant == "bar":
+        pts = (series[0].get("points") if series else []) or []
+        color = _chart_color(0, series[0].get("color") if series else None)
+        vals = [abs(float(p.get("value", 0) or 0)) for p in pts]
+        mx = max(vals) if vals and max(vals) > 0 else 1
+        cols = []
+        for i, p in enumerate(pts):
+            h = max(24, round(vals[i] / mx * 360))
+            cols.append(
+                f'          <div class="cbar">'
+                f'<div class="cval" data-text-id="slide-{snp}.pt-{i+1:02d}.value">{vlabel(p)}</div>'
+                f'<div class="ccol" style="height:{h}px;'
+                f'background:linear-gradient(180deg,{color},color-mix(in srgb,{color} 30%,transparent))"></div>'
+                f'<div class="clabel" data-text-id="slide-{snp}.pt-{i+1:02d}.label">{_esc_br(p.get("label", ""))}</div>'
+                f'</div>'
+            )
+        chart_html = (
+            f'        <div class="chart chart-bar" style="--cn:{len(pts) or 1}">\n'
+            + "\n".join(cols) + "\n        </div>\n"
+        )
+
+    elif variant == "line":
+        W, H, PAD = 1000.0, 380.0, 14.0
+        npts = max((len(s.get("points") or []) for s in series), default=0)
+        allvals = [abs(float(p.get("value", 0) or 0)) for s in series for p in (s.get("points") or [])]
+        mx = max(allvals) if allvals and max(allvals) > 0 else 1
+        polylines, leg = [], []
+        for si, s in enumerate(series):
+            pts = s.get("points") or []
+            color = _chart_color(si, s.get("color"))
+            coords = []
+            for i, p in enumerate(pts):
+                x = PAD + (i / (npts - 1) * (W - 2 * PAD) if npts > 1 else 0)
+                y = H - PAD - abs(float(p.get("value", 0) or 0)) / mx * (H - 2 * PAD)
+                coords.append(f"{x:.1f},{y:.1f}")
+            polylines.append(
+                f'<polyline points="{" ".join(coords)}" fill="none" stroke="{color}" '
+                f'stroke-width="3" vector-effect="non-scaling-stroke" '
+                f'stroke-linejoin="round" stroke-linecap="round"/>'
+            )
+            leg.append((color, s.get("name")))
+        first = (series[0].get("points") if series else []) or []
+        xlabels = "".join(
+            f'<span data-text-id="slide-{snp}.x-{i+1:02d}">{_esc_br(p.get("label", ""))}</span>'
+            for i, p in enumerate(first)
+        )
+        chart_html = (
+            f'        <div class="chart chart-line">\n'
+            f'          <svg class="cline-svg" viewBox="0 0 1000 380" preserveAspectRatio="none">'
+            + "".join(polylines) + "</svg>\n"
+            f'          <div class="cline-x">{xlabels}</div>\n'
+            f'        </div>\n' + legend_chips(leg)
+        )
+
+    elif variant == "donut":
+        pts = (series[0].get("points") if series else []) or []
+        vals = [abs(float(p.get("value", 0) or 0)) for p in pts]
+        total = sum(vals) or 1
+        R, C, SW, CIRC = 84.0, 120.0, 34.0, 2 * math.pi * 84.0
+        segs, leg, cum = [], [], 0.0
+        for i, p in enumerate(pts):
+            color = _chart_color(i, p.get("color"))
+            seg = vals[i] / total * CIRC
+            segs.append(
+                f'<circle cx="{C}" cy="{C}" r="{R:.2f}" fill="none" stroke="{color}" '
+                f'stroke-width="{SW}" stroke-dasharray="{seg:.2f} {CIRC - seg:.2f}" '
+                f'stroke-dashoffset="{-cum:.2f}"/>'
+            )
+            cum += seg
+            leg.append((color, f'{_esc_br(p.get("label", ""))} {round(vals[i] / total * 100)}%'))
+        center = f'{round(total)}{unit}' if unit else str(round(total))
+        chart_html = (
+            f'        <div class="chart chart-donut">\n'
+            f'          <svg class="cdonut-svg" viewBox="0 0 240 240">'
+            f'<g transform="rotate(-90 120 120)">' + "".join(segs) + '</g></svg>\n'
+            f'          <div class="cdonut-center">{center}</div>\n'
+            f'        </div>\n' + legend_chips(leg)
+        )
+
+    ctx["chart_html"] = chart_html
+    ctx["footnote_html"] = _optional_text_node(
+        ctx.get("footnote"), snp, "footnote", classes="footnote", indent="        ")
+
+
 def _enrich_flow_tree(ctx, slide):
     snp = ctx["slide_no_padded"]
     root = ctx.get("root", {}) or {}
@@ -1444,6 +1684,9 @@ ENRICHERS = {
     ("stats",   "row"):          _enrich_stats_row,
     ("stats",   "hero"):         _enrich_stats_hero,
     ("stats",   "waterfall"):    _enrich_stats_waterfall,
+    ("chart",   "bar"):          _enrich_chart,
+    ("chart",   "line"):         _enrich_chart,
+    ("chart",   "donut"):        _enrich_chart,
     ("image-text", None):        _enrich_image_text,
     ("table",   None):           _enrich_table,
     ("logo-wall", None):         _enrich_logo_wall,

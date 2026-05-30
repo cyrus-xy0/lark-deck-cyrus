@@ -363,7 +363,7 @@
       "additionalProperties": false,
       "properties": {
         "layout": {
-          "enum": ["cover", "agenda", "section", "content", "stats", "quote", "image-text", "table", "flow", "logo-wall", "arch-stack", "iframe-embed", "replica", "raw", "end"]
+          "enum": ["cover", "agenda", "section", "content", "stats", "quote", "image-text", "table", "flow", "logo-wall", "arch-stack", "chart", "iframe-embed", "replica", "raw", "end"]
         },
         "variant": { "type": "string" },
         "rationale": { "type": "string" }

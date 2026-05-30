@@ -64,7 +64,7 @@
         "warnings": { "type": "array", "items": { "type": "string" } },
         "slides": { "type": "array", "items": { "type": "object" } },
         "media": { "type": "array", "items": { "type": "string" } },
-        "html_assets": { "type": "array", "items": { "type": "string" } },
+        "html_assets": { "$ref": "#/$defs/html_assets" },
         "material_kind": { "type": "string" },
         "slide_count": { "type": "integer" },
         "page_count": { "type": "integer" },
@@ -73,6 +73,18 @@
         "file_count": { "type": "integer" },
         "children": { "type": "array", "items": { "type": "string" } },
         "error": { "type": "string" }
+      }
+    },
+    "html_assets": {
+      "type": "object",
+      "required": ["images", "scripts", "stylesheets", "declared_slide_keys", "warnings"],
+      "additionalProperties": false,
+      "properties": {
+        "images": { "type": "array", "items": { "type": "string" } },
+        "scripts": { "type": "array", "items": { "type": "string" } },
+        "stylesheets": { "type": "array", "items": { "type": "string" } },
+        "declared_slide_keys": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "array", "items": { "type": "string" } }
       }
     },
     "knowledge_item": {

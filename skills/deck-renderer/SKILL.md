@@ -24,6 +24,28 @@ After producing artifacts, handoff to `deck-auditor` for "ready to share /
 revise / replan / rerender" judgment. If the deck passes, `deck-ingestor`
 handles knowledge / slide / asset ingestion.
 
+## Upstream Sync Surface (2026-05-30)
+
+The renderer stays aligned with the mother deck system on these core workflows,
+while Cyrus keeps its own planner/source/ingestor design:
+
+- **Validator parity**: `assets/validate.py` now delegates static checks through
+  the shared `STATIC_AUDITS` registry, and `assets/check-only.py` uses the same
+  registry. Cyrus keeps `R-VISUAL` as a hard gate in check-only ingest mode.
+- **Native slide lift**: use `assets/lift-slides.py` when importing whole slides
+  from an existing deck. Lifted slides carry `lifted` in DeckJSON and render as
+  `data-lifted`; style-only violations are warnings, geometry/overflow remain
+  blocking.
+- **Reskin mode**: use `assets/reskin.sh` / `assets/reskin.py` only for foreign
+  standalone HTML that should keep its source structure but adopt deck-renderer
+  chrome, palette, and validator checks. This is not a redesign pass.
+- **Chart layout**: DeckJSON supports `layout: "chart"` with `variant` of
+  `bar`, `line`, or `donut`; authors provide series values and the renderer
+  computes deterministic SVG/CSS with framework tokens.
+- **Token SSOT**: 16/24/28/48px text tiers must be expressed with
+  `--fs-foot`, `--fs-body`, `--fs-sub`, and `--fs-title`. Cyrus-specific blocks
+  must use the same tokens.
+
 ## Structured Contract Boundary
 
 In the Cyrus workflow, `deck-renderer` consumes the planner's canonical
@@ -99,12 +121,14 @@ Delivery builds must run visual audit. A cover / hero page with possible text
 overlap is not shippable until a screenshot-backed visual pass confirms it.
 
 For enterprise AI / digital employee / manufacturing decks, check
-`knowledge/recipes/zhongji-innolight-ai-lecture.md` before production. The
-reference quality bar is not "more cards"; it is concrete web-native artifacts:
-dashboard mocks, role workday timelines, AI review panels, anomaly radars, case
-pages with pain/conflict/solution/value, and quote/section breath pages. If the
-outline cannot name at least one of these visual containers for the core story,
-route back to `deck-planner`.
+`knowledge/recipes/zhongji-innolight-ai-lecture.md` before production. For
+consumer goods / retail / food and beverage / channel growth AI lecture decks,
+check `knowledge/recipes/kangshifu-ai-lecture.md`. The reference quality bar is
+not "more cards"; it is concrete web-native artifacts: dashboard mocks, role
+workday timelines, AI review panels, anomaly radars, taste/channel maps, phone
+chat mocks, execution flywheels, case pages with pain/conflict/solution/value,
+and quote/section breath pages. If the outline cannot name these visual
+containers for the core story, route back to `deck-planner`.
 
 Persist the final design pass into the run as `DESIGN_PLAN.md` once the run is
 created so auditor, simulator, and ingestor can see why each layout path was
@@ -616,7 +640,10 @@ Use DeckJSON whenever the deck consists of slides matching any of:
 | `replica` | — | PDF page-as-image (for PDF→HTML conversion) |
 | `raw` | — | Escape hatch for one-off custom slides |
 
-Plus 10 embeddable blocks (pullquote / cta-box / kpi-strip / data-panel / principle-band / verdict-grid / phone-iframe / testimonial-card / mockup-card / persona-card) that compose inside `content/3up` / `content/2col` / `content/blocks`.
+Plus 13 embeddable blocks (pullquote / cta-box / kpi-strip / data-panel /
+principle-band / verdict-grid / phone-iframe / testimonial-card / mockup-card /
+persona-card / formula-band / friction-grid / flywheel-loop) that compose
+inside `content/3up` / `content/2col` / `content/blocks`.
 
 Deck-level theme: `deck.title_style` (4 styles · center-single/center-double/left-double/left) × `deck.logo_position` (front/back) = 8 master-variant combinations. Per-slide override via `slide.title_style` / `slide.logo_position`.
 

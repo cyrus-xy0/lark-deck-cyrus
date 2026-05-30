@@ -86,7 +86,7 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 
 ## Schema 一览
 
-### 13 regular layouts + 2 specials
+### 14 regular layouts + 2 specials
 
 | Layout | Variants | 用于 |
 |---|---|---|
@@ -95,6 +95,7 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 | `section` | — | 章节分隔 + 大编号(可选 `parent_label` 子章节) |
 | `content` | `3up` / `2col` / `story-case` / `blocks` / `matrix` / **`before-after`** | 3 卡片 / 左文右图 / 一页纸案例 / 全宽 body / 2×2 矩阵 / 痛点-方案对比 |
 | `stats` | `row` / `hero` / `waterfall` | 3-4 KPI 列 / 1 个 hero 数字 / 桥图 |
+| `chart` | `bar` / `line` / `donut` | 由 DeckJSON 数值确定生成的 SVG/CSS 图表 |
 | `quote` | — | 客户/专家引言单页 |
 | `image-text` | — | 全屏图片 + 浮层文字 |
 | `table` | — | 对比表格 |
@@ -107,11 +108,11 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 | `replica` | — | 全屏 PDF 页图 |
 | `raw` | — | 单页 HTML 自由发挥(escape hatch) |
 
-= **13 regular + 2 specials = 15 layout enum values**。多 variant 层叠出 **~20 个实际可用版式**。
+= **14 regular + 2 specials = 16 layout enum values**。多 variant 层叠出 **~23 个实际可用版式**。
 
-**13-regular 不变量** — 加新 pattern 优先考虑做 existing layout 的 variant,只有结构性完全不同才加新 regular layout。见 MIGRATION-REPORT.md 各 Phase 评估过程。
+**14-regular 不变量** — 加新 pattern 优先考虑做 existing layout 的 variant,只有结构性完全不同才加新 regular layout。见 MIGRATION-REPORT.md 各 Phase 评估过程。
 
-### 10 个 embeddable blocks
+### 13 个 embeddable blocks
 
 可嵌入到 `content/3up.body_blocks[]` / `content/2col.text.body_blocks[]` / `content/blocks.body_blocks[]`:
 
@@ -127,6 +128,9 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 | **`testimonial-card`** | 客户证言(姓名+职位+引言+头像+logo) | name, title, quote |
 | **`mockup-card`** | UI mockup 4 风格(past/now/callout/compare) | kind, title |
 | **`persona-card`** | 用户画像(姓名+角色+世代+简介) | name, role |
+| **`formula-band`** | 增长公式 / 操作模型 | lhs, factors[] |
+| **`friction-grid`** | 多部门 / 多系统卡点矩阵 | cards[] |
+| **`flywheel-loop`** | 执行反哺下一次执行的飞轮 | center, nodes[] |
 
 字段精确定义见 [`deck-schema.json`](./deck-schema.json) `$defs/block_*`。
 
@@ -137,13 +141,14 @@ python3 deck-json/render-deck.py runs/<ts>/output/deck.json runs/<ts>/output/
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `key` | kebab-case string, **unique** | 语义 locator (`data-slide-key`),slide-library ingest 必需 |
-| `layout` | enum (15 个值: 13 regular + 2 specials) | 主鉴别字段 |
-| `variant` | string (content/stats/flow **必须**) | 子鉴别字段,单 variant layout 上忽略 |
+| `layout` | enum (16 个值: 14 regular + 2 specials) | 主鉴别字段 |
+| `variant` | string (content/stats/flow/chart **必须**) | 子鉴别字段,单 variant layout 上忽略 |
 | `screen_label` | string (optional) | 上下页 UI 显示文字。默认从 title 派生 |
 | `accent` | enum: blue/teal/violet/purple/orange | **无 cyan** (规则 R49 编码在 schema) |
 | `decor` | string[] (token) | violet-glow / blue-glow / mix-glow / teal-glow / orange-spark / aurora / grain / topo / flower-bg / section-bg / photo-bg |
 | `language_override` | enum | 单 slide override `deck.language` |
 | `motion_policy` | enum | none / reveal / state-loop / sequence-highlight / demo-loop / live-dashboard / media-restart / iframe-native; 会渲染成 `data-motion-policy` |
+| `lifted` | string / boolean | 原生拼接 slide 标记;渲染成 `data-lifted`,内容样式类问题降级为 warn,几何/溢出仍硬失败 |
 | `notes` | string | 作者备注(不渲染) |
 
 ## Prototype embed contract
@@ -193,6 +198,7 @@ triple-gate 序: 任何一道 fail → 整体失败 → backup 恢复。
 |---|---|---|
 | **0** | 10 base layouts + 7 blocks + schema + validator + sample-deck | ✅ shipped |
 | **0.3 实施** | logo-wall + arch-stack + content/before-after + flow/swim + 3 blocks(testimonial/mockup/persona) + deck-level title_style+logo_position | ✅ shipped (Phase 0.3 评估时定的 4 layout 全落地) |
+| **0.4 Kangshifu** | consumer AI lecture blocks: formula-band / friction-grid / flywheel-loop | ✅ shipped |
 | **0.1** | embeddable block 5→7 (加 `verdict-grid`, `phone-iframe`) | ✅ shipped |
 | **0.2** | proposal-mvw.json 4 个 consulting 模式 (matrix/exec-summary/waterfall/tree) → variant 扩展通过 | ✅ shipped |
 | **0.3** | 评估剩 4 proposal (arch-stack / logo-wall / roadmap-swim / before-after) | 📝 评估完毕(见 MIGRATION-REPORT.md),实施暂缓 |

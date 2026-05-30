@@ -17,7 +17,7 @@ Write commands (auto-backup + revalidate + rollback on schema fail):
   set PATH VALUE              dotted-path set (VALUE auto-typed: int/bool/str/json)
   set-accent KEY COLOR        slide.accent = COLOR
   set-decor KEY TOKENS        slide.decor = TOKENS (comma-sep, e.g. "blue-glow,grain")
-  set-variant KEY VARIANT     for content/stats/flow only — also wipes data fields
+  set-variant KEY VARIANT     for content/stats/flow/chart — also wipes data fields
                               that don't belong to the new variant
   reorder FROM TO             move slides[FROM] to position TO (1-indexed)
   move-key KEY POSITION       safer than reorder — survives prior renumbering
@@ -273,12 +273,17 @@ VARIANT_DATA_FIELDS = {
     ("content", "story-case"):  {"title", "industry", "brand", "source", "hook", "arc", "scene"},
     ("content", "blocks"):      {"title", "lede", "body_blocks", "source_footer"},
     ("content", "matrix"):      {"title", "axes", "quadrants"},
+    ("content", "before-after"):{"title", "before", "pivot", "after"},
     ("stats",   "row"):         {"title", "cols", "footnote"},
     ("stats",   "hero"):        {"title", "eyebrow", "stat", "heading", "body"},
     ("stats",   "waterfall"):   {"title", "bars", "footnote", "cols"},
     ("flow",    "timeline"):    {"title", "cols", "nodes"},
     ("flow",    "process"):     {"title", "cols", "steps"},
     ("flow",    "tree"):        {"title", "root", "branches"},
+    ("flow",    "swim"):        {"title", "time_axis", "lanes"},
+    ("chart",   "bar"):         {"title", "unit", "series", "footnote"},
+    ("chart",   "line"):        {"title", "unit", "series", "footnote"},
+    ("chart",   "donut"):       {"title", "unit", "series", "footnote"},
 }
 
 
@@ -289,8 +294,8 @@ def cmd_set_variant(deck: dict, args) -> tuple[int, dict | None]:
         print(f"deck-cli: {e}", file=sys.stderr); return 1, None
     slide = deck["slides"][idx]
     layout = slide.get("layout")
-    if layout not in ("content", "stats", "flow"):
-        print(f"deck-cli: set-variant only valid on multi-variant layouts (content/stats/flow); slide is '{layout}'",
+    if layout not in ("content", "stats", "flow", "chart"):
+        print(f"deck-cli: set-variant only valid on multi-variant layouts (content/stats/flow/chart); slide is '{layout}'",
               file=sys.stderr)
         return 1, None
     new_variant = args.variant
@@ -449,6 +454,12 @@ def build_scaffold(layout: str, variant: str | None, key: str) -> dict | None:
                                        "tr": {"ord": "B", "title": "〔象限 B〕", "items": ["〔条目 1〕"]},
                                        "bl": {"ord": "D", "title": "〔象限 D〕", "items": ["〔条目 1〕"]},
                                        "br": {"ord": "C", "title": "〔象限 C〕", "items": ["〔条目 1〕"]}}},
+        ("content", "before-after"):{"title": "〔标题 TODO〕",
+                                    "before": {"tag": "〔现状 · 痛点〕", "items": [
+                                       "〔痛点 1 TODO〕", "〔痛点 2 TODO〕", "〔痛点 3 TODO〕"]},
+                                    "pivot": {"caption": "〔转折说明 TODO〕"},
+                                    "after": {"tag": "〔用飞书之后〕", "items": [
+                                       "〔改善 1 TODO〕", "〔改善 2 TODO〕", "〔改善 3 TODO〕"]}},
         ("stats", "row"):          {"title": "〔标题 TODO〕", "cols": [
                                        {"num": "0", "label": "〔标签 1 TODO〕"},
                                        {"num": "0", "label": "〔标签 2 TODO〕"},
@@ -479,6 +490,34 @@ def build_scaffold(layout: str, variant: str | None, key: str) -> dict | None:
                                     "branches": [
                                        {"ord": "A", "title": "〔分支 A〕", "leaves": ["〔叶子〕"]},
                                        {"ord": "B", "title": "〔分支 B〕", "leaves": ["〔叶子〕"]}]},
+        ("flow", "swim"):          {"title": "〔标题 TODO〕",
+                                    "time_axis": ["〔Q1〕", "〔Q2〕", "〔Q3〕"],
+                                    "lanes": [
+                                       {"name": "〔泳道 1 TODO〕", "milestones": [
+                                          {"quarter": 1, "title": "〔里程碑 TODO〕"},
+                                          {"quarter": 3, "title": "〔里程碑 TODO〕"}]},
+                                       {"name": "〔泳道 2 TODO〕", "milestones": [
+                                          {"quarter": 2, "title": "〔里程碑 TODO〕"}]}]},
+        ("chart", "bar"):          {"title": "〔标题 TODO〕", "unit": "%",
+                                    "series": [{"points": [
+                                       {"label": "〔A〕", "value": 30},
+                                       {"label": "〔B〕", "value": 60},
+                                       {"label": "〔C〕", "value": 90}]}]},
+        ("chart", "line"):         {"title": "〔标题 TODO〕", "unit": "%",
+                                    "series": [
+                                       {"name": "〔系列 1〕", "points": [
+                                          {"label": "Q1", "value": 30},
+                                          {"label": "Q2", "value": 45},
+                                          {"label": "Q3", "value": 70}]},
+                                       {"name": "〔系列 2〕", "points": [
+                                          {"label": "Q1", "value": 20},
+                                          {"label": "Q2", "value": 40},
+                                          {"label": "Q3", "value": 55}]}]},
+        ("chart", "donut"):        {"title": "〔标题 TODO〕", "unit": "%",
+                                    "series": [{"points": [
+                                       {"label": "〔分类 A〕", "value": 40},
+                                       {"label": "〔分类 B〕", "value": 35},
+                                       {"label": "〔分类 C〕", "value": 25}]}]},
         ("end", None):             {},
         ("replica", None):         {"page_image": "page-01.jpg"},
         ("raw", None):             {"html": '<div class="slide" data-layout="raw" data-screen-label="〔TODO〕" data-slide-key="〔TODO〕"><div class="wordmark">飞书</div>〔自由内容 HTML〕</div>'},
@@ -530,7 +569,7 @@ def main(argv=None) -> int:
     sp = sub.add_parser("set-decor", help="set slide decor tokens (comma-sep)")
     sp.add_argument("key"); sp.add_argument("tokens")
 
-    sp = sub.add_parser("set-variant", help="change variant of content/stats/flow slide")
+    sp = sub.add_parser("set-variant", help="change variant of content/stats/flow/chart slide")
     sp.add_argument("key"); sp.add_argument("variant")
 
     sp = sub.add_parser("reorder", help="move slide by position (1-indexed)")

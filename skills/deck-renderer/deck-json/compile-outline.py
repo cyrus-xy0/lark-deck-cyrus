@@ -38,6 +38,7 @@ VALID_LAYOUTS = {
     "flow",
     "logo-wall",
     "arch-stack",
+    "chart",
     "iframe-embed",
     "end",
     "replica",
@@ -47,11 +48,13 @@ VALID_VARIANTS = {
     "content": {"3up", "2col", "story-case", "blocks", "matrix", "before-after"},
     "stats": {"row", "hero", "waterfall"},
     "flow": {"timeline", "process", "tree", "swim"},
+    "chart": {"bar", "line", "donut"},
 }
 DEFAULT_VARIANT = {
     "content": "3up",
     "stats": "row",
     "flow": "process",
+    "chart": "bar",
 }
 COVER_VARIANTS = {"plain", "master"}
 DEFAULT_COVER_VARIANT = "master"
@@ -199,6 +202,10 @@ def parse_metric_text(text: str) -> dict[str, str] | None:
         "unit": "倍" if unit in {"x", "X"} else (unit or ""),
         "label": label,
     }
+
+
+def metric_value(metric: dict[str, str]) -> float:
+    return float(metric["num"].replace(",", ""))
 
 
 class OutlineCompiler:
@@ -404,7 +411,7 @@ class OutlineCompiler:
             return "media-restart"
         if role == "demo":
             return "demo-loop"
-        if layout in {"flow", "stats"}:
+        if layout in {"flow", "stats", "chart"}:
             return "sequence-highlight"
         return None
 
@@ -489,6 +496,8 @@ class OutlineCompiler:
             return self.data_logo_wall(slide)
         if layout == "arch-stack":
             return self.data_arch_stack(slide)
+        if layout == "chart":
+            return self.data_chart(variant or "bar", slide)
         if layout == "iframe-embed":
             return self.data_iframe(slide)
         if layout == "replica":
@@ -852,6 +861,41 @@ class OutlineCompiler:
                 for i, beat in enumerate(beats, start=1)
             ],
         }
+
+    def data_chart(self, variant: str, slide: dict[str, Any]) -> dict[str, Any]:
+        beats = self.beats(slide, 2, 8)
+        points = []
+        unit = ""
+        used_placeholders = False
+        for i, beat in enumerate(beats):
+            metric = parse_metric_text(beat)
+            if metric:
+                unit = unit or metric["unit"]
+                points.append({
+                    "label": metric["label"],
+                    "value": metric_value(metric),
+                    "value_label": f"{metric['num']}{metric['unit']}",
+                })
+                continue
+            used_placeholders = True
+            points.append({"label": beat, "value": float(i + 1)})
+        if used_placeholders:
+            self.warn(
+                "chart layout needs numeric beats; using ordinal placeholder values that must be replaced",
+                slide.get("key"),
+            )
+        data = {
+            "title": self.title(slide),
+            "series": [{"name": "指标", "points": points}],
+            "footnote": "图表由 DeckJSON 数值生成;交付前需保留真实口径和来源。",
+        }
+        if unit:
+            data["unit"] = unit
+        if variant == "line":
+            data["series"][0]["name"] = first_text(self.scene.get("industry"), fallback="趋势")
+        if variant == "donut" and used_placeholders:
+            data["footnote"] = "占位份额仅用于结构预览;交付前替换为可核验构成数据。"
+        return data
 
     def data_logo_wall(self, slide: dict[str, Any]) -> dict[str, Any]:
         logo_assets = [

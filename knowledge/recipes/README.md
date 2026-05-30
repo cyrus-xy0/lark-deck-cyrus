@@ -14,6 +14,9 @@ Current recipes:
 - `process-reinvention.json` — six-page thought-leadership pitch for AI
   workflow/process reinvention: old-world dead end, physical-layer shift,
   execution flywheel, four reversals, and self-evolving process.
+- `kangshifu-ai-lecture.md` — reference recipe for consumer goods / retail AI
+  lecture decks: opening contradiction, growth formula, business scenes,
+  runnable UI proof, and model-level close.
 - `zhongji-innolight-ai-lecture.md` — reference recipe for enterprise AI /
   digital employee / manufacturing knowledge-extraction decks.
 

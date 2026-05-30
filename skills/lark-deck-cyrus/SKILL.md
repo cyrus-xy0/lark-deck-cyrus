@@ -21,6 +21,12 @@ description: |
 
 **原则:**Cyrus 是结构化工作流升级,不是新视觉体系。凡是涉及 H5 deck 的外观、布局、字号、调色板、DeckJSON、HTML、校验、交付物和编辑回路,以 `deck-renderer` 中继承自 `feishu-deck-h5` 的规则为准。Cyrus 的 parser / planner / auditor / simulator / ingestor 只增强“素材怎么拆、讲什么、能不能交付、客户会怎么反应、如何沉淀复用”,不能覆盖 H5 已定义的风格和生产纪律。
 
+**2026-05-30 renderer sync:**总控必须认得 renderer 新增的三类生产能力:
+`chart/bar|line|donut` 用于确定性数据图表;`lifted` + `assets/lift-slides.py`
+用于原生拼接母系统 slide;`assets/reskin.sh` 用于外部 HTML 的机械换肤。
+这些能力都属于 renderer 生产层,不得绕过 planner 的 outline 确认、auditor
+验收或 cyrus 的素材/入库链路。
+
 ## 入口判断
 
 先判断用户是在要哪一段:
@@ -85,6 +91,7 @@ Cyrus 上游只能规划 DeckJSON 的 `layout + variant`;不要直接让 planner
 | `content` + `2col` | `content-2col` | 左文右图 / mock / data-panel |
 | `content` + `story-case / blocks / matrix / before-after` | 对应 H5 content variant | 由 `deck-json/templates/*.fragment.html` 和 `extra-layouts.css` 控制 |
 | `stats` + `row / hero / waterfall` | `stats` / `big-stat` / waterfall variant | KPI 和数字页,teal 可作为数据强调 |
+| `chart` + `bar / line / donut` | `chart` | 确定性图表,renderer 由数值计算 SVG/CSS |
 | `flow` + `timeline / process / tree / swim` | `timeline` / `process` / flow variant | 时间线、流程、树、泳道 |
 | `logo-wall` / `arch-stack` | 同名 H5 layout | logo 矩阵 / 分层架构 |
 | `replica` / `iframe-embed` / `raw` | special layout | PDF 页图复刻、原型嵌入、escape hatch |

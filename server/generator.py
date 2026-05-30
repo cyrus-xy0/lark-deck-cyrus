@@ -46,6 +46,8 @@ AUDITOR = REPO / "skills/deck-auditor/audit.py"
 PACKAGE = REPO / "skills/deck-renderer/assets/package-deliverable.sh"
 INLINE_ASSETS = REPO / "skills/deck-renderer/assets/inline-assets.py"
 UPLOAD_PARSER = REPO / "skills/upload-parser/parse.py"
+CONTRACT_VALIDATOR = REPO / "skills/lark-deck-cyrus/schema/validate-contract.py"
+SOURCE_DOSSIER_SCHEMA = REPO / "skills/lark-deck-cyrus/schema/source-dossier.schema.json"
 PITCH_SIMULATOR = REPO / "skills/pitch-simulator/simulate-pitch.py"
 PITCH_REHEARSAL_VALIDATOR = REPO / "skills/pitch-simulator/validate-rehearsal.py"
 DECK_INGESTOR = REPO / "skills/deck-ingestor/ingest.py"
@@ -1526,6 +1528,22 @@ def run_command(cmd: list[str], log_path: Path, cwd: Path = REPO) -> subprocess.
     return proc
 
 
+def validate_source_dossier_file(path: Path, log_path: Path) -> None:
+    proc = run_command(
+        [
+            "python3",
+            str(CONTRACT_VALIDATOR),
+            "--schema",
+            str(SOURCE_DOSSIER_SCHEMA),
+            "--instance",
+            str(path),
+        ],
+        log_path,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"source dossier contract validation failed: {path}")
+
+
 def find_source_dossier(input_dir: Path, output_dir: Path) -> Path | None:
     for path in [
         input_dir / "runtime-library" / "source-dossier.json",
@@ -1783,6 +1801,10 @@ def run_upload_parser(
     if existing_dossier:
         sources = request_sources(request)
         runtime_library = write_runtime_library(input_dir, existing_dossier, sources)
+        validate_source_dossier_file(
+            Path(runtime_library["path"]) / "source-dossier.json",
+            log_dir / "source-dossier-contract.txt",
+        )
         enriched_request = copy.deepcopy(request)
         enriched_request["brief"] = attach_source_dossier_to_brief(brief, existing_dossier, runtime_library)
         enriched_request["source_dossier"] = existing_dossier
@@ -1839,6 +1861,7 @@ def run_upload_parser(
     dossier_path = parser_dir / "source-dossier.json"
     if not dossier_path.exists():
         raise RuntimeError("upload parser did not write source-dossier.json")
+    validate_source_dossier_file(dossier_path, log_dir / "source-dossier-contract.txt")
     dossier = read_json(dossier_path)
     add_source_warnings(task, dossier, journey)
     runtime_library = write_runtime_library(input_dir, dossier, sources)
@@ -4149,6 +4172,12 @@ def parse_final_deck_for_ingestion(task: dict[str, Any], *, log_dir: Path) -> di
     if proc.returncode != 0:
         return {"ok": False, "reason": "final deck parser failed"}
     dossier_path = final_dir / "source-dossier.json"
+    if not dossier_path.exists():
+        return {"ok": False, "reason": "final deck parser did not write source-dossier.json"}
+    try:
+        validate_source_dossier_file(dossier_path, log_dir / "final-source-dossier-contract.txt")
+    except RuntimeError as exc:
+        return {"ok": False, "reason": str(exc)}
     report_path = final_dir / "SOURCE_DOSSIER.md"
     if dossier_path.exists():
         shutil.copy2(dossier_path, output_dir / "FINAL_SOURCE_DOSSIER.json")

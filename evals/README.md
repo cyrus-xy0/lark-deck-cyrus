@@ -46,6 +46,21 @@ Run the P3 pitch recipe contract check:
 python3 evals/run-p3-recipes-contract.py
 ```
 
+Run the skill-by-skill Cyrus contract case suite. It reads
+`evals/cyrus-skill-contract-cases.json`, runs one happy path and one corner
+case for each sub skill, then checks the confirmed pipeline and rehearsal gate:
+
+```bash
+python3 evals/run-cyrus-skill-contract-cases.py
+```
+
+List or run an individual case:
+
+```bash
+python3 evals/run-cyrus-skill-contract-cases.py --list
+python3 evals/run-cyrus-skill-contract-cases.py --case planner-thin-outline-corner
+```
+
 The script writes ignored artifacts to `runs/product-evals/<run-id>/`:
 
 - `input/outline.json`
@@ -73,6 +88,11 @@ The P3 recipe contract verifies the recipe selector, seven industry packs,
 product narrative modules, Business Library suggestions, and generator handoff
 fields (`recipe_refs`, `library_suggestions`, `product_module_refs`) plus the
 template backlog section in `FEEDBACK.md`.
+
+The skill contract case suite writes ignored artifacts and `EVAL_REPORT.md` to
+`runs/skill-contract-cases/<run-id>/`. Its planner cases use
+`validate-outline.py --strict-design`, which is stricter than legacy outline
+validation and enforces the Cyrus page-level design contract.
 
 ## Current 5 Rounds
 

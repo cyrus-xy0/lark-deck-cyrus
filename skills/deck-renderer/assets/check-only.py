@@ -37,7 +37,8 @@ FAMILIES = [
                               'R-WHITE-TEXT', 'R-HIERARCHY', 'R-ECHO',
                               'R-BULLET-DASH']),
     ('品牌 / 调色板',        ['L1', 'R10', 'R12', 'R38', 'R49', 'R-LANG']),
-    ('布局完整性',           ['L2', 'L4', 'R36', 'R47', 'R48', 'R-CSSVAR']),
+    ('布局完整性',           ['L2', 'L4', 'R36', 'R47', 'R48', 'R-CSSVAR',
+                              'R-EMPTY-HEADER-ZONE', 'R-VIS-LIFT-STYLE-LOST']),
     ('UI 仿真 / slide-key',  ['UI1', 'R-KEY']),
     ('演示模式 / 运行时',    ['R29-32']),
     ('texts.md 联动',        ['T00', 'T01', 'T02', 'T03']),
@@ -46,7 +47,9 @@ FAMILIES = [
                               'R-VIS-LABEL-FLOOR', 'R-VIS-BODY-FLOOR',
                               'R-VIS-ALIGN', 'R-VIS-ABSPOS-DUAL-ANCHOR',
                               'R-VIS-CARD-OVERFLOW', 'R-VIS-OPT-OUT-ABUSE',
-                              'R-VIS-TITLE-POSITION', 'R-VIS-ORPHAN', 'R-VISUAL']),
+                              'R-VIS-TITLE-POSITION', 'R-VIS-ORPHAN', 'R-VISUAL',
+                              'R-VIS-NO-IMAGERY', 'R-FOCAL-CHECK', 'R-VIS-BALANCE',
+                              'R-VIS-CARD-MIN-HEIGHT-SPARSE', 'R-VIS-SLACK-FLEX']),
     ('交付物附件',           ['R-FEEDBACK']),
 ]
 
@@ -89,6 +92,49 @@ def load_business_rules() -> dict:
         print(f'ERROR: 找不到业务规则字典 {yaml_path}', file=sys.stderr)
         sys.exit(2)
     return yaml.safe_load(yaml_path.read_text(encoding='utf-8'))
+
+
+def enumerate_validate_rules() -> set:
+    """Best-effort set of rule codes emitted by the validator (literal first arg
+    of iss.err/warn/warn_soft). Used to detect gate drift (F-18).
+
+    F-10 · the validator was split into a clean DAG of three source files
+    (validate.py = orchestrator, _validate_audits.py = the audit functions,
+    _validate_common.py = shared kernel). The `iss.err(...)` emit sites now
+    live mostly in _validate_audits.py, so scan all three sibling modules — a
+    single-file scan of validate.py alone would miss ~20 codes after the split.
+    """
+    here = Path(__file__).resolve().parent
+    content = ''
+    for name in ('validate.py', '_validate_audits.py', '_validate_common.py'):
+        try:
+            content += here.joinpath(name).read_text(encoding='utf-8') + '\n'
+        except OSError:
+            continue
+    if not content:
+        return set()
+    # Match direct iss.err/warn/warn_soft AND the local lev/_lev aliases
+    # (e.g. `_lev = iss.warn if ... else iss.err; _lev('R-VIS-TIER', ...)`),
+    # so indirectly-emitted codes aren't mistaken for gate drift.
+    return set(re.findall(
+        r"(?:iss\.(?:err|warn|warn_soft)|_?lev)\(\s*['\"]([A-Za-z0-9][\w-]*)['\"]",
+        content))
+
+
+def warn_on_gate_rule_drift(yaml_rules, emitted_rules) -> None:
+    """F-18: the ingest gate keeps only errors whose code is in
+    business-rules.yaml. If a rule code is renamed in validate.py but the yaml
+    isn't updated, that rule silently drops out of the gate (and it can exit 0).
+    Surface the drift loudly instead of failing silently. Informational only —
+    never blocks the gate. Skips quietly if validate.py couldn't be scanned."""
+    if not emitted_rules:
+        return
+    orphaned = sorted(set(yaml_rules) - emitted_rules)
+    if orphaned:
+        print('⚠️  business-rules.yaml 含 validate.py 已不再发出的规则码: '
+              f'{", ".join(orphaned)} —— 这些码永远不会触发入库门. '
+              '可能是 validate.py 改名了规则码, 或 yaml 该更新了 (F-18).',
+              file=sys.stderr)
 
 
 def _extract_location(msg: str) -> str:
@@ -181,7 +227,7 @@ def build_default_report(html_path: Path, slides_count: int, iss,
         lines.append('## ✅ PASS —— 所有可编程规则通过')
         lines.append('')
         if visual:
-            lines.append('> 已包含 Playwright 视觉审计;故事节奏和业务证据仍需要人眼判断。')
+            lines.append('> 已包含 Playwright 视觉审计; 故事节奏和业务证据仍需要人眼判断。')
         else:
             lines.append('> 视觉对齐 / 字体看感 / 故事节奏需要人眼看 deck 才能判断,')
             lines.append('> 不在本报告范围. 跑 `--visual` 可加 Playwright 视觉审计.')
@@ -370,68 +416,21 @@ def build_gate_report(html_path: Path, slides_count: int, violations: list,
 #  通用: 资产 inline + 跑所有 audits
 # ---------------------------------------------------------------------------
 
-def _inline_linked(html_text: str, base_dir: Path) -> str:
-    """把 <link rel=stylesheet> / <script src> 内联进 html, 让审计能看到
-    framework CSS/JS 内容 (跟 validate.py main() 同逻辑)."""
-    def repl_link(m):
-        href = m.group(1)
-        if href.startswith(('http:', 'https:', 'data:')):
-            return m.group(0)
-        target = (base_dir / href).resolve()
-        if not target.is_file():
-            return m.group(0)
-        return ('<style data-source="framework">'
-                + target.read_text(encoding='utf-8') + '</style>')
-    html_text = re.sub(
-        r'<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>',
-        repl_link, html_text)
-
-    def repl_script(m):
-        src = m.group(1)
-        if src.startswith(('http:', 'https:', 'data:')):
-            return m.group(0)
-        target = (base_dir / src).resolve()
-        if not target.is_file():
-            return m.group(0)
-        return ('<script data-source="framework">'
-                + target.read_text(encoding='utf-8') + '</script>')
-    return re.sub(
-        r'<script[^>]*src="([^"]+)"[^>]*>\s*</script>',
-        repl_script, html_text)
+# _inline_linked was a byte-for-byte copy of validate.py's helper — unified
+# per F-14. Use V.inline_linked (single source).
 
 
 def _run_all_audits(html: str, slides: list, path: Path,
                      iss: V.Issues, strict: bool, visual: bool) -> None:
     """触发全部 audits. strict 影响哪些规则报 err vs warn,
     visual 控制是否调 Playwright."""
-    V.audit_dom_integrity(html, iss)
-    V.audit_structure(slides, iss)
-    V.audit_titles_one_line(slides, iss)
-    V.audit_brand_chrome(slides, iss)
-    V.audit_copy_rules(html, iss)
-    V.audit_font_sizes(html, iss)
-    V.audit_type_ladder(html, iss)
-    V.audit_undefined_css_vars(html, iss)
-    V.audit_white_text(html, iss)
-    V.audit_no_drop_shadows(html, iss)
-    V.audit_data_decor(slides, iss)
-    V.audit_hex_palette(html, iss)
-    V.audit_bullet_dash(html, iss)
-    V.audit_runtime_chrome(html, iss, path)
-    V.audit_centering_pattern(html, iss)
-    V.audit_layout_integrity(html, iss)
-    V.audit_default_centering(html, iss)
-    V.audit_hierarchy(html, iss)
-    V.audit_variant_discipline(html, iss)
-    V.audit_ui_mocks_are_html(slides, iss)
-    V.audit_no_cyan_accent(slides, iss)
-    V.audit_header_minimal(slides, iss)
-    V.audit_slide_keys(slides, iss)
-    V.audit_language_policy(html, slides, iss)
-    V.audit_list_echo(slides, iss)
-    V.audit_perf(html, iss)
-    V.audit_text_ids(html, path, iss)
-    V.audit_feedback_md(path, iss)
+    # F-08 · run the SAME static audit set as validate.py main(), via the
+    # shared registry. This helper previously omitted 6 audits
+    # (lift_style_lost / undefined_css_vars / bullet_dash / empty_header_zone /
+    # list_echo / visual_richness) despite the "全部 audits" docstring — silent
+    # under-reporting in default review mode. The ingest gate is unaffected
+    # (it keeps only the 22 business-rules.yaml codes).
+    V.run_static_audits(V.STATIC_AUDITS, html=html, slides=slides, path=path, iss=iss)
     if visual:
         V.run_visual_audits(path, iss, want_screenshots=False, required=True)
 
@@ -473,7 +472,7 @@ def main() -> int:
         return 2
 
     html = path.read_text(encoding='utf-8')
-    html = _inline_linked(html, path.parent)
+    html = V.inline_linked(html, path.parent)
     slides = V.extract_slides(html)
     iss = V.Issues()
 
@@ -492,6 +491,9 @@ def main() -> int:
     # 渲染报告
     if is_gate:
         rules = load_business_rules()
+        # F-18: warn (don't block) if yaml lists a code validate.py no longer
+        # emits — otherwise that rule silently drops out of the gate.
+        warn_on_gate_rule_drift(set(rules.keys()), enumerate_validate_rules())
         # 只保留 yaml 里覆盖的规则 (22 条必修)
         kept = [(c, m) for c, m in iss.errors if c in rules]
         report = build_gate_report(path, len(slides), kept, rules)

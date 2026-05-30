@@ -2,3 +2,4 @@
 # Playwright drives deck-renderer visual audits (R-OVERFLOW / R-VIS-*).
 PyYAML>=6,<7
 playwright>=1.45,<2
+pytest>=8,<9
