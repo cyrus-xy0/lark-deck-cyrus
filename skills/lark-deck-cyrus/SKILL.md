@@ -21,11 +21,12 @@ description: |
 
 **原则:**Cyrus 是结构化工作流升级,不是新视觉体系。凡是涉及 H5 deck 的外观、布局、字号、调色板、DeckJSON、HTML、校验、交付物和编辑回路,以 `deck-renderer` 中继承自 `feishu-deck-h5` 的规则为准。Cyrus 的 parser / planner / auditor / simulator / ingestor 只增强“素材怎么拆、讲什么、能不能交付、客户会怎么反应、如何沉淀复用”,不能覆盖 H5 已定义的风格和生产纪律。
 
-**2026-05-30 renderer sync:**总控必须认得 renderer 新增的三类生产能力:
+**2026-05-30 renderer sync:**总控必须认得 renderer 新增的几类生产能力:
 `chart/bar|line|donut` 用于确定性数据图表;`lifted` + `assets/lift-slides.py`
-用于原生拼接母系统 slide;`assets/reskin.sh` 用于外部 HTML 的机械换肤。
-这些能力都属于 renderer 生产层,不得绕过 planner 的 outline 确认、auditor
-验收或 cyrus 的素材/入库链路。
+用于原生拼接母系统 slide;`custom_css` 会被 renderer scoped 后 co-locate 到
+对应 slide 内并写入 `slide-index.json`;`assets/reskin.sh` 用于外部 HTML 的机械换肤。
+这些能力都属于 renderer 生产层,不得绕过 planner 的设计计划、auditor 验收或
+cyrus 的素材/入库链路;其中 outline 确认门按低风险自动 handoff / 高风险暂停确认执行。
 
 ## 入口判断
 
@@ -48,8 +49,8 @@ Cyrus 对外只保留三个主入口。不要再把“PPT/PDF 转 HTML”、“H
 | 场景 | 用户信号 | 路由 |
 |---|---|---|
 | **1. 上传 HTML deck 做检查 / 入库** | 用户给出一个已有 HTML deck,只问是否合格、能否入库、哪里失败 | `lark-deck-cyrus -> deck-auditor -> deck-ingestor`。auditor 通过才调用 ingestor;失败则返回失败理由和修复路由,不自动改稿 |
-| **2. 只有 brief,新建 deckhtml** | 用户只有文字 brief、主题、销售想法、客户提案方向 | `lark-deck-cyrus -> deck-planner -> 用户确认 outline -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。planner 直接基于知识库和 brief 生成 outline;不要在 planner 后插 simulator |
-| **3. brief + 其他素材,新建或改成新 deckhtml** | 用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包,并要求转换、改版、重做或基于材料生成 | `lark-deck-cyrus -> upload-parser -> 临时知识/素材库 -> deck-planner -> 用户确认 outline -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。先解析上传物并拆成知识层和素材层,在 agent runtime 本轮 run 内保存临时库,再由 planner 结合 brief 生成 outline |
+| **2. 只有 brief,新建 deckhtml** | 用户只有文字 brief、主题、销售想法、客户提案方向 | `lark-deck-cyrus -> deck-planner -> 低风险自动 handoff / 高风险用户确认 -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。planner 直接基于知识库和 brief 生成 outline;不要在 planner 后插 simulator |
+| **3. brief + 其他素材,新建或改成新 deckhtml** | 用户带 PDF / PPT / HTML / 飞书文档 / 图片 / demo / 素材包,并要求转换、改版、重做或基于材料生成 | `lark-deck-cyrus -> upload-parser -> 临时知识/素材库 -> deck-planner -> 低风险自动 handoff / 高风险用户确认 -> deck-renderer -> deck-auditor -> pitch-simulator -> 用户确认是否改稿 -> 用户确认是否入库 -> deck-ingestor`。先解析上传物并拆成知识层和素材层,在 agent runtime 本轮 run 内保存临时库,再由 planner 结合 brief 生成 outline |
 
 场景 3 中的 PDF / PPT / HTML / 飞书文档处理原则:
 
@@ -66,11 +67,11 @@ Cyrus 对外只保留三个主入口。不要再把“PPT/PDF 转 HTML”、“H
 所有生成或修改 HTML deck 的任务都先按 H5 模式分流:
 
 - **AUDIT-ONLY:**用户给出已有 `.html` 并只要求检查 / validate / 审合规 / 入库判断时,不创建 run、不跑 preflight、不修改原文件。交给 `deck-auditor` 做验收结论;通过后再交给 `deck-ingestor` 入库。
-- **GENERATION:**任何新建、改稿、转换、打包、交付都走 H5 生成流程。若输入是纯文本 brief / 主题列表 / Q&A / outline,先做每页设计方案并得到用户确认,再创建文件。
+- **GENERATION:**任何新建、改稿、转换、打包、交付都走 H5 生成流程。若输入是纯文本 brief / 主题列表 / Q&A / outline,先做每页设计方案;全是标准 schema / 低风险页型时可直接进入 renderer,命中 raw / replica / iframe / 外部 lift / 超默认页型时先停下确认。
 
 H5 生成流程的硬顺序:
 
-1. **Design-first + outline confirmation:**在 chat / 状态页里先给出 planner outline 和页级设计方案,明确每页角色、唯一重点、A/B/C/D 信息层级、气质冲突、layout path 和素材计划。无论是否低风险,都必须等用户确认当前大纲框架后,才能写 deck.json、生成 HTML 或跑 `new-run.sh`。
+1. **Design-first + conditional handoff:**在 chat / 状态页里先给出 planner outline 和页级设计方案,明确每页角色、唯一重点、A/B/C/D 信息层级、气质冲突、layout path 和素材计划。若每页都能落在 renderer 默认 schema / 标准 layout 内,可把 `DESIGN_PLAN.md` 落盘后直接进入 renderer;若出现 `raw` / `replica` / `iframe-embed` / 外部 deck lift / 重度自定义 HTML / 超默认 schema 的页,必须先暂停让用户确认。
 2. **PREFLIGHT:**确认本地持久化工作区可写,不能把 deck 生成到临时会话目录。
 3. **Workspace:**为本次任务创建 `runs/<timestamp>-<slug>/`,把用户输入、outline、deck.json、HTML、texts.md、FEEDBACK.md 和报告放在同一 run 内。
 4. **DeckJSON-first:**默认写 `deck.json` 并用 `deck-json/render-deck.py` 渲染。只有 schema / `raw` / `replica` / `iframe-embed` 都无法表达时,才允许完整 raw HTML。
@@ -153,12 +154,12 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
    - 输出必须说明整套 deck 的主线、每页职责、页级重点、关键 idea、建议讲法、证据缺口、素材需求和候选 DeckJSON layout。
    - 大纲不能只到“页名 + layout”粒度;每页还必须带 `design_spec`、A/B/C/D 信息层级、`density_budget`、`content_completion` 和 `fact_boundary`,并在用户可见的 `DESIGN_PLAN.md` 中展开为逐页方案表、Q0-Q4、内容补全计划和事实边界。
    - 规划不是排版草稿,而是后续生产、验收、预演和迭代的事实源。
-   - 输出后必须暂停,让用户确认目标受众、行业痛点、主张、证据缺口、素材计划和页序;用户确认前不得渲染 deckhtml。
+   - 输出后按确认策略处理:标准 schema / 低风险页型可直接 handoff 到 renderer;风险页或用户显式 `plan-only` 时,暂停让用户确认目标受众、行业痛点、主张、证据缺口、素材计划和页序。
 
 5. **H5 设计确认**
    - 根据 planner outline 和 H5 DESIGN-FIRST POLICY 输出页级设计方案。
    - 明确哪些页用 H5 标准 layout,哪些页需要 `raw` / `replica` / `iframe-embed`,以及为什么。
-   - 所有场景都必须等用户确认 outline / 设计框架;即使方案全是标准 schema 且风险低,也只能把假设写入单一用户可见确认稿 `DESIGN_PLAN.md`,不得直接创建最终 deckjson 或生成 HTML。`input/outline.json` 和 `input/runtime-library/source-dossier.json` 是后续脚本消费的机器契约,不要复制成 output 里的用户产物。
+   - 确认门不是“一律暂停”:方案全是标准 schema 且风险低时,写入单一用户可见确认稿 `DESIGN_PLAN.md` 后可直接创建 DeckJSON 并进入 renderer。若方案包含 `raw` / `replica` / `iframe-embed` / 外部 lift / 重度自定义 HTML / 超默认 schema,先暂停确认。`input/outline.json` 和 `input/runtime-library/source-dossier.json` 是后续脚本消费的机器契约,不要复制成 output 里的用户产物。若用户修改确认稿,确认动作先同步回 `input/outline.json`,再进入 renderer。
 
 6. **生成和渲染**
    - 调用 `deck-renderer`。
@@ -211,7 +212,7 @@ Cyrus 的结构性工作围绕 H5 生产过程插入:
 - 当前只有六个子 skill:`upload-parser`、`deck-planner`、`deck-renderer`、`deck-auditor`、`pitch-simulator`、`deck-ingestor`。
 - 云端发布不是上述子 skill 的生产责任;默认最终发布调用独立
   `publish-magic-page`,legacy 文档嵌入才调用 `generate-magic-doc`。
-- `deck-planner` 可以提出业务主线和候选 layout,但不能绕开 H5 design-first 确认,也不能要求 renderer 牺牲 H5 风格。
+- `deck-planner` 可以提出业务主线和候选 layout,但不能绕开 H5 design-first 计划;低风险计划可自动 handoff,高风险计划必须确认,且不能要求 renderer 牺牲 H5 风格。
 - `deck-renderer` 是 H5 风格和交付规则的执行者;不要把它降级为普通 HTML 生成器。
 - `deck-auditor` 内聚 H5 CHECK-ONLY 标准检查;总控和用户路径不要把底层 validator 写成单独路由。
 - `deck-ingestor` 只能沉淀已通过 auditor 或用户明确标记为“仅知识候选”的内容;模拟预测不能当作真实客户事实入库。

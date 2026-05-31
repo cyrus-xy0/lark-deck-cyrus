@@ -1162,14 +1162,16 @@ R-WHITE-TEXT 等。**每条警告都给 3 个选项**,典型形态:
    Phase 0.2 的 4-proposal 评估流程,不要直接 raw
 - ❌ "想给每页换不同 accent 颜色" — `data-accent` 属性,不是 layout 改
 
-### Design pass 收尾 — 必须等用户确认
+### Design pass 收尾 — 条件确认门
 
-设计方案 table 输出后,end with:
+设计方案 table 输出后,按风险决定是否停下:
 
-> 设计方案确认?有要改的告诉我;OK 就开工(PREFLIGHT → new-run → 生成)。
+- 全部是 schema-native / 标准 layout / 低风险密度:明确“已完成 design pass,直接进入 renderer”,然后 PREFLIGHT → new-run → 生成。
+- 命中 `layout: raw`、bespoke hero、replica、iframe/demo、foreign lift 或高风险密度:停下确认,提示“设计方案确认?有要改的告诉我;OK 就开工(PREFLIGHT → new-run → 生成)”。
 
-**用户回 OK 之前不要做任何文件 create / Edit**,也不要 pre-emptively 跑
-PREFLIGHT。PREFLIGHT 是 post-confirmation generation flow 的第一步。
+风险场景里,**用户回 OK 之前不要做任何文件 create / Edit**,也不要 pre-emptively
+跑 PREFLIGHT。低风险场景可在 design pass stated 后直接把 PREFLIGHT 作为 generation
+flow 的第一步。
 
 设计方案一旦 lock,生成时直接按那个方案走,**不需要再问一遍**。如果生成
 出来发现某页 layout 设计错了,先跟用户对齐切换 layout(走 SLIDE DELETION

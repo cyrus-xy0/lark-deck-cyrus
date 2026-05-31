@@ -450,14 +450,25 @@ def handle_message_text(
             "data": {"brief_fields": sorted(brief.keys())},
         }
     )
-    task = generator.create_outline_task({"brief": brief, "interaction_history": interaction_history[-100:]}, base_url=base_url)
-    pending[conversation_key] = {
-        "stage": "awaiting_outline_confirmation",
-        "task_id": task["id"],
-        "brief": brief,
-        "interaction_history": interaction_history[-100:],
-        "updated_at": time.time(),
-    }
+    task = generator.create_planned_or_run_task({"brief": brief, "interaction_history": interaction_history[-100:]}, base_url=base_url)
+    if task.get("status") == "awaiting_outline_confirmation":
+        pending[conversation_key] = {
+            "stage": "awaiting_outline_confirmation",
+            "task_id": task["id"],
+            "brief": brief,
+            "interaction_history": interaction_history[-100:],
+            "updated_at": time.time(),
+        }
+    elif task.get("status") == "awaiting_rehearsal_decision":
+        pending[conversation_key] = {
+            "stage": "awaiting_rehearsal_decision",
+            "task_id": task["id"],
+            "brief": brief,
+            "interaction_history": interaction_history[-100:],
+            "updated_at": time.time(),
+        }
+    else:
+        pending.pop(conversation_key, None)
     return BotResult(reply=format_task_reply(task), task=task)
 
 

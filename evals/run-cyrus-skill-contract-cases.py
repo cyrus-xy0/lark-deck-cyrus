@@ -618,7 +618,7 @@ def case_flow_plan_only_outline_gate_happy(_case: dict[str, Any], ctx: Context) 
     require_proc_ok(proc, "plan-only outline strict validation")
 
 
-def case_flow_auto_confirm_requires_explicit_corner(_case: dict[str, Any], _ctx: Context) -> None:
+def case_flow_auto_confirm_plan_only_corner(_case: dict[str, Any], _ctx: Context) -> None:
     proc = run([
         sys.executable,
         str(GENERATOR),
@@ -626,12 +626,13 @@ def case_flow_auto_confirm_requires_explicit_corner(_case: dict[str, Any], _ctx:
         "--request",
         str(GENERATOR_REQUEST),
         "--auto-confirm-outline",
+        "--plan-only",
     ], timeout=20)
-    require_proc_fail(proc, "generator auto-confirm without explicit approval")
-    require(
-        "--allow-skip-outline-confirmation" in (proc.stderr + proc.stdout),
-        "auto-confirm failure did not mention --allow-skip-outline-confirmation",
-    )
+    require_proc_ok(proc, "generator auto-confirm plan-only")
+    task = json.loads(proc.stdout)
+    output_dir = Path(task["output_dir"])
+    require(task["status"] == "awaiting_outline_confirmation", "plan-only did not override auto-confirm")
+    require(not (output_dir / "deck.json").exists(), "plan-only auto-confirm rendered deck.json")
 
 
 def case_flow_accept_rehearsal_publishes_happy(_case: dict[str, Any], ctx: Context) -> None:
@@ -742,7 +743,7 @@ CASE_FUNCS: dict[str, Callable[[dict[str, Any], Context], None]] = {
     "ingestor-unaudited-corner": case_ingestor_unaudited_corner,
     "flow-confirmed-pipeline-happy": case_flow_confirmed_pipeline_happy,
     "flow-plan-only-outline-gate-happy": case_flow_plan_only_outline_gate_happy,
-    "flow-auto-confirm-requires-explicit-corner": case_flow_auto_confirm_requires_explicit_corner,
+    "flow-auto-confirm-plan-only-corner": case_flow_auto_confirm_plan_only_corner,
     "flow-accept-rehearsal-publishes-happy": case_flow_accept_rehearsal_publishes_happy,
     "flow-revise-from-rehearsal-happy": case_flow_revise_from_rehearsal_happy,
     "flow-skip-ingestion-happy": case_flow_skip_ingestion_happy,

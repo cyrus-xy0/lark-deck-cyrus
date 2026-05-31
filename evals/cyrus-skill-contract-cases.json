@@ -115,12 +115,12 @@
       "expected": ["status=awaiting_outline_confirmation", "confirmation_required=outline", "DESIGN_PLAN.md exists", "outline validates with --strict-design", "deck.json is absent"]
     },
     {
-      "id": "flow-auto-confirm-requires-explicit-corner",
+      "id": "flow-auto-confirm-plan-only-corner",
       "skill": "lark-deck-cyrus",
       "path": "corner",
-      "objective": "Non-interactive auto-confirm is blocked unless the caller explicitly opts into skipping outline confirmation.",
-      "input": "generator create --auto-confirm-outline without --allow-skip-outline-confirmation",
-      "expected": ["CLI exits non-zero", "error mentions --allow-skip-outline-confirmation"]
+      "objective": "Plan-only still pauses after DESIGN_PLAN/outline even when auto-confirm is requested.",
+      "input": "generator create --auto-confirm-outline --plan-only",
+      "expected": ["status=awaiting_outline_confirmation", "deck.json is absent"]
     },
     {
       "id": "flow-accept-rehearsal-publishes-happy",

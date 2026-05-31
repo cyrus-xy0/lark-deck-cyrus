@@ -50,6 +50,7 @@ from _story_case_fit import (  # noqa: E402
     STORY_CASE_FIT_CHECK,
     _min_len_for,
 )
+from _css_utils import scope_selectors  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -1702,6 +1703,14 @@ ENRICHERS = {
 }
 
 
+_ASSET_REF_RE = re.compile(r"(?:input|prototypes)/[^\s\"'<>()\\?#]+")
+
+
+def _scan_slide_assets(slide_html: str) -> list:
+    """Deck-local asset refs a slide carries for lift/paste asset copying."""
+    return sorted(set(_ASSET_REF_RE.findall(slide_html)))
+
+
 def render_slide(slide: dict, slide_index: int, total: int, asset_path: str, deck_dir: Path | None = None) -> str:
     layout  = slide["layout"]
     variant = slide.get("variant")
@@ -1744,7 +1753,32 @@ def render_slide(slide: dict, slide_index: int, total: int, asset_path: str, dec
     if enricher:
         enricher(ctx, slide)
 
-    return render_template(tpl_path.read_text(encoding="utf-8"), ctx)
+    rendered = render_template(tpl_path.read_text(encoding="utf-8"), ctx)
+
+    # Co-locate per-slide custom_css as the first child of .slide. This keeps
+    # lifted/pasted slides self-contained without head-level style hunting.
+    custom_css = slide.get("custom_css")
+    if isinstance(custom_css, str) and custom_css.strip():
+        rendered = _inject_custom_css(rendered, slide["key"], custom_css)
+
+    return rendered
+
+
+def _inject_custom_css(slide_html: str, slide_key: str, custom_css: str) -> str:
+    """Insert a scoped custom CSS block inside the rendered slide."""
+    scoped = scope_selectors(custom_css, slide_key)
+    if not scoped.strip():
+        return slide_html
+    block = (f'<style data-slide-key="{slide_key}" data-fs-custom-css>\n'
+             f'{scoped}\n'
+             f'        </style>')
+    new_html, n = re.subn(
+        r'(<div class="slide"[^>]*>)',
+        lambda m: m.group(0) + "\n        " + block,
+        slide_html,
+        count=1,
+    )
+    return new_html if n else slide_html
 
 
 # ---------------------------------------------------------------------------
@@ -1910,6 +1944,29 @@ def main(argv=None) -> int:
 
     out_html = args.output_dir / "index.html"
     out_html.write_text(final, encoding="utf-8")
+
+    # 5.4 — Compact manifest for downstream lift/paste without reading the
+    # whole HTML just to discover frame order and deck-local asset refs.
+    slide_index = {
+        "version": "1.0",
+        "deck": deck["deck"].get("title", ""),
+        "slides": [
+            {
+                "key":         slide.get("key"),
+                "frame_index": new_idx + 1,
+                "layout":      slide.get("layout"),
+                "variant":     slide.get("variant"),
+                "label":       slide.get("screen_label") or _derive_screen_label(slide),
+                "bytes":       len(slides_html[new_idx]),
+                "assets":      _scan_slide_assets(slides_html[new_idx]),
+            }
+            for new_idx, (orig_idx, slide) in enumerate(active_slides)
+        ],
+    }
+    (args.output_dir / "slide-index.json").write_text(
+        json.dumps(slide_index, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     # 5.5 — Generate texts.md sidecar (kills T03 warning, lets users edit copy
     #       without touching HTML markup).

@@ -2055,3 +2055,50 @@ def audit_visual_richness(slides: list[str], iss: Issues):
             f'illustration / bespoke layout:raw page. Flat: {where}. '
             f'[advisory · richness is a design-phase call · never blocks]')
 
+
+# R-SELF-CONTAINED — per-slide CSS must live INSIDE the slide it styles.
+_DIV_TOKEN_RE = re.compile(r'<div\b[^>]*>|</div>')
+_PERSLIDE_SEL_RE = re.compile(
+    r'\[data-slide-key="([^"]+)"\]|\[data-page=["\']?([\w-]+)["\']?\]')
+
+
+def _slide_frame_spans(html: str):
+    """Return char spans for each slide-frame by depth-matching divs."""
+    spans = []
+    for fm in _SLIDE_FRAME_OPEN_RE.finditer(html):
+        depth, end = 1, len(html)
+        for dm in _DIV_TOKEN_RE.finditer(html, fm.end()):
+            depth += 1 if dm.group(0)[1] != '/' else -1
+            if depth == 0:
+                end = dm.start()
+                break
+        spans.append((fm.start(), end))
+    return spans
+
+
+def audit_self_contained(html: str, iss: Issues):
+    """R-SELF-CONTAINED: per-slide CSS should be co-located in custom_css.
+
+    This is advisory for now so legacy decks do not fail strict gates. New
+    renderer output places `slide.custom_css` inside the matching `.slide`.
+    """
+    frame_spans = _slide_frame_spans(html)
+
+    def inside_a_slide(pos: int) -> bool:
+        return any(start <= pos < end for start, end in frame_spans)
+
+    for m in _STYLE_BLOCK_RE.finditer(html):
+        if 'data-source="framework"' in (m.group('attrs') or ''):
+            continue
+        if inside_a_slide(m.start()):
+            continue
+        refs = _PERSLIDE_SEL_RE.findall(m.group('body') or '')
+        if not refs:
+            continue
+        keys = sorted({(r[0] or ('data-page=' + r[1])) for r in refs})
+        iss.warn_soft(
+            'R-SELF-CONTAINED',
+            f'head/deck-level <style> targets per-slide selector(s) {keys[:6]} '
+            f'but sits outside the slide. Move those rules into deck.json '
+            f'`custom_css`; render-deck.py scopes and co-locates them so lift, '
+            f'clone, paste, and republish preserve the styling. [advisory]')

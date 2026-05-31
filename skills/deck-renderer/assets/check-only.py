@@ -38,7 +38,8 @@ FAMILIES = [
                               'R-BULLET-DASH']),
     ('品牌 / 调色板',        ['L1', 'R10', 'R12', 'R38', 'R49', 'R-LANG']),
     ('布局完整性',           ['L2', 'L4', 'R36', 'R47', 'R48', 'R-CSSVAR',
-                              'R-EMPTY-HEADER-ZONE', 'R-VIS-LIFT-STYLE-LOST']),
+                              'R-EMPTY-HEADER-ZONE', 'R-VIS-LIFT-STYLE-LOST',
+                              'R-SELF-CONTAINED']),
     ('UI 仿真 / slide-key',  ['UI1', 'R-KEY']),
     ('演示模式 / 运行时',    ['R29-32']),
     ('texts.md 联动',        ['T00', 'T01', 'T02', 'T03']),
@@ -65,6 +66,9 @@ CONTEXT_NOTES = {
                   '所有 <img> 都会触发, 但这是设计如此.',
     'R29-32':     '如果 deck 是 Replica-mode 或纯阅读型 HTML (不需要 '
                   'present-mode), 可不必满足.',
+    'R-SELF-CONTAINED': '老 deck 把每页 CSS 放在 head <style> 里很常见; '
+                        '这条只是提醒 page-anim 样式不会随 slide lift/paste '
+                        '移动. 迁到 deck.json 的 custom_css 即可消除.',
 }
 
 

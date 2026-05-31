@@ -424,6 +424,9 @@ class OutlineCompiler:
             ("emphasis", "emphasis"),
             ("talk_track", "talk_track"),
             ("visual_intent", "visual_intent"),
+            ("density_budget", "density_budget"),
+            ("content_completion", "content_completion"),
+            ("fact_boundary", "fact_boundary"),
             ("motion_policy", "motion_policy"),
             ("motion_intent", "motion_intent"),
             ("prototype_kind", "prototype_kind"),
@@ -432,6 +435,27 @@ class OutlineCompiler:
             value = slide.get(key)
             if isinstance(value, str) and value.strip():
                 lines.append(f"{label}: {value.strip()}")
+        if isinstance(slide.get("hero"), bool):
+            lines.append(f"hero: {'yes' if slide.get('hero') else 'no'}")
+        spec = slide.get("design_spec") if isinstance(slide.get("design_spec"), dict) else {}
+        if spec:
+            lines.append("design_spec:")
+            hierarchy = spec.get("q2_hierarchy") if isinstance(spec.get("q2_hierarchy"), dict) else {}
+            for key in ["q0_role", "q1_memory", "q3_mood", "q4_tradeoff"]:
+                value = spec.get(key)
+                if isinstance(value, str) and value.strip():
+                    lines.append(f"  {key}: {value.strip()}")
+            if hierarchy:
+                rendered = " / ".join(
+                    f"{tier.upper()}={hierarchy.get(tier)}"
+                    for tier in ["a", "b", "c", "d"]
+                    if hierarchy.get(tier)
+                )
+                if rendered:
+                    lines.append(f"  q2_hierarchy: {rendered}")
+            dimensions = spec.get("six_dimensions") if isinstance(spec.get("six_dimensions"), list) else []
+            if dimensions:
+                lines.append("  six_dimensions: " + " / ".join(str(item).strip() for item in dimensions if str(item).strip()))
         if slide.get("allow_remote") is True:
             lines.append("allow_remote: true")
         for label, key in [

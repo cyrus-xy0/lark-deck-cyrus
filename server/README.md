@@ -100,7 +100,7 @@ scripts/run-p1-smoke.sh
 Endpoints:
 
 - `GET /health`
-- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ... }`, or `{ "brief": ..., "sources": [...] }` creates an outline-confirmation task by default. When sources/attachments are present, the server runs `upload-parser` first and writes a temporary `input/runtime-library/` for this run. Call `POST /decks/{id}/confirm-outline` after user confirmation; non-interactive tests must pass both `{ "auto_confirm_outline": true, "allow_skip_outline_confirmation": true }` if they intentionally skip the gate.
+- `POST /decks` with JSON body `{ "brief": ... }`, `{ "outline": ... }`, or `{ "brief": ..., "sources": [...] }` writes `DESIGN_PLAN.md` and `input/outline.json`, then auto-hands off standard-schema/low-risk outlines to renderer. When sources/attachments are present, the server runs `upload-parser` first and writes a temporary `input/runtime-library/` for this run. If the outline needs raw/replica/iframe/external-lift/beyond-default work, call `POST /decks/{id}/confirm-outline` after user confirmation; `{ "auto_confirm_outline": true, "allow_skip_outline_confirmation": true }` can intentionally force risky non-interactive runs.
 - `GET /decks/{id}`
 - `GET /decks/{id}/status`
 - `GET /decks/{id}/edit`
@@ -253,9 +253,14 @@ Generator tasks now write `recipe_refs`, `library_suggestions`,
 surface the recipe/library/backlog sections in `FEEDBACK.md`.
 
 The current brief planner is deterministic and conservative. It creates a
-valid outline and pauses for user confirmation before rendering. After render,
-the wrapper runs validation and pitch rehearsal, then pauses again for deckhtml
-confirmation before ingestion.
+valid outline and applies a conditional renderer handoff: standard-schema,
+low-risk outlines auto-confirm into renderer; outlines that require raw,
+replica, iframe, external lift, or other beyond-default work pause for user
+confirmation. If the user edits `DESIGN_PLAN.md`, `confirm-outline` first syncs
+the controlled markdown fields back into `input/outline.json`, then renderer
+consumes that same validated outline. After render, the wrapper runs validation
+and pitch rehearsal, then pauses again for deckhtml confirmation before
+ingestion.
 
 Feishu Base access is cloud-first by default. The wrapper uses the configured
 Base and current `lark-cli` user identity for `知识库` / `素材库`; if cloud access is

@@ -35,6 +35,11 @@ For example, planner to renderer is not a prose paragraph and is not a second
 copied planning entity. It is the same `outline.json` that validates against
 `deck-outline.schema.json`:
 
+When a user edits the confirmation draft `DESIGN_PLAN.md`, the confirmation
+step must sync controlled markdown fields back into this same `outline.json`
+before renderer handoff. The markdown is a review surface, not a second source
+of truth.
+
 ```json
 {
   "version": "1.0",

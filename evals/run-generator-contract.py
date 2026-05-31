@@ -217,6 +217,17 @@ def main() -> int:
         return 1
     if not assert_rich_design_plan(output_dir / "DESIGN_PLAN.md"):
         return 1
+    input_dir = Path(task["input_dir"])
+    planned_outline = json.loads((input_dir / "outline.json").read_text(encoding="utf-8"))
+    sync_title = "确认稿同步验证页"
+    old_title = planned_outline["outline"]["slides"][2]["title"]
+    design_plan_path = output_dir / "DESIGN_PLAN.md"
+    design_plan_text = design_plan_path.read_text(encoding="utf-8")
+    old_heading = f"### P3 {old_title}"
+    if old_heading not in design_plan_text:
+        print("design plan missing expected P3 heading for sync test", file=sys.stderr)
+        return 1
+    design_plan_path.write_text(design_plan_text.replace(old_heading, f"### P3 {sync_title}", 1), encoding="utf-8")
 
     confirm_proc = subprocess.run(
         ["python3", str(GENERATOR), "confirm-outline", task["id"]],
@@ -232,11 +243,19 @@ def main() -> int:
     if task.get("status") != "awaiting_rehearsal_decision":
         print(json.dumps(task, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
+    if not task.get("design_plan_sync", {}).get("change_count"):
+        print("design plan edits were not synced before renderer handoff", file=sys.stderr)
+        return 1
     if task.get("artifacts", {}).get("magic_page_url"):
         print("deck was published before rehearsal confirmation", file=sys.stderr)
         return 1
 
     output_dir = Path(task["output_dir"])
+    synced_outline = json.loads((Path(task["input_dir"]) / "outline.json").read_text(encoding="utf-8"))
+    rendered_deck = json.loads((output_dir / "deck.json").read_text(encoding="utf-8"))
+    if synced_outline["outline"]["slides"][2]["title"] != sync_title or sync_title not in json.dumps(rendered_deck["slides"][2], ensure_ascii=False):
+        print("design plan title edit did not reach outline.json and deck.json", file=sys.stderr)
+        return 1
     missing = [name for name in REQUIRED if not (output_dir / name).exists()]
     zip_paths = sorted(output_dir.glob("*.zip"))
     if not zip_paths:

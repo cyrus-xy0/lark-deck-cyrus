@@ -185,7 +185,9 @@ body {
 .deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="table"]),
 .deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="timeline"]),
 .deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="process"]),
-.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="image-text"]) {
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="image-text"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="raw"]),
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-layout="iframe-embed"]) {
   background: #000 var(--fs-asset-content-bg) center/cover no-repeat;
 }
 .deck[data-mode="present"] .slide-frame.is-current {
@@ -1374,7 +1376,8 @@ body {
 .slide[data-layout="table"] .header,
 .slide[data-layout="timeline"] .header,
 .slide[data-layout="process"] .header,
-.slide[data-layout="big-stat"] .header {
+.slide[data-layout="big-stat"] .header,
+.slide[data-layout="raw"] .header {
   position: absolute; top: 61px; left: 73px; right: 320px;  /* matches logo top */
   padding-bottom: 0; border-bottom: 0;
   display: block;
@@ -1521,7 +1524,8 @@ body {
 .slide[data-layout="timeline"]     > .stage,
 .slide[data-layout="table"]        > .stage,
 .slide[data-layout="agenda"]       > .stage,
-.slide[data-layout="stats"]        > .stage {
+.slide[data-layout="stats"]        > .stage,
+.slide[data-layout="raw"]          > .stage {
   /* 2026-05-15 · symmetric vertical positioning so stage geometric center
      equals slide geometric center (y=540). Asymmetric top/bottom (e.g.
      220/110) shifts the stage center below the slide center, producing
@@ -1543,6 +1547,20 @@ body {
    tuned to 770 px stage. */
 .slide > .stage.stage--tall {
   top: 220px; bottom: 110px;
+}
+
+/* Card utility for intentional min-height cards that need to visually fill. */
+.fs-card-fill {
+  justify-content: space-between !important;
+}
+
+/* If a stage owns the title, keep it anchored high and let the body fill below. */
+.slide > .stage:has(> .ttl-block),
+.slide > .stage:has(> .ttl-main),
+.slide > .stage:has(> .header),
+.slide > .stage:has(> h1),
+.slide > .stage:has(> h2) {
+  justify-content: flex-start;
 }
 
 /* Inner body containers flow naturally inside .stage — override the
@@ -1842,6 +1860,16 @@ body {
     radial-gradient(55% 45% at 92% 8%, rgba(159,111,241,0.30), transparent 60%),
     radial-gradient(55% 45% at 8% 92%, rgba(60,127,255,0.22), transparent 60%);
 }
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-decor~="mix-glow"])::after {
+  content: ''; position: absolute; inset: 0;
+  pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(55% 45% at 92% 8%, rgba(159,111,241,0.30), transparent 60%),
+    radial-gradient(55% 45% at 8% 92%, rgba(60,127,255,0.22), transparent 60%);
+}
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-decor~="mix-glow"]) > .slide[data-decor~="mix-glow"]::before {
+  background-image: none;
+}
 
 /* teal-glow: bottom-left teal bloom (data / KPI emphasis) */
 .slide[data-decor~="teal-glow"]::before {
@@ -1853,6 +1881,15 @@ body {
 .slide[data-decor~="orange-spark"]::before {
   background-image:
     radial-gradient(40% 32% at 88% 18%, rgba(254,127,0,0.22), transparent 65%);
+}
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-decor~="orange-spark"])::after {
+  content: ''; position: absolute; inset: 0;
+  pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(40% 32% at 88% 18%, rgba(254,127,0,0.22), transparent 65%);
+}
+.deck[data-mode="present"] .slide-frame:has(> .slide[data-decor~="orange-spark"]) > .slide[data-decor~="orange-spark"]::before {
+  background-image: none;
 }
 
 /* aurora: three-color ambient (matches the legacy .has-aurora class) */

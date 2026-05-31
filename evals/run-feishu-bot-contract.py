@@ -51,24 +51,27 @@ def main() -> int:
             conversation_key="chat:user",
             base_url="http://127.0.0.1:8765",
         )
-        if not second.task or second.task.get("status") != "awaiting_outline_confirmation":
-            print("bot did not stop for outline confirmation", file=sys.stderr)
+        if not second.task or second.task.get("status") not in {"awaiting_outline_confirmation", "awaiting_rehearsal_decision"}:
+            print("bot did not produce an outline pause or direct renderer handoff", file=sys.stderr)
             print(second.reply, file=sys.stderr)
             return 1
-        for phrase in ["状态页", "大纲", "确认这个框架"]:
-            if phrase not in second.reply:
-                print(f"outline reply missing {phrase}", file=sys.stderr)
-                print(second.reply, file=sys.stderr)
-                return 1
         feishu_bot.save_state(state, state_path)
 
-        state = feishu_bot.load_state(state_path)
-        third = feishu_bot.handle_message_text(
-            "确认",
-            state,
-            conversation_key="chat:user",
-            base_url="http://127.0.0.1:8765",
-        )
+        if second.task.get("status") == "awaiting_outline_confirmation":
+            for phrase in ["状态页", "确认这个框架"]:
+                if phrase not in second.reply:
+                    print(f"outline reply missing {phrase}", file=sys.stderr)
+                    print(second.reply, file=sys.stderr)
+                    return 1
+            state = feishu_bot.load_state(state_path)
+            third = feishu_bot.handle_message_text(
+                "确认",
+                state,
+                conversation_key="chat:user",
+                base_url="http://127.0.0.1:8765",
+            )
+        else:
+            third = second
         if not third.task or third.task.get("status") != "awaiting_rehearsal_decision":
             print("bot did not stop for rehearsal decision", file=sys.stderr)
             print(third.reply, file=sys.stderr)

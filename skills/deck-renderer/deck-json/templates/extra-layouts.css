@@ -237,7 +237,7 @@
   letter-spacing: -0.01em;
 }
 .slide[data-layout="waterfall"] .bar .delta {
-  font: 700 var(--fs-foot)/1 var(--fs-font-latin);
+  font: 700 var(--fs-body)/1.1 var(--fs-font-latin);
   color: var(--fs-teal);
 }
 .slide[data-layout="waterfall"] .bar.is-neg .delta { color: var(--fs-orange); }
@@ -299,6 +299,7 @@
 }
 .slide[data-layout="issue-tree"] .root .q {
   font: 700 var(--fs-sub)/1.3 var(--fs-font-cjk); color: #fff;
+  text-wrap: balance;
 }
 .slide[data-layout="issue-tree"] .root .why {
   margin-top: 14px;

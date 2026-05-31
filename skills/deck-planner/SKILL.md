@@ -194,10 +194,10 @@ planner 输出不能只是一张“页码 + 标题 + layout”的目录表。进
 
 ## Renderer handoff
 
-用户确认 outline 后才允许 handoff;确认前只交付单一用户可见确认稿 `DESIGN_PLAN.md`,不生成 deckhtml。`input/outline.json` 是给 renderer / simulator 消费的机器契约,不要作为重复用户产物暴露:
+Renderer handoff 是条件门:先落单一用户可见确认稿 `DESIGN_PLAN.md` 和机器契约 `input/outline.json`;若所有页面都落在 renderer 默认 schema / 标准 layout 内,可直接 handoff 给 renderer;若包含 `raw` / `replica` / `iframe-embed` / 外部 lift / 重度自定义 HTML / 超默认 schema,则先等待用户确认。`input/outline.json` 是给 renderer / simulator 消费的机器契约,不要作为重复用户产物暴露:
 
 1. 把 outline JSON 放进本次 run 的 `input/outline.json`,并校验 `schema/deck-outline.schema.json`。
-2. 用户确认只改变 workflow gate,不另建中间 JSON;避免产生第二份规划事实。
+2. 用户确认前若修改 `DESIGN_PLAN.md`,确认动作必须先把确认稿中的受控字段同步回 `input/outline.json`;同步后仍以这一份 outline 作为唯一规划事实,不另建中间 JSON。
 3. 调用 `deck-renderer` 的 DeckJSON-first 流程。
 4. 根据 `outline.slides[].layout_candidate` 写 `deck.json`。
 5. 根据 `asset_plan` 和 `source_dossier_refs` 解析素材;缺素材时用 open question 或安全兜底。

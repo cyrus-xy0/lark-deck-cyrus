@@ -72,6 +72,7 @@ except Exception:
 #    audit_ui_mocks_are_html     UI1              mock UIs are HTML, not images
 #    audit_text_ids              T00-T03          data-text-id format + texts.md sync
 #    audit_visual_richness       R-VIS-NO-IMAGERY deck reads flat (advisory)
+#    audit_self_contained        R-SELF-CONTAINED per-slide CSS should travel with slide
 #    audit_perf                  P50-P55          inline-size / asset budgets
 #    audit_feedback_md           R-FEEDBACK       FEEDBACK.md present at hand-off
 # ===========================================================================
@@ -623,6 +624,7 @@ STATIC_AUDITS = [
     (audit_language_policy,    ('html', 'slides', 'iss')),
     (audit_list_echo,          ('slides', 'iss')),
     (audit_visual_richness,    ('slides', 'iss')),
+    (audit_self_contained,     ('html', 'iss')),
     (audit_perf,               ('html_for_perf', 'iss')),
     (audit_text_ids,           ('html', 'path', 'iss')),
     (audit_feedback_md,        ('path', 'iss')),

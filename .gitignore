@@ -42,6 +42,7 @@ package-lock.json
 
 # Project-local Python/browser deps installed by install.sh.
 .deps/
+.venv/
 
 # Backup files
 *.bak

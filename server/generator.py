@@ -2029,6 +2029,7 @@ def outline_review_markdown(outline: dict[str, Any]) -> str:
         f"目标：{brief.get('objective', '')}",
         f"行业 / 场景：{scene.get('industry', '')} · {scene.get('business_moment', '')}",
         f"云端库状态：{library['message']}",
+        "同步说明：确认时系统会把本文中的受控字段回写到 `input/outline.json`,再交给 renderer。请保留表格和 P1/P2 小节结构。",
     ]
     if source_labels:
         lines.append(f"来源线索：{'；'.join(source_labels[:6])}")
@@ -2041,8 +2042,8 @@ def outline_review_markdown(outline: dict[str, Any]) -> str:
             "",
             "## 逐页方案表",
             "",
-            "| 页码 | 角色 | 唯一重点 | Layout / Path | Hero | 密度预算 |",
-            "|-|-|-|-|-|-|",
+            "| 页码 | Key | 角色 | 唯一重点 | Layout / Path | Hero | 密度预算 |",
+            "|-|-|-|-|-|-|-|",
         ]
     )
     for index, slide in enumerate(slides, start=1):
@@ -2052,6 +2053,7 @@ def outline_review_markdown(outline: dict[str, Any]) -> str:
             + " | ".join(
                 [
                     str(index),
+                    str(slide.get("key", "")),
                     str(slide.get("role", "")),
                     str(slide.get("message", "")),
                     f"`{layout_label(slide)}`",
@@ -2089,8 +2091,8 @@ def outline_review_markdown(outline: dict[str, Any]) -> str:
     lines.append("")
     lines.extend(["## 事实边界", ""])
     claim_discipline = outline.get("claim_discipline") if isinstance(outline.get("claim_discipline"), dict) else {}
-    unsupported = normalize_list(claim_discipline.get("unsupported_claims"))
-    confirmations = normalize_list(claim_discipline.get("needs_user_confirmation"))
+    unsupported = text_items(claim_discipline.get("unsupported_claims"))
+    confirmations = text_items(claim_discipline.get("needs_user_confirmation"))
     if unsupported:
         lines.append("- 不支持直接声称：" + "；".join(unsupported))
     if confirmations:
@@ -2112,6 +2114,482 @@ def outline_review_markdown(outline: dict[str, Any]) -> str:
         ]
     )
     return "\n".join(lines).strip() + "\n"
+
+
+def clean_design_plan_value(value: str) -> str:
+    text = value.strip()
+    text = re.sub(r"^`(.+)`$", r"\1", text)
+    text = re.sub(r"^\*\*(.+)\*\*$", r"\1", text)
+    return html.unescape(text).strip()
+
+
+def markdown_table_cells(line: str) -> list[str]:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return []
+    cells = [clean_design_plan_value(cell) for cell in stripped.strip("|").split("|")]
+    if not cells or all(re.fullmatch(r":?-{1,}:?", cell.replace(" ", "")) for cell in cells):
+        return []
+    return cells
+
+
+def parse_page_number(value: str) -> int | None:
+    match = re.search(r"(\d+)", value)
+    return int(match.group(1)) if match else None
+
+
+def parse_design_plan_bool(value: str) -> bool | None:
+    token = clean_design_plan_value(value).lower()
+    if token in {"是", "yes", "y", "true", "1", "hero"}:
+        return True
+    if token in {"否", "no", "n", "false", "0", "普通"}:
+        return False
+    return None
+
+
+def parse_layout_path(value: str) -> tuple[str, str | None] | None:
+    text = clean_design_plan_value(value)
+    if not text:
+        return None
+    parts = [part.strip() for part in text.split("/", 1)]
+    layout = parts[0]
+    if not layout:
+        return None
+    variant = parts[1] if len(parts) > 1 and parts[1] else None
+    return layout, variant
+
+
+def add_design_plan_change(changes: list[dict[str, str]], path: str, before: Any, after: Any) -> None:
+    if before == after:
+        return
+    changes.append({"path": path, "before": str(before or ""), "after": str(after or "")})
+
+
+def set_design_plan_field(target: dict[str, Any], key: str, value: Any, path: str, changes: list[dict[str, str]]) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return False
+    before = target.get(key)
+    if before == value:
+        return False
+    target[key] = value
+    add_design_plan_change(changes, path, before, value)
+    return True
+
+
+def split_design_plan_items(value: str) -> list[str]:
+    return [item.strip() for item in re.split(r"\s*；\s*", value) if item.strip()]
+
+
+def section_lines(lines: list[str], heading: str) -> list[str]:
+    start: int | None = None
+    for index, line in enumerate(lines):
+        if line.strip() == f"## {heading}":
+            start = index + 1
+            break
+    if start is None:
+        return []
+    end = len(lines)
+    for index in range(start, len(lines)):
+        if lines[index].startswith("## "):
+            end = index
+            break
+    return lines[start:end]
+
+
+def slide_by_index_or_key(slides: list[dict[str, Any]], page: int | None, key: str = "") -> tuple[int | None, dict[str, Any] | None]:
+    if key:
+        for index, slide in enumerate(slides):
+            if str(slide.get("key") or "") == key:
+                return index, slide
+    if page is not None and 1 <= page <= len(slides):
+        return page - 1, slides[page - 1]
+    return None, None
+
+
+def apply_design_plan_table(
+    outline: dict[str, Any],
+    lines: list[str],
+    changes: list[dict[str, str]],
+    warnings: list[str],
+) -> set[int]:
+    slides = (outline.get("outline") or {}).get("slides")
+    if not isinstance(slides, list):
+        return set()
+    message_changed: set[int] = set()
+    rows = section_lines(lines, "逐页方案表")
+    for line in rows:
+        cells = markdown_table_cells(line)
+        if not cells or cells[0] in {"页码", "Page"}:
+            continue
+        page = parse_page_number(cells[0])
+        has_key_column = len(cells) >= 7
+        key = cells[1] if has_key_column else ""
+        role_i, message_i, layout_i, hero_i, density_i = (2, 3, 4, 5, 6) if has_key_column else (1, 2, 3, 4, 5)
+        slide_index, slide = slide_by_index_or_key(slides, page, key if has_key_column else "")
+        if slide is None or slide_index is None:
+            warnings.append(f"无法匹配逐页方案表行: {line.strip()}")
+            continue
+        if role_i < len(cells):
+            set_design_plan_field(slide, "role", cells[role_i], f"outline.slides[{slide_index}].role", changes)
+        if message_i < len(cells):
+            if set_design_plan_field(slide, "message", cells[message_i], f"outline.slides[{slide_index}].message", changes):
+                message_changed.add(slide_index)
+        if layout_i < len(cells):
+            parsed_layout = parse_layout_path(cells[layout_i])
+            if parsed_layout:
+                layout, variant = parsed_layout
+                candidate = slide.setdefault("layout_candidate", {})
+                if isinstance(candidate, dict):
+                    set_design_plan_field(candidate, "layout", layout, f"outline.slides[{slide_index}].layout_candidate.layout", changes)
+                    if variant:
+                        set_design_plan_field(candidate, "variant", variant, f"outline.slides[{slide_index}].layout_candidate.variant", changes)
+                    elif "variant" in candidate:
+                        before = candidate.pop("variant")
+                        add_design_plan_change(changes, f"outline.slides[{slide_index}].layout_candidate.variant", before, "")
+        if hero_i < len(cells):
+            hero = parse_design_plan_bool(cells[hero_i])
+            if hero is not None:
+                set_design_plan_field(slide, "hero", hero, f"outline.slides[{slide_index}].hero", changes)
+        if density_i < len(cells):
+            set_design_plan_field(slide, "density_budget", cells[density_i], f"outline.slides[{slide_index}].density_budget", changes)
+    return message_changed
+
+
+def apply_design_plan_specs(
+    outline: dict[str, Any],
+    lines: list[str],
+    changes: list[dict[str, str]],
+    warnings: list[str],
+    message_changed: set[int],
+) -> None:
+    slides = (outline.get("outline") or {}).get("slides")
+    if not isinstance(slides, list):
+        return
+    spec_lines = section_lines(lines, "页级设计 Spec")
+    current_index: int | None = None
+    for raw in spec_lines:
+        line = raw.strip()
+        header = re.match(r"^###\s+P(\d+)\s+(.+?)\s*$", line)
+        if header:
+            page = int(header.group(1))
+            slide_index, slide = slide_by_index_or_key(slides, page)
+            current_index = slide_index
+            if slide is None or slide_index is None:
+                warnings.append(f"无法匹配页级设计小节: {line}")
+                continue
+            set_design_plan_field(slide, "title", clean_design_plan_value(header.group(2)), f"outline.slides[{slide_index}].title", changes)
+            continue
+        if current_index is None or current_index >= len(slides):
+            continue
+        slide = slides[current_index]
+        spec = slide.setdefault("design_spec", {})
+        if not isinstance(spec, dict):
+            spec = {}
+            slide["design_spec"] = spec
+        body = re.sub(r"^-\s*", "", line)
+        for label, key in [("Q0", "q0_role"), ("Q1", "q1_memory"), ("Q3", "q3_mood"), ("Q4", "q4_tradeoff")]:
+            prefix = f"{label}："
+            if body.startswith(prefix):
+                value = clean_design_plan_value(body[len(prefix):])
+                changed = set_design_plan_field(spec, key, value, f"outline.slides[{current_index}].design_spec.{key}", changes)
+                if label == "Q1" and changed:
+                    set_design_plan_field(slide, "key_idea", value, f"outline.slides[{current_index}].key_idea", changes)
+                    if current_index not in message_changed:
+                        set_design_plan_field(slide, "message", value, f"outline.slides[{current_index}].message", changes)
+                break
+        if body.startswith("Q2："):
+            hierarchy = spec.setdefault("q2_hierarchy", {})
+            if not isinstance(hierarchy, dict):
+                hierarchy = {}
+                spec["q2_hierarchy"] = hierarchy
+            rest = body[len("Q2："):]
+            for item in split_design_plan_items(rest):
+                match = re.match(r"([ABCDabcd])\s*档\s*=\s*(.+)", item)
+                if not match:
+                    continue
+                tier = match.group(1).lower()
+                value = clean_design_plan_value(match.group(2))
+                set_design_plan_field(hierarchy, tier, value, f"outline.slides[{current_index}].design_spec.q2_hierarchy.{tier}", changes)
+        elif body.startswith("六维："):
+            dims = split_design_plan_items(body[len("六维："):])
+            if dims:
+                before = spec.get("six_dimensions")
+                if before != dims:
+                    spec["six_dimensions"] = dims
+                    add_design_plan_change(changes, f"outline.slides[{current_index}].design_spec.six_dimensions", before, dims)
+        elif body.startswith("视觉意图："):
+            value = clean_design_plan_value(body[len("视觉意图："):])
+            set_design_plan_field(slide, "visual_intent", value, f"outline.slides[{current_index}].visual_intent", changes)
+
+
+def apply_design_plan_list_section(
+    outline: dict[str, Any],
+    lines: list[str],
+    heading: str,
+    target_key: str,
+    changes: list[dict[str, str]],
+    warnings: list[str],
+) -> None:
+    slides = (outline.get("outline") or {}).get("slides")
+    if not isinstance(slides, list):
+        return
+    for raw in section_lines(lines, heading):
+        line = raw.strip()
+        match = re.match(r"^-\s*P(\d+)\s*[：:]\s*(.+?)\s*$", line)
+        if not match:
+            continue
+        page = int(match.group(1))
+        slide_index, slide = slide_by_index_or_key(slides, page)
+        if slide is None or slide_index is None:
+            warnings.append(f"无法匹配{heading}行: {line}")
+            continue
+        value = clean_design_plan_value(match.group(2))
+        changed = set_design_plan_field(slide, target_key, value, f"outline.slides[{slide_index}].{target_key}", changes)
+        if target_key == "fact_boundary" and changed:
+            before = slide.get("risk")
+            risk = [value]
+            if before != risk:
+                slide["risk"] = risk
+                add_design_plan_change(changes, f"outline.slides[{slide_index}].risk", before, risk)
+
+
+def apply_design_plan_claims(outline: dict[str, Any], lines: list[str], changes: list[dict[str, str]]) -> None:
+    claim_discipline = outline.setdefault("claim_discipline", {})
+    if not isinstance(claim_discipline, dict):
+        claim_discipline = {}
+        outline["claim_discipline"] = claim_discipline
+    questions: list[str] = []
+    in_questions = False
+    for raw in lines:
+        line = raw.strip()
+        if line == "## 需要确认":
+            in_questions = True
+            continue
+        if line.startswith("## ") and line != "## 需要确认":
+            in_questions = False
+        if line.startswith("- 不支持直接声称："):
+            value = split_design_plan_items(line[len("- 不支持直接声称："):])
+            before = claim_discipline.get("unsupported_claims")
+            if before != value:
+                claim_discipline["unsupported_claims"] = value
+                add_design_plan_change(changes, "claim_discipline.unsupported_claims", before, value)
+        elif line.startswith("- 需要用户确认："):
+            value = split_design_plan_items(line[len("- 需要用户确认："):])
+            before = claim_discipline.get("needs_user_confirmation")
+            if before != value:
+                claim_discipline["needs_user_confirmation"] = value
+                add_design_plan_change(changes, "claim_discipline.needs_user_confirmation", before, value)
+        elif in_questions and line.startswith("- "):
+            item = clean_design_plan_value(line[2:])
+            if item:
+                questions.append(item)
+    if questions:
+        before = outline.get("open_questions")
+        if before != questions:
+            outline["open_questions"] = questions
+            add_design_plan_change(changes, "open_questions", before, questions)
+
+
+def apply_design_plan_markdown(outline: dict[str, Any], design_plan_text: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    updated = copy.deepcopy(outline)
+    lines = design_plan_text.splitlines()
+    changes: list[dict[str, str]] = []
+    warnings: list[str] = []
+    brief = updated.setdefault("brief", {})
+    scene = updated.setdefault("scene", {})
+    plan = updated.setdefault("outline", {})
+
+    for raw in lines:
+        line = raw.strip()
+        if line.startswith("# ") and line.endswith(" H5 Deck 设计方案"):
+            title = line[2: -len(" H5 Deck 设计方案")].strip()
+            set_design_plan_field(brief, "title", title, "brief.title", changes)
+        elif line.startswith("受众："):
+            set_design_plan_field(brief, "audience", line[len("受众："):], "brief.audience", changes)
+        elif line.startswith("目标："):
+            set_design_plan_field(brief, "objective", line[len("目标："):], "brief.objective", changes)
+        elif line.startswith("行业 / 场景："):
+            rest = line[len("行业 / 场景："):]
+            parts = [part.strip() for part in rest.split("·", 1)]
+            if parts:
+                set_design_plan_field(scene, "industry", parts[0], "scene.industry", changes)
+            if len(parts) > 1:
+                set_design_plan_field(scene, "business_moment", parts[1], "scene.business_moment", changes)
+
+    arc = "\n".join(line.strip() for line in section_lines(lines, "叙事弧") if line.strip())
+    if arc:
+        set_design_plan_field(plan, "arc", arc, "outline.arc", changes)
+
+    message_changed = apply_design_plan_table(updated, lines, changes, warnings)
+    apply_design_plan_specs(updated, lines, changes, warnings, message_changed)
+    apply_design_plan_list_section(updated, lines, "内容补全计划", "content_completion", changes, warnings)
+    apply_design_plan_list_section(updated, lines, "事实边界", "fact_boundary", changes, warnings)
+    apply_design_plan_claims(updated, lines, changes)
+
+    return updated, {
+        "checked": True,
+        "change_count": len(changes),
+        "changes": changes,
+        "warnings": warnings,
+    }
+
+
+def design_plan_sync_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Design Plan Sync",
+        "",
+        f"- checked: {report.get('checked', False)}",
+        f"- changes: {report.get('change_count', 0)}",
+    ]
+    warnings = report.get("warnings") if isinstance(report.get("warnings"), list) else []
+    if warnings:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- {item}" for item in warnings)
+    changes = report.get("changes") if isinstance(report.get("changes"), list) else []
+    if changes:
+        lines.extend(["", "## Applied Changes", ""])
+        for item in changes[:80]:
+            lines.append(f"- `{item.get('path')}`: {item.get('before')} -> {item.get('after')}")
+    return "\n".join(lines).strip() + "\n"
+
+
+def sync_design_plan_to_outline(task_id: str, outline: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    task_dir = RUNS_DIR / task_id
+    design_plan_path = task_dir / "output" / "DESIGN_PLAN.md"
+    if not design_plan_path.exists():
+        return outline, {"checked": False, "change_count": 0, "changes": [], "warnings": ["DESIGN_PLAN.md not found"]}
+    updated, report = apply_design_plan_markdown(outline, design_plan_path.read_text(encoding="utf-8"))
+    write_json(task_dir / "input" / "design-plan-sync.json", report)
+    (task_dir / "output" / "DESIGN_PLAN_SYNC.md").write_text(design_plan_sync_markdown(report), encoding="utf-8")
+    return updated, report
+
+
+STANDARD_OUTLINE_LAYOUTS = {
+    "cover",
+    "agenda",
+    "section",
+    "content",
+    "stats",
+    "chart",
+    "image-text",
+    "table",
+    "logo-wall",
+    "arch-stack",
+    "flow",
+    "quote",
+    "end",
+}
+
+STANDARD_OUTLINE_VARIANTS = {
+    "content": {"3up", "2col", "blocks", "matrix", "before-after", "story-case"},
+    "stats": {"row", "hero", "waterfall"},
+    "chart": {"bar", "line", "donut"},
+    "flow": {"timeline", "process", "tree", "swim"},
+}
+
+RISKY_OUTLINE_LAYOUTS = {"raw", "replica", "iframe-embed"}
+RISKY_OUTLINE_TERMS = [
+    "raw",
+    "replica",
+    "iframe",
+    "iframe-embed",
+    "lifted",
+    "foreign lift",
+    "bespoke html",
+    "custom html",
+    "手写html",
+    "手写 html",
+    "自定义html",
+    "自定义 html",
+    "外部html",
+    "外部 html",
+    "原生拼接",
+    "旧页复刻",
+    "逐像素复刻",
+]
+
+
+def outline_slides(outline: dict[str, Any]) -> list[dict[str, Any]]:
+    slides = (outline.get("outline") or {}).get("slides")
+    return [slide for slide in slides if isinstance(slide, dict)] if isinstance(slides, list) else []
+
+
+def outline_confirmation_reasons(outline: dict[str, Any], request: dict[str, Any]) -> list[str]:
+    """Return reasons a design plan should pause before renderer handoff."""
+    reasons: list[str] = []
+    if request.get("plan_only") or request.get("require_outline_confirmation"):
+        reasons.append("request explicitly asks for plan-only/outline confirmation")
+
+    for index, slide in enumerate(outline_slides(outline), start=1):
+        key = str(slide.get("key") or f"p{index}")
+        candidate = slide.get("layout_candidate") if isinstance(slide.get("layout_candidate"), dict) else {}
+        layout = str(candidate.get("layout") or slide.get("layout") or "").strip()
+        variant = str(candidate.get("variant") or slide.get("variant") or "").strip()
+
+        if layout in RISKY_OUTLINE_LAYOUTS:
+            reasons.append(f"{key}: layout {layout} needs user confirmation before renderer")
+        elif layout and layout not in STANDARD_OUTLINE_LAYOUTS:
+            reasons.append(f"{key}: layout {layout} is outside the default renderer schema")
+        elif variant and layout in STANDARD_OUTLINE_VARIANTS and variant not in STANDARD_OUTLINE_VARIANTS[layout]:
+            reasons.append(f"{key}: variant {layout}/{variant} is outside the default renderer schema")
+
+        for marker in ["requires_confirmation", "needs_confirmation", "requires_user_confirmation", "bespoke", "foreign_lift"]:
+            if slide.get(marker) or candidate.get(marker):
+                reasons.append(f"{key}: {marker} is set")
+                break
+
+        text_blob = " ".join(str(item).lower() for item in walk_text({
+            "title": slide.get("title", ""),
+            "visual_intent": slide.get("visual_intent", ""),
+            "content_completion": slide.get("content_completion", ""),
+            "layout_candidate": candidate,
+        }))
+        if any(term in text_blob for term in RISKY_OUTLINE_TERMS):
+            reasons.append(f"{key}: design notes mention raw/replica/iframe/lift-style work")
+
+    return reasons[:12]
+
+
+def create_planned_or_run_task(
+    request: dict[str, Any],
+    *,
+    task_id: str | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    """Create the design plan, then auto-handoff low-risk outlines to renderer."""
+    task = create_outline_task(request, task_id=task_id, base_url=base_url)
+    if task.get("status") != "awaiting_outline_confirmation":
+        return task
+
+    task_dir = RUNS_DIR / task["id"]
+    outline_path = task_dir / "input" / "outline.json"
+    outline = read_json(outline_path) if outline_path.exists() else {}
+    reasons = outline_confirmation_reasons(outline, request)
+    force = bool(request.get("auto_confirm_outline") and (
+        not reasons or request.get("allow_skip_outline_confirmation")
+    ))
+    should_auto_handoff = not request.get("plan_only") and (not reasons or force)
+
+    task["outline_confirmation_policy"] = {
+        "auto_handoff": bool(should_auto_handoff),
+        "reasons": reasons,
+    }
+    if reasons and not should_auto_handoff:
+        task["confirmation_reasons"] = reasons
+        save_task(task_dir, task)
+        return task
+    if reasons and force:
+        task.setdefault("warnings", []).append(
+            "outline contains risky renderer handoff signals but auto-confirm was explicitly allowed: "
+            + "；".join(reasons)
+        )
+        save_task(task_dir, task)
+
+    return confirm_outline_task(task["id"], base_url=base_url)
 
 
 def output_artifacts(task_id: str, output_dir: Path, base_url: str | None = None) -> dict[str, str]:
@@ -3710,7 +4188,9 @@ def confirm_outline_task(task_id: str, *, base_url: str | None = None) -> dict[s
     if not request_path.exists() or not outline_path.exists():
         raise FileNotFoundError(f"outline task not found: {task_id}")
     request = read_json(request_path)
-    request["outline"] = read_json(outline_path)
+    outline, sync_report = sync_design_plan_to_outline(task_id, read_json(outline_path))
+    write_json(outline_path, outline)
+    request["outline"] = outline
     request["outline_confirmed"] = True
     request["deck_confirmation_required"] = True
     return create_or_run_task(
@@ -3726,6 +4206,11 @@ def confirm_outline_task(task_id: str, *, base_url: str | None = None) -> dict[s
                     "previous_status": task.get("status", ""),
                 }
             ],
+            "design_plan_sync": {
+                "checked": sync_report.get("checked", False),
+                "change_count": sync_report.get("change_count", 0),
+                "warnings": sync_report.get("warnings", []),
+            },
         },
         require_deck_confirmation=True,
     )
@@ -5011,9 +5496,6 @@ class GeneratorHandler(BaseHTTPRequestHandler):
         try:
             if parts == ["decks"]:
                 payload = self.read_body_json()
-                if payload.get("auto_confirm_outline") and not payload.get("allow_skip_outline_confirmation"):
-                    self.send_json(409, {"error": "outline confirmation is required before rendering; call /decks/{id}/confirm-outline after user confirmation"})
-                    return
                 if payload.get("deck_json") or payload.get("outline_confirmed"):
                     task = create_or_run_task(
                         payload,
@@ -5021,7 +5503,7 @@ class GeneratorHandler(BaseHTTPRequestHandler):
                         require_deck_confirmation=bool(payload.get("deck_confirmation_required")),
                     )
                 else:
-                    task = create_outline_task(payload, base_url=self.base_url())
+                    task = create_planned_or_run_task(payload, base_url=self.base_url())
                 self.send_json(201 if success_like_status(task["status"]) else 500, task)
                 return
             if len(parts) == 3 and parts[0] == "decks" and parts[2] == "confirm-outline":
@@ -5047,10 +5529,20 @@ class GeneratorHandler(BaseHTTPRequestHandler):
             if len(parts) == 3 and parts[0] == "decks" and parts[2] == "regenerate":
                 task_id = parts[1]
                 request_path = RUNS_DIR / task_id / "input" / "request.json"
+                outline_path = RUNS_DIR / task_id / "input" / "outline.json"
                 if not request_path.exists():
                     self.send_json(404, {"error": "task not found", "id": task_id})
                     return
                 payload = read_json(request_path)
+                if outline_path.exists():
+                    outline, sync_report = sync_design_plan_to_outline(task_id, read_json(outline_path))
+                    write_json(outline_path, outline)
+                    payload["outline"] = outline
+                    payload["design_plan_sync"] = {
+                        "checked": sync_report.get("checked", False),
+                        "change_count": sync_report.get("change_count", 0),
+                        "warnings": sync_report.get("warnings", []),
+                    }
                 payload["outline_confirmed"] = True
                 task = create_or_run_task(payload, task_id=task_id, base_url=self.base_url(), require_deck_confirmation=True)
                 self.send_json(200 if success_like_status(task["status"]) else 500, task)
@@ -5113,12 +5605,16 @@ def cmd_create(args: argparse.Namespace) -> int:
         request = {"brief": read_json(args.brief)}
     else:
         raise SystemExit("create requires --request, --deck-json, or --brief")
+    if args.plan_only:
+        request["plan_only"] = True
     if args.auto_confirm_outline:
-        if not args.allow_skip_outline_confirmation:
-            raise SystemExit("--auto-confirm-outline now requires --allow-skip-outline-confirmation; default flow must stop for user outline confirmation")
-        request["outline_confirmed"] = True
-    if not request.get("deck_json") and not request.get("outline_confirmed"):
+        request["auto_confirm_outline"] = True
+        if args.allow_skip_outline_confirmation:
+            request["allow_skip_outline_confirmation"] = True
+    if args.plan_only and not request.get("deck_json"):
         task = create_outline_task(request, base_url=args.base_url)
+    elif not request.get("deck_json") and not request.get("outline_confirmed"):
+        task = create_planned_or_run_task(request, base_url=args.base_url)
     else:
         task = create_or_run_task(request, base_url=args.base_url, require_deck_confirmation=args.require_deck_confirmation)
     print(json.dumps(task, ensure_ascii=False, indent=2))
@@ -5142,9 +5638,19 @@ def cmd_journey(args: argparse.Namespace) -> int:
 
 def cmd_regenerate(args: argparse.Namespace) -> int:
     request_path = RUNS_DIR / args.task_id / "input" / "request.json"
+    outline_path = RUNS_DIR / args.task_id / "input" / "outline.json"
     if not request_path.exists():
         raise SystemExit(f"task not found: {args.task_id}")
     request = read_json(request_path)
+    if outline_path.exists():
+        outline, sync_report = sync_design_plan_to_outline(args.task_id, read_json(outline_path))
+        write_json(outline_path, outline)
+        request["outline"] = outline
+        request["design_plan_sync"] = {
+            "checked": sync_report.get("checked", False),
+            "change_count": sync_report.get("change_count", 0),
+            "warnings": sync_report.get("warnings", []),
+        }
     request["outline_confirmed"] = True
     task = create_or_run_task(request, task_id=args.task_id, base_url=args.base_url, require_deck_confirmation=True)
     print(json.dumps(task, ensure_ascii=False, indent=2))
@@ -5208,9 +5714,9 @@ def main(argv: list[str] | None = None) -> int:
     create.add_argument("--brief", type=Path, help="brief JSON; used when no request is supplied")
     create.add_argument("--deck-json", type=Path, help="DeckJSON source; skips deterministic brief planner")
     create.add_argument("--base-url", help="external base URL used to populate preview/edit links")
-    create.add_argument("--plan-only", action="store_true", help="stop after planner and wait for outline confirmation")
-    create.add_argument("--auto-confirm-outline", action="store_true", help="mark outline confirmed and render immediately")
-    create.add_argument("--allow-skip-outline-confirmation", action="store_true", help="explicitly allow --auto-confirm-outline for non-interactive tests only")
+    create.add_argument("--plan-only", action="store_true", help="stop after planner even if the outline is low-risk")
+    create.add_argument("--auto-confirm-outline", action="store_true", help="request renderer handoff after planner when policy allows it")
+    create.add_argument("--allow-skip-outline-confirmation", action="store_true", help="allow --auto-confirm-outline to force risky handoff non-interactively")
     create.add_argument("--require-deck-confirmation", action="store_true", help="wait for user deck confirmation before ingestion")
     create.set_defaults(func=cmd_create)
 
